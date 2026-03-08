@@ -458,6 +458,14 @@ body {
   background: #244267;
 }
 
+.winner-btn.view3d {
+  background: #4f5fb7;
+}
+
+.winner-btn.view3d:hover {
+  background: #3c4a96;
+}
+
 .winner-btn.restart {
   background: #2f6e58;
 }
@@ -512,6 +520,69 @@ body {
     opacity: 0;
     transform: translateY(-14px) scale(0.4);
   }
+}
+
+.three-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 760;
+  background: #11182780;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.three-modal {
+  width: min(920px, 96vw);
+  max-height: calc(100vh - 20px);
+  border-radius: 16px;
+  border: 1px solid #9bb2d8;
+  background: #f4f7ff;
+  box-shadow: 0 18px 40px #101a3247;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.three-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #ccdaef;
+  background: #f4f7ff;
+}
+
+.three-head h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #203258;
+}
+
+.three-close {
+  border: none;
+  border-radius: 8px;
+  background: #2f4f87;
+  color: #fff;
+  font-weight: 700;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.three-close:hover {
+  background: #243e6a;
+}
+
+.three-canvas {
+  width: 100%;
+  aspect-ratio: 5 / 4;
+  min-height: 360px;
+  max-height: calc(100vh - 92px);
+  flex: 1 1 auto;
 }
 
 @media (min-width: 980px) {
@@ -599,5 +670,9 @@ body {
 
   .winner-title {
     font-size: 1.2rem;
+  }
+
+  .three-canvas {
+    min-height: 240px;
   }
 }

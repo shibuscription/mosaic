@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { BASE_SIZE, MAX_LEVEL, TOTAL_PIECES, type AutoPlacement, type GameState, type Move, type PlayerColor } from './game/types'
 import { createInitialGameState, getLegalMoves, getLevelSize, getPiece, placeManualPiece } from './game/logic'
+import { FinalBoard3DModal } from './components/FinalBoard3DModal'
 import './style.css'
 
 type DisplayColorId =
@@ -94,6 +95,7 @@ export default function App() {
   const [soundOn, setSoundOn] = useState(true)
   const [isAnimating, setIsAnimating] = useState(false)
   const [isPlayback, setIsPlayback] = useState(false)
+  const [is3DOpen, setIs3DOpen] = useState(false)
   const [revealedAutoCount, setRevealedAutoCount] = useState(0)
   const [animatingKey, setAnimatingKey] = useState<string | null>(null)
   const [matchRecord, setMatchRecord] = useState<MatchRecord>({
@@ -134,6 +136,14 @@ export default function App() {
     '--color-yellow': yellowTheme.hex,
     '--color-yellow-soft': hexToRgba(yellowTheme.hex, 0.26),
   } as CSSProperties
+  const pieceColorMap = useMemo(
+    () => ({
+      blue: blueTheme.hex,
+      yellow: yellowTheme.hex,
+      neutral: '#8f9aae',
+    }),
+    [blueTheme.hex, yellowTheme.hex],
+  )
 
   const legalSet = useMemo(() => {
     if (game.winner) {
@@ -375,6 +385,7 @@ export default function App() {
     clearAnimationTimers()
     setIsAnimating(false)
     setIsPlayback(false)
+    setIs3DOpen(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
     setDisplayRemaining({ ...game.remaining })
@@ -389,6 +400,7 @@ export default function App() {
     clearAnimationTimers()
     setIsAnimating(false)
     setIsPlayback(false)
+    setIs3DOpen(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
     lastWinnerRef.current = null
@@ -414,6 +426,7 @@ export default function App() {
     clearAnimationTimers()
     setIsAnimating(false)
     setIsPlayback(true)
+    setIs3DOpen(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
     lastWinnerRef.current = null
@@ -436,6 +449,7 @@ export default function App() {
     clearAnimationTimers()
     setIsAnimating(false)
     setIsPlayback(false)
+    setIs3DOpen(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
 
@@ -626,6 +640,9 @@ export default function App() {
             <div className="winner-name">{INTERNAL_LABEL[game.winner]} Wins</div>
             <div className="winner-sub">Color: {colorById.get(playerColors[game.winner])?.label ?? playerColors[game.winner]}</div>
             <div className="winner-actions">
+              <button type="button" className="winner-btn view3d" onClick={() => setIs3DOpen(true)}>
+                3D View
+              </button>
               <button type="button" className="winner-btn playback" onClick={handlePlayback}>
                 Playback
               </button>
@@ -640,6 +657,9 @@ export default function App() {
             </div>
           </div>
         </div>
+      ) : null}
+      {is3DOpen && game.winner ? (
+        <FinalBoard3DModal board={game.board} colors={pieceColorMap} onClose={() => setIs3DOpen(false)} />
       ) : null}
 
       {setupOpen ? (

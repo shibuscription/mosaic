@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { BASE_SIZE, MAX_LEVEL, TOTAL_PIECES, type AutoPlacement, type Move, type PlayerColor } from './game/types'
+import { BASE_SIZE, MAX_LEVEL, TOTAL_PIECES, type AutoPlacement, type GameState, type Move, type PlayerColor } from './game/types'
 import { createInitialGameState, getLegalMoves, getLevelSize, getPiece, placeManualPiece } from './game/logic'
 import './style.css'
 
@@ -39,6 +39,11 @@ interface MatchRecord {
   winner: PlayerColor | null
 }
 
+interface UndoSnapshot {
+  game: GameState
+  matchRecord: MatchRecord
+}
+
 const COLOR_OPTIONS: ColorOption[] = [
   { id: 'blue', label: 'Royal Blue', hex: '#2563eb' },
   { id: 'cyan', label: 'Pastel Sky', hex: '#8ecae6' },
@@ -72,7 +77,9 @@ const PLAYBACK_AUTO_MS = 120
 const PLAYBACK_GAP_MS = 70
 
 export default function App() {
-  const [game, setGame] = useState(createInitialGameState)
+  const initialGame = useMemo(() => createInitialGameState(), [])
+  const [game, setGame] = useState(initialGame)
+  const [displayRemaining, setDisplayRemaining] = useState(() => ({ ...initialGame.remaining }))
   const [boardSize, setBoardSize] = useState(() => {
     if (typeof window === 'undefined') {
       return 640
@@ -94,6 +101,16 @@ export default function App() {
     moves: [],
     winner: null,
   })
+  const [history, setHistory] = useState<UndoSnapshot[]>([
+    {
+      game: cloneGameState(initialGame),
+      matchRecord: cloneMatchRecord({
+        players: { blue: 'blue', yellow: 'yellow' },
+        moves: [],
+        winner: null,
+      }),
+    },
+  ])
 
   const boardStageRef = useRef<HTMLElement | null>(null)
   const timeoutIdsRef = useRef<number[]>([])
@@ -178,6 +195,12 @@ export default function App() {
     playWinnerSound()
   }, [game.winner])
 
+  useEffect(() => {
+    if (!isAnimating && !isPlayback) {
+      setDisplayRemaining({ ...game.remaining })
+    }
+  }, [game.remaining, isAnimating, isPlayback])
+
   const positions = useMemo(() => {
     const cells: Array<{
       level: number
@@ -244,33 +267,42 @@ export default function App() {
       autoPlacements: nextState.lastAutoPlacements,
     }
 
-    setMatchRecord((prev) => ({
-      ...prev,
-      moves: [...prev.moves, moveRecord],
+    const nextRecord: MatchRecord = {
+      ...matchRecord,
+      moves: [...matchRecord.moves, moveRecord],
       winner: nextState.winner,
-    }))
+    }
 
-    playMoveSequence(nextState)
+    setMatchRecord(nextRecord)
+    setHistory((prev) => [...prev, { game: cloneGameState(nextState), matchRecord: cloneMatchRecord(nextRecord) }])
+
+    playMoveSequence(nextState, game.remaining)
   }
 
-  function playMoveSequence(nextState: ReturnType<typeof placeManualPiece>): void {
-    startResolvedAnimation(nextState, MANUAL_ANIM_MS, AUTO_STEP_MS)
+  function playMoveSequence(
+    nextState: ReturnType<typeof placeManualPiece>,
+    startRemaining: Record<PlayerColor, number>,
+  ): void {
+    startResolvedAnimation(nextState, startRemaining, MANUAL_ANIM_MS, AUTO_STEP_MS)
   }
 
   function startResolvedAnimation(
     nextState: ReturnType<typeof placeManualPiece>,
+    startRemaining: Record<PlayerColor, number>,
     manualAnimMs: number,
     autoStepMs: number,
     onComplete?: () => void,
   ): void {
     clearAnimationTimers()
     setGame(nextState)
+    setDisplayRemaining({ ...startRemaining })
 
     const manual = nextState.lastMove
     if (!manual) {
       setIsAnimating(false)
       setAnimatingKey(null)
       setRevealedAutoCount(nextState.lastAutoPlacements.length)
+      setDisplayRemaining({ ...nextState.remaining })
       return
     }
 
@@ -280,6 +312,13 @@ export default function App() {
     const manualKey = toMoveKey(manual.level, manual.row, manual.col)
     setAnimatingKey(manualKey)
     const manualSoundId = window.setTimeout(() => {
+      const actor = nextState.lastActor
+      if (actor) {
+        setDisplayRemaining((prev) => ({
+          ...prev,
+          [actor]: Math.max(0, prev[actor] - 1),
+        }))
+      }
       playManualSound()
     }, Math.max(70, Math.floor((manualAnimMs / MANUAL_ANIM_MS) * MANUAL_SOUND_DELAY_MS)))
     timeoutIdsRef.current.push(manualSoundId)
@@ -289,6 +328,7 @@ export default function App() {
       const id = window.setTimeout(() => {
         setAnimatingKey(null)
         setIsAnimating(false)
+        setDisplayRemaining({ ...nextState.remaining })
         onComplete?.()
       }, manualAnimMs)
       timeoutIdsRef.current.push(id)
@@ -301,6 +341,10 @@ export default function App() {
           setRevealedAutoCount(index + 1)
           setAnimatingKey(toMoveKey(move.level, move.row, move.col))
           const autoSoundId = window.setTimeout(() => {
+            setDisplayRemaining((prev) => ({
+              ...prev,
+              [move.color]: Math.max(0, prev[move.color] - 1),
+            }))
             playAutoSound(index)
           }, Math.max(45, Math.floor((autoStepMs / AUTO_STEP_MS) * AUTO_SOUND_DELAY_MS)))
           timeoutIdsRef.current.push(autoSoundId)
@@ -309,6 +353,7 @@ export default function App() {
             const finishId = window.setTimeout(() => {
               setAnimatingKey(null)
               setIsAnimating(false)
+              setDisplayRemaining({ ...nextState.remaining })
               onComplete?.()
             }, autoStepMs)
             timeoutIdsRef.current.push(finishId)
@@ -332,6 +377,7 @@ export default function App() {
     setIsPlayback(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
+    setDisplayRemaining({ ...game.remaining })
     setPendingColors(playerColors)
     setSetupOpen(true)
   }
@@ -347,12 +393,16 @@ export default function App() {
     setRevealedAutoCount(0)
     lastWinnerRef.current = null
     setPlayerColors(pendingColors)
-    setGame(createInitialGameState())
-    setMatchRecord({
+    const freshGame = createInitialGameState()
+    const freshRecord = {
       players: pendingColors,
       moves: [],
       winner: null,
-    })
+    } satisfies MatchRecord
+    setGame(freshGame)
+    setDisplayRemaining({ ...freshGame.remaining })
+    setMatchRecord(freshRecord)
+    setHistory([{ game: cloneGameState(freshGame), matchRecord: cloneMatchRecord(freshRecord) }])
     setSetupOpen(false)
   }
 
@@ -370,11 +420,32 @@ export default function App() {
 
     const initial = createInitialGameState()
     setGame(initial)
+    setDisplayRemaining({ ...initial.remaining })
 
     const startId = window.setTimeout(() => {
       runPlaybackMove(0, initial)
     }, 80)
     timeoutIdsRef.current.push(startId)
+  }
+
+  function handleUndo(): void {
+    if (history.length <= 1 || isAnimating || isPlayback || setupOpen) {
+      return
+    }
+
+    clearAnimationTimers()
+    setIsAnimating(false)
+    setIsPlayback(false)
+    setAnimatingKey(null)
+    setRevealedAutoCount(0)
+
+    const nextHistory = history.slice(0, -1)
+    const prevSnapshot = nextHistory[nextHistory.length - 1]
+    lastWinnerRef.current = prevSnapshot.game.winner
+    setHistory(nextHistory)
+    setGame(cloneGameState(prevSnapshot.game))
+    setDisplayRemaining({ ...prevSnapshot.game.remaining })
+    setMatchRecord(cloneMatchRecord(prevSnapshot.matchRecord))
   }
 
   function runPlaybackMove(index: number, stateAtTurnStart: ReturnType<typeof createInitialGameState>): void {
@@ -391,7 +462,7 @@ export default function App() {
       record.manual.col,
     )
 
-    startResolvedAnimation(resolved, PLAYBACK_MANUAL_MS, PLAYBACK_AUTO_MS, () => {
+    startResolvedAnimation(resolved, stateAtTurnStart.remaining, PLAYBACK_MANUAL_MS, PLAYBACK_AUTO_MS, () => {
       const id = window.setTimeout(() => {
         runPlaybackMove(index + 1, resolved)
       }, PLAYBACK_GAP_MS)
@@ -472,7 +543,7 @@ export default function App() {
           playerLabel={INTERNAL_LABEL.yellow}
           colorHex={yellowTheme.hex}
           colorSoft={hexToRgba(yellowTheme.hex, 0.28)}
-          remaining={game.remaining.yellow}
+          remaining={displayRemaining.yellow}
           isTurn={!game.winner && game.currentTurn === 'yellow'}
           isWinner={game.winner === 'yellow'}
         />
@@ -526,7 +597,7 @@ export default function App() {
           playerLabel={INTERNAL_LABEL.blue}
           colorHex={blueTheme.hex}
           colorSoft={hexToRgba(blueTheme.hex, 0.28)}
-          remaining={game.remaining.blue}
+          remaining={displayRemaining.blue}
           isTurn={!game.winner && game.currentTurn === 'blue'}
           isWinner={game.winner === 'blue'}
         />
@@ -534,6 +605,14 @@ export default function App() {
 
       <button type="button" className="sound-fixed" onClick={() => setSoundOn((prev) => !prev)}>
         Sound: {soundOn ? 'On' : 'Off'}
+      </button>
+      <button
+        type="button"
+        className="undo-fixed"
+        onClick={handleUndo}
+        disabled={history.length <= 1 || isAnimating || isPlayback || setupOpen}
+      >
+        Undo
       </button>
       <button type="button" className="reset-fixed" onClick={openSetup}>
         Reset
@@ -684,4 +763,28 @@ function hexToRgba(hex: string, alpha: number): string {
   const b = Number.parseInt(value.slice(4, 6), 16)
 
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+function cloneGameState(state: GameState): GameState {
+  return {
+    ...state,
+    board: state.board.map((levelRows) =>
+      levelRows.map((row) => row.map((piece) => (piece ? { ...piece } : null))),
+    ),
+    remaining: { ...state.remaining },
+    lastMove: state.lastMove ? { ...state.lastMove } : null,
+    lastAutoPlacements: state.lastAutoPlacements.map((item) => ({ ...item })),
+  }
+}
+
+function cloneMatchRecord(record: MatchRecord): MatchRecord {
+  return {
+    players: { ...record.players },
+    moves: record.moves.map((move) => ({
+      ...move,
+      manual: { ...move.manual },
+      autoPlacements: move.autoPlacements.map((item) => ({ ...item })),
+    })),
+    winner: record.winner,
+  }
 }

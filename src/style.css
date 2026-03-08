@@ -248,6 +248,7 @@ body {
 }
 
 .sound-fixed,
+.undo-fixed,
 .reset-fixed {
   position: fixed;
   z-index: 560;
@@ -268,6 +269,21 @@ body {
 
 .sound-fixed:hover {
   background: #484a5d;
+}
+
+.undo-fixed {
+  right: 100px;
+  bottom: 12px;
+  background: #58657f;
+}
+
+.undo-fixed:hover:not(:disabled) {
+  background: #44506a;
+}
+
+.undo-fixed:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .reset-fixed {
@@ -550,7 +566,13 @@ body {
   }
 
   .sound-fixed {
-    right: 166px;
+    right: 246px;
+    bottom: 10px;
+    padding: 9px 11px;
+  }
+
+  .undo-fixed {
+    right: 92px;
     bottom: 10px;
     padding: 9px 11px;
   }

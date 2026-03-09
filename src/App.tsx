@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { BASE_SIZE, MAX_LEVEL, TOTAL_PIECES, type AutoPlacement, type GameState, type Move, type PlayerColor } from './game/types'
 import { createInitialGameState, getLegalMoves, getLevelSize, getPiece, placeManualPiece } from './game/logic'
+import { chooseCpuMove, type CpuDifficulty } from './game/cpu'
 import { FinalBoard3DModal } from './components/FinalBoard3DModal'
 import './style.css'
 
@@ -26,6 +27,7 @@ interface PlayerColorConfig {
   blue: DisplayColorId
   yellow: DisplayColorId
 }
+type MatchMode = 'pvp' | 'cpu'
 
 interface MoveRecord {
   turn: number
@@ -91,11 +93,16 @@ export default function App() {
   const [setupOpen, setSetupOpen] = useState(true)
   const [playerColors, setPlayerColors] = useState<PlayerColorConfig>({ blue: 'blue', yellow: 'yellow' })
   const [pendingColors, setPendingColors] = useState<PlayerColorConfig>({ blue: 'blue', yellow: 'yellow' })
+  const [matchMode, setMatchMode] = useState<MatchMode>('pvp')
+  const [pendingMode, setPendingMode] = useState<MatchMode>('pvp')
+  const [cpuDifficulty, setCpuDifficulty] = useState<CpuDifficulty>('easy')
+  const [pendingCpuDifficulty, setPendingCpuDifficulty] = useState<CpuDifficulty>('easy')
 
   const [soundOn, setSoundOn] = useState(true)
   const [isAnimating, setIsAnimating] = useState(false)
   const [isPlayback, setIsPlayback] = useState(false)
   const [is3DOpen, setIs3DOpen] = useState(false)
+  const [isCpuThinking, setIsCpuThinking] = useState(false)
   const [revealedAutoCount, setRevealedAutoCount] = useState(0)
   const [animatingKey, setAnimatingKey] = useState<string | null>(null)
   const [matchRecord, setMatchRecord] = useState<MatchRecord>({
@@ -116,6 +123,7 @@ export default function App() {
 
   const boardStageRef = useRef<HTMLElement | null>(null)
   const timeoutIdsRef = useRef<number[]>([])
+  const cpuTimeoutRef = useRef<number | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
   const lastWinnerRef = useRef<PlayerColor | null>(null)
 
@@ -193,9 +201,41 @@ export default function App() {
   useEffect(() => {
     return () => {
       clearAnimationTimers()
+      clearCpuTimer()
       audioCtxRef.current?.close().catch(() => undefined)
     }
   }, [])
+
+  useEffect(() => {
+    clearCpuTimer()
+    if (
+      setupOpen ||
+      isAnimating ||
+      isPlayback ||
+      is3DOpen ||
+      game.winner ||
+      matchMode !== 'cpu' ||
+      game.currentTurn !== 'yellow'
+    ) {
+      setIsCpuThinking(false)
+      return
+    }
+
+    setIsCpuThinking(true)
+    const delayMs = 700 + Math.floor(Math.random() * 301)
+    cpuTimeoutRef.current = window.setTimeout(() => {
+      setIsCpuThinking(false)
+      const cpuMove = chooseCpuMove(game, 'yellow', cpuDifficulty)
+      if (!cpuMove) {
+        return
+      }
+      executeMove(cpuMove.level, cpuMove.row, cpuMove.col)
+    }, delayMs)
+
+    return () => {
+      clearCpuTimer()
+    }
+  }, [cpuDifficulty, game, is3DOpen, isAnimating, isPlayback, matchMode, setupOpen])
 
   useEffect(() => {
     if (!game.winner || game.winner === lastWinnerRef.current) {
@@ -258,8 +298,11 @@ export default function App() {
     return cells
   }, [game.board, game.lastMove, legalSet, hiddenAutoKeySet, animatingKey])
 
-  function onCellClick(level: number, row: number, col: number): void {
-    if (setupOpen || isAnimating || isPlayback) {
+  function executeMove(level: number, row: number, col: number): void {
+    clearCpuTimer()
+    setIsCpuThinking(false)
+
+    if (setupOpen || isAnimating || isPlayback || is3DOpen || game.winner) {
       return
     }
 
@@ -287,6 +330,16 @@ export default function App() {
     setHistory((prev) => [...prev, { game: cloneGameState(nextState), matchRecord: cloneMatchRecord(nextRecord) }])
 
     playMoveSequence(nextState, game.remaining)
+  }
+
+  function onCellClick(level: number, row: number, col: number): void {
+    if (setupOpen || isAnimating || isPlayback || isCpuThinking) {
+      return
+    }
+    if (matchMode === 'cpu' && game.currentTurn === 'yellow') {
+      return
+    }
+    executeMove(level, row, col)
   }
 
   function playMoveSequence(
@@ -381,15 +434,26 @@ export default function App() {
     timeoutIdsRef.current = []
   }
 
+  function clearCpuTimer(): void {
+    if (cpuTimeoutRef.current !== null) {
+      window.clearTimeout(cpuTimeoutRef.current)
+      cpuTimeoutRef.current = null
+    }
+  }
+
   function openSetup(): void {
     clearAnimationTimers()
+    clearCpuTimer()
     setIsAnimating(false)
     setIsPlayback(false)
     setIs3DOpen(false)
+    setIsCpuThinking(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
     setDisplayRemaining({ ...game.remaining })
     setPendingColors(playerColors)
+    setPendingMode(matchMode)
+    setPendingCpuDifficulty(cpuDifficulty)
     setSetupOpen(true)
   }
 
@@ -398,13 +462,17 @@ export default function App() {
       return
     }
     clearAnimationTimers()
+    clearCpuTimer()
     setIsAnimating(false)
     setIsPlayback(false)
     setIs3DOpen(false)
+    setIsCpuThinking(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
     lastWinnerRef.current = null
     setPlayerColors(pendingColors)
+    setMatchMode(pendingMode)
+    setCpuDifficulty(pendingCpuDifficulty)
     const freshGame = createInitialGameState()
     const freshRecord = {
       players: pendingColors,
@@ -424,9 +492,11 @@ export default function App() {
     }
 
     clearAnimationTimers()
+    clearCpuTimer()
     setIsAnimating(false)
     setIsPlayback(true)
     setIs3DOpen(false)
+    setIsCpuThinking(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
     lastWinnerRef.current = null
@@ -447,13 +517,19 @@ export default function App() {
     }
 
     clearAnimationTimers()
+    clearCpuTimer()
     setIsAnimating(false)
     setIsPlayback(false)
     setIs3DOpen(false)
+    setIsCpuThinking(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
 
-    const nextHistory = history.slice(0, -1)
+    const rewindCount =
+      matchMode === 'cpu' && game.lastActor === 'yellow' && history.length > 2
+        ? 2
+        : 1
+    const nextHistory = history.slice(0, -rewindCount)
     const prevSnapshot = nextHistory[nextHistory.length - 1]
     lastWinnerRef.current = prevSnapshot.game.winner
     setHistory(nextHistory)
@@ -554,12 +630,13 @@ export default function App() {
       <section className="table-layout">
         <PlayerPanel
           playerKey="yellow"
-          playerLabel={INTERNAL_LABEL.yellow}
+          playerLabel={matchMode === 'cpu' ? `${INTERNAL_LABEL.yellow} (CPU)` : INTERNAL_LABEL.yellow}
           colorHex={yellowTheme.hex}
           colorSoft={hexToRgba(yellowTheme.hex, 0.28)}
           remaining={displayRemaining.yellow}
           isTurn={!game.winner && game.currentTurn === 'yellow'}
           isWinner={game.winner === 'yellow'}
+          isThinking={matchMode === 'cpu' && !game.winner && game.currentTurn === 'yellow' && isCpuThinking}
         />
 
         <section className="board-stage" aria-label="mosaic board" ref={boardStageRef}>
@@ -614,6 +691,7 @@ export default function App() {
           remaining={displayRemaining.blue}
           isTurn={!game.winner && game.currentTurn === 'blue'}
           isWinner={game.winner === 'blue'}
+          isThinking={false}
         />
       </section>
 
@@ -624,7 +702,7 @@ export default function App() {
         type="button"
         className="undo-fixed"
         onClick={handleUndo}
-        disabled={history.length <= 1 || isAnimating || isPlayback || setupOpen}
+        disabled={history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
       >
         Undo
       </button>
@@ -667,6 +745,58 @@ export default function App() {
           <div className="setup-modal">
             <h2>Player Colors</h2>
             <p>Pick colors for 1P and 2P. Same color is not allowed.</p>
+            <div className="mode-row">
+              <div className="picker-label">Game Mode</div>
+              <div className="mode-options" role="radiogroup" aria-label="game mode">
+                <button
+                  type="button"
+                  className={['mode-option', pendingMode === 'pvp' ? 'selected' : ''].filter(Boolean).join(' ')}
+                  onClick={() => setPendingMode('pvp')}
+                  aria-pressed={pendingMode === 'pvp'}
+                >
+                  2 Player
+                </button>
+                <button
+                  type="button"
+                  className={['mode-option', pendingMode === 'cpu' ? 'selected' : ''].filter(Boolean).join(' ')}
+                  onClick={() => setPendingMode('cpu')}
+                  aria-pressed={pendingMode === 'cpu'}
+                >
+                  vs CPU
+                </button>
+              </div>
+            </div>
+            {pendingMode === 'cpu' ? (
+              <div className="mode-row">
+                <div className="picker-label">CPU Difficulty</div>
+                <div className="mode-options difficulty-options" role="radiogroup" aria-label="cpu difficulty">
+                  <button
+                    type="button"
+                    className={['mode-option', pendingCpuDifficulty === 'easy' ? 'selected' : ''].filter(Boolean).join(' ')}
+                    onClick={() => setPendingCpuDifficulty('easy')}
+                    aria-pressed={pendingCpuDifficulty === 'easy'}
+                  >
+                    Easy
+                  </button>
+                  <button
+                    type="button"
+                    className={['mode-option', pendingCpuDifficulty === 'normal' ? 'selected' : ''].filter(Boolean).join(' ')}
+                    onClick={() => setPendingCpuDifficulty('normal')}
+                    aria-pressed={pendingCpuDifficulty === 'normal'}
+                  >
+                    Normal
+                  </button>
+                  <button
+                    type="button"
+                    className={['mode-option', pendingCpuDifficulty === 'hard' ? 'selected' : ''].filter(Boolean).join(' ')}
+                    onClick={() => setPendingCpuDifficulty('hard')}
+                    aria-pressed={pendingCpuDifficulty === 'hard'}
+                  >
+                    Hard
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             <ColorPickerRow
               label="1 Player"
@@ -705,9 +835,10 @@ interface PlayerPanelProps {
   remaining: number
   isTurn: boolean
   isWinner: boolean
+  isThinking: boolean
 }
 
-function PlayerPanel({ playerKey, playerLabel, colorHex, colorSoft, remaining, isTurn, isWinner }: PlayerPanelProps) {
+function PlayerPanel({ playerKey, playerLabel, colorHex, colorSoft, remaining, isTurn, isWinner, isThinking }: PlayerPanelProps) {
   const percentage = Math.max(0, Math.min(100, (remaining / TOTAL_PIECES) * 100))
 
   return (
@@ -718,7 +849,8 @@ function PlayerPanel({ playerKey, playerLabel, colorHex, colorSoft, remaining, i
       <div className="panel-topline">
         <div className="player-name">{playerLabel}</div>
         {isWinner ? <span className="state-badge winner">WINNER</span> : null}
-        {!isWinner && isTurn ? <span className="state-badge turn">TURN</span> : null}
+        {!isWinner && isThinking ? <span className="state-badge thinking">Thinking...</span> : null}
+        {!isWinner && isTurn && !isThinking ? <span className="state-badge turn">TURN</span> : null}
       </div>
 
       <div className="remaining-text">

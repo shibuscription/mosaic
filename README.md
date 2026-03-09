@@ -1,24 +1,62 @@
 # Mosaic (Browser)
 
-A local two-player implementation of Mosaic with a pyramid board model.
-Current UI is 2D (not full 3D), but it visually shows that upper levels sit at the centers of lower 2x2 blocks.
+ブラウザで遊べるボードゲーム「モザイク」の実装です。  
+2Dの対局画面でプレイし、終局後は最終盤面を3Dビューで鑑賞できます。
 
-## 1. Overview
+- 技術スタック: React + TypeScript + Vite
+- 対応: PC / スマホ / タブレット
+- 対戦: ローカル2人対戦、vs CPU（Easy / Normal / Hard）
 
-- Stack: React + TypeScript + Vite
-- Play mode: Local hot-seat (Blue and Yellow alternate turns)
-- Board model: `board[level][row][col] = Piece | null`
+## 概要
 
-## 2. Rule Spec in This Build
+このプロジェクトは、モザイクの段構造ルールをブラウザで遊べるようにしたものです。  
+盤面ロジックは段別ピラミッド構造（`board[level][row][col]`）で実装し、UIは2Dで視認しやすく表現しています。
 
-### Piece counts
+終局時には以下が利用できます。
 
-- Blue starts with 70 pieces.
-- Yellow starts with 70 pieces.
-- Manual and auto placements both consume pieces.
-- A player wins when their remaining pieces reach 0.
+- Winnerモーダルからの `Playback`（初手からの再生）
+- `3D View`（最終盤面の鑑賞用表示）
 
-### Pyramid board structure
+## 現在できること
+
+- 2D対局画面（段が半マスずつずれる表示）
+- ローカル2人対戦（1台で交互操作）
+- CPU対戦（2P側をCPUが担当）
+- CPU難易度選択（Easy / Normal / Hard）
+- 開始前モーダル設定
+  - 対戦モード選択（2 Player / vs CPU）
+  - プレイヤー色選択
+  - CPU難易度選択（vs CPU時のみ）
+- 勝敗判定（持ち駒0で勝利）
+- Winnerモーダル表示
+- Undo
+  - 2 Player: 1手戻し
+  - vs CPU: 基本的に人間手番まで戻す（CPU着手後は2手戻し）
+- 棋譜の内部記録（手置き + 自動積み上がり）
+- Playback（終局後に初手から再生）
+- 3D View（終局後の最終盤面表示、回転・ズーム）
+- サウンドON/OFF
+- 手置き・連鎖のアニメーション演出
+- 自動積み上がりの時間差表示
+- 残りコマ表示（数字 + バー）が着地タイミングに同期
+- レスポンシブ対応
+  - モバイル時はプレイヤーパネル上下配置
+  - 上側プレイヤーパネルを180度回転（対面プレイ向け）
+- Reset / Restart / Setup 導線
+  - `Reset`: 色・モード設定モーダルを開いて再スタート
+  - Winnerモーダル内 `Restart`: 同様に設定から再開
+
+## ルール（本実装）
+
+### 持ち駒
+
+- 1P / 2P ともに 70 個
+- 手置き・自動積み上がりのどちらでも持ち駒を消費
+- 残りが 0 になったプレイヤーが勝利
+
+### 盤面構造
+
+段ごとにサイズが縮むピラミッド構造:
 
 - level 0: 7x7
 - level 1: 6x6
@@ -28,86 +66,174 @@ Current UI is 2D (not full 3D), but it visually shows that upper levels sit at t
 - level 5: 2x2
 - level 6: 1x1
 
-An upper-level cell maps to the center of a 2x2 block on the level below.
-Initial placement includes one neutral piece at level 0, (3,3).
+初期配置として、`level 0 (3,3)` に中立コマ1つを置きます。
 
-### Manual placement condition
+### 手置き条件
 
-A cell is legal when:
-- it is empty
-- level 0: always legal if empty
-- level > 0: the four supporting cells on the lower level are all filled:
-  - (r,c)
-  - (r+1,c)
-  - (r,c+1)
-  - (r+1,c+1)
+着手先が空であることに加えて:
 
-### Auto placement (center of 4)
+- level 0: 空なら置ける
+- level > 0: 1段下の4マス  
+  `(r,c), (r+1,c), (r,c+1), (r+1,c+1)`  
+  がすべて埋まっている場合のみ置ける
 
-If a 2x2 on the same level is fully filled, the center-above cell at level+1 becomes a candidate.
-If 3 or 4 of those 4 colors are the same Blue/Yellow color, one auto piece of that color is placed.
-Neutral does not count toward either player color.
+### 自動積み上がり
 
-### Chain and resolution order
+同じ level の2x2がすべて埋まっていると、中央上（level+1）に候補が発生します。  
+その4コの色のうち Blue または Yellow が 3つ以上なら、その色で自動配置します。
 
-Auto placement chains until no more valid candidates remain.
-When multiple candidates exist, fixed priority is:
-1. lower level first
-2. lower row first
-3. lower col first
+- 中立はどちらの色にも数えない
+- 自動配置でも持ち駒を1個消費
+- 残りコマが0の色は自動配置されない
 
-### Piece shortage during auto
+### 連鎖と解決順
 
-If a candidate color has 0 remaining pieces, that auto placement is skipped.
-Chain continues with the next available candidate in priority order.
+自動積み上がりで新たな候補が生まれる限り連鎖します。  
+同時候補が複数ある場合は以下の固定順で処理します。
 
-### Winner timing
+1. level が低い順
+2. row が小さい順
+3. col が小さい順
 
-Implementation order is:
-- manual placement
-- resolve auto chains as far as possible
-- winner check
+### 勝利判定
 
-If both players reach 0 in the same turn, this build uses a temporary rule:
-- the acting player of that turn is the winner (no draw)
+1手の処理順は以下です。
 
-## 3. UI Notes
+1. 手置き
+2. 自動連鎖を可能なところまで解決
+3. 勝者判定
 
-- The previous square-grid board UI was removed.
-- The board is rendered as overlapping circular placement points.
-- Each higher level is offset by half spacing to the lower-right, so center stacking is visible.
-- Legal empty moves are highlighted; illegal cells are disabled.
+同一手で両者が0になる場合の暫定仕様:
 
-## 4. Run
+- 引き分けではなく、その手の着手側を勝者にします
+
+## CPU対戦
+
+vs CPUモードでは、CPUが2P側を担当します。  
+探索は軽量で、基本は評価関数ベースです。
+
+- Easy:
+  - ランダム性をやや残したベース挙動
+  - 連鎖や中央寄りを見つつ、ほどよくばらつく
+- Normal:
+  - Easyより自動積み上がり/妨害評価を強化
+  - ランダム性を抑えて良手を選びやすい
+- Hard:
+  - Normalより重みをさらに強化
+  - 軽い1手先応手評価（相手の強い返しを減点）
+  - 終盤補正（即勝ち優先、相手即勝ち筋の回避）を強化
+
+補足:
+
+- 本格的な深い探索（多手先ミニマックス）は未導入
+- CPUは約0.7〜1.0秒待ってから着手します
+
+## 操作方法
+
+1. 起動後、設定モーダルで以下を選び `Start`
+   - 対戦モード（2 Player / vs CPU）
+   - 1P/2Pの色
+   - CPU難易度（vs CPU時）
+2. 合法手のガイド円をクリック/タップして着手
+3. 必要に応じて `Undo` / `Sound` / `Reset` を使用
+4. 終局後はWinnerモーダルから:
+   - `Playback`: 初手から再生
+   - `3D View`: 最終盤面の3D鑑賞
+   - `Restart`: 設定モーダルに戻る
+
+## 演出・UI仕様
+
+- 手置き時: 短いポップインアニメーション
+- 自動積み上がり: 時間差で1つずつ表示
+- サウンド:
+  - 手置き音
+  - 自動積み上がり音（連鎖で少しずつ高音化）
+  - 勝利音
+  - ON/OFF切替対応
+- 残りコマ表示:
+  - 数字とバーを表示
+  - 駒の着地タイミングに合わせて1個ずつ減少
+- 2D/3Dの役割分担:
+  - 2D: プレイ用
+  - 3D: 終局後の最終盤面鑑賞用
+
+## 棋譜・Playback・3D View
+
+- 対局中に棋譜を内部記録（手置き位置・自動積み上がり列・勝者）
+- 終局後の `Playback` で初手から順に再生
+- 再生中は通常入力不可
+- `3D View` は終局後に開く最終盤面ビュー
+  - 薄い円盤状の駒で表示
+  - 自動回転
+  - ズーム（PCホイール / タッチピンチ）
+  - プレイ機能は持たない
+
+## 開発・起動方法
+
+### セットアップ
 
 ```bash
 npm install
+```
+
+### 開発起動
+
+```bash
 npm run dev
 ```
 
-Build:
+### ビルド
 
 ```bash
 npm run build
 npm run preview
 ```
 
-## 5. Main Files
+### 同一LAN上で確認したい場合（例）
+
+```bash
+npm run dev -- --host 0.0.0.0 --port 5173
+```
+
+## 主要ファイル構成
 
 ```text
 src/
-  App.tsx            # 2D layered board UI (absolute-positioned circular points)
-  style.css          # board and token styling
+  App.tsx
+    対局画面本体、設定モーダル、Winnerモーダル、
+    Undo/Reset/Sound、Playback制御、CPU手番制御、棋譜管理
+
+  style.css
+    レイアウト、盤面表示、レスポンシブ、モーダル、演出スタイル
+
+  components/
+    FinalBoard3DModal.tsx
+      終局後3Dビュー（Three.js）
+
   game/
-    types.ts         # pyramid board types
-    logic.ts         # rules, legal moves, auto chains, winner
+    types.ts
+      型定義（盤面、手、状態など）
+    logic.ts
+      ルール本体（合法手、手置き、自動連鎖、勝敗判定）
+    cpu.ts
+      CPU評価ロジック（Easy/Normal/Hard）
 ```
 
-## 6. Future Extensions
+## 暫定仕様・注意事項
 
-- CPU opponent
-- Online multiplayer
-- Record/replay
-- Richer animations
-- Optional 3D / volumetric rendering
-- Rule-variant toggles
+- 同時0勝利時は着手側勝利（引き分けなし）
+- CPU Hardは「軽い応手評価」までで、深い探索は未実装
+- 3D Viewは最終盤面表示のみ（3Dでのプレイ/Playbackなし）
+- オンライン対戦・アカウント連携は未対応
+- 棋譜は現状メモリ保持（永続保存なし）
+
+## 今後の拡張案
+
+- 棋譜の保存（localStorage/JSON出力）
+- 棋譜共有URL
+- オンライン対戦
+- CPUアルゴリズム強化（探索深度・スタイル差）
+- 3D Playback（手順再生）
+- ルールバリアント切替
+- UIテーマ追加、実機風デザイン強化
+- 効果音/アニメーションの追加調整

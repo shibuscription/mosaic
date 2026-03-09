@@ -1180,7 +1180,7 @@ export default function App() {
       {!isOnlineMockView ? (
         <section className="advantage-strip" aria-label="advantage bar">
           <div className="advantage-meta">
-            <span className="left-label">{matchMode === 'cpu' ? 'CPU' : matchMode === 'online' ? 'ONLINE' : '2P'} {leftPercent}%</span>
+            <span className="left-label">{matchMode === 'cpu' ? 'CPU' : '2P'} {leftPercent}%</span>
             <span className="right-label">{rightPercent}% 1P</span>
           </div>
           <div className="advantage-track">

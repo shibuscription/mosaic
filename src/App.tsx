@@ -153,6 +153,11 @@ export default function App() {
     }),
     [blueTheme.hex, yellowTheme.hex],
   )
+  const leftRemaining = displayRemaining.yellow
+  const rightRemaining = displayRemaining.blue
+  const totalRemaining = leftRemaining + rightRemaining
+  const leftPercent = totalRemaining > 0 ? Math.round((rightRemaining / totalRemaining) * 100) : 50
+  const rightPercent = 100 - leftPercent
 
   const legalSet = useMemo(() => {
     if (game.winner) {
@@ -641,6 +646,17 @@ export default function App() {
 
   return (
     <main className="page" style={themeStyle}>
+      <section className="advantage-strip" aria-label="advantage bar">
+        <div className="advantage-meta">
+          <span className="left-label">{matchMode === 'cpu' ? 'CPU' : '2P'} {leftPercent}%</span>
+          <span className="right-label">{rightPercent}% YOU</span>
+        </div>
+        <div className="advantage-track">
+          <div className="advantage-left" style={{ width: `${leftPercent}%` }} />
+          <div className="advantage-divider" />
+        </div>
+      </section>
+
       <div className="mini-title">Mosaic</div>
 
       <section className="table-layout">
@@ -653,6 +669,8 @@ export default function App() {
           isTurn={!game.winner && game.currentTurn === 'yellow'}
           isWinner={game.winner === 'yellow'}
           isThinking={matchMode === 'cpu' && !game.winner && game.currentTurn === 'yellow' && isCpuThinking}
+          roleLabel={matchMode === 'cpu' ? 'CPU' : '2 Player'}
+          cpuDifficulty={matchMode === 'cpu' ? cpuDifficulty : null}
         />
 
         <section className="board-stage" aria-label="mosaic board" ref={boardStageRef}>
@@ -708,6 +726,8 @@ export default function App() {
           isTurn={!game.winner && game.currentTurn === 'blue'}
           isWinner={game.winner === 'blue'}
           isThinking={false}
+          roleLabel="You / 1 Player"
+          cpuDifficulty={null}
         />
       </section>
 
@@ -853,6 +873,8 @@ export default function App() {
 interface PlayerPanelProps {
   playerKey: PlayerColor
   playerLabel: string
+  roleLabel: string
+  cpuDifficulty: CpuDifficulty | null
   colorHex: string
   colorSoft: string
   remaining: number
@@ -861,27 +883,69 @@ interface PlayerPanelProps {
   isThinking: boolean
 }
 
-function PlayerPanel({ playerKey, playerLabel, colorHex, colorSoft, remaining, isTurn, isWinner, isThinking }: PlayerPanelProps) {
+function PlayerPanel({
+  playerKey,
+  playerLabel,
+  roleLabel,
+  cpuDifficulty,
+  colorHex,
+  colorSoft,
+  remaining,
+  isTurn,
+  isWinner,
+  isThinking,
+}: PlayerPanelProps) {
   const percentage = Math.max(0, Math.min(100, (remaining / TOTAL_PIECES) * 100))
+  const columns = Array.from({ length: 7 }, (_, col) => {
+    const remainingInColumn = Math.max(0, Math.min(10, remaining - col * 10))
+    return Array.from({ length: 10 }, (_, row) => ({
+      key: `${col}-${row}`,
+      filled: row >= 10 - remainingInColumn,
+      zIndex: 20 - row,
+    }))
+  })
 
   return (
     <aside
       className={['player-panel', playerKey, isTurn ? 'is-turn' : '', isWinner ? 'is-winner' : ''].filter(Boolean).join(' ')}
       style={{ '--accent': colorHex, '--accent-soft': colorSoft } as CSSProperties}
     >
-      <div className="panel-topline">
-        <div className="player-name">{playerLabel}</div>
+      <div className="panel-badges left">
+        {isThinking ? <span className="state-badge thinking">THINKING</span> : <span className="state-badge ghost">READY</span>}
+      </div>
+      <div className="panel-badges right">
         {isWinner ? <span className="state-badge winner">WINNER</span> : null}
-        {!isWinner && isThinking ? <span className="state-badge thinking">Thinking...</span> : null}
-        {!isWinner && isTurn && !isThinking ? <span className="state-badge turn">TURN</span> : null}
+        {!isWinner && isTurn ? <span className="state-badge turn">TURN</span> : null}
+      </div>
+
+      <div className="panel-head">
+        <div className="player-name">{playerLabel}</div>
+        <div className="player-subline">
+          <span className="role-chip">{roleLabel}</span>
+          {cpuDifficulty ? <span className="role-chip difficulty">Difficulty: {cpuDifficulty}</span> : null}
+        </div>
       </div>
 
       <div className="remaining-text">
         {remaining} / {TOTAL_PIECES}
       </div>
 
-      <div className="remaining-bar" aria-hidden="true">
-        <div className="remaining-fill" style={{ width: `${percentage}%` }} />
+      <div className="remaining-stack-grid" aria-hidden="true">
+        {columns.map((column, colIdx) => (
+          <div className="stack-column" key={`col-${colIdx}`}>
+            {column.map((cell) => (
+              <span
+                key={cell.key}
+                className={['stack-piece', cell.filled ? 'filled' : 'empty'].join(' ')}
+                style={{ zIndex: cell.zIndex }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+
+      <div className="remaining-mini-track" aria-hidden="true">
+        <div className="remaining-mini-fill" style={{ width: `${percentage}%` }} />
       </div>
     </aside>
   )

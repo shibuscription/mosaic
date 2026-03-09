@@ -28,6 +28,7 @@ interface PlayerColorConfig {
   yellow: DisplayColorId
 }
 type MatchMode = 'pvp' | 'cpu'
+type MobilePanelMode = 'standard' | 'faceoff'
 
 interface MoveRecord {
   turn: number
@@ -78,6 +79,7 @@ const AUTO_SOUND_DELAY_MS = 145
 const PLAYBACK_MANUAL_MS = 170
 const PLAYBACK_AUTO_MS = 120
 const PLAYBACK_GAP_MS = 70
+const MOBILE_PANEL_MODE_KEY = 'mosaic.mobilePanelMode'
 
 export default function App() {
   const initialGame = useMemo(() => createInitialGameState(), [])
@@ -105,6 +107,16 @@ export default function App() {
   const [winnerModalVisible, setWinnerModalVisible] = useState(false)
   const [isCpuThinking, setIsCpuThinking] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [mobilePanelMode, setMobilePanelMode] = useState<MobilePanelMode>(() => {
+    if (typeof window === 'undefined') {
+      return 'standard'
+    }
+    const saved = window.localStorage.getItem(MOBILE_PANEL_MODE_KEY)
+    if (saved === 'faceoff' || saved === 'standard') {
+      return saved
+    }
+    return 'standard'
+  })
   const [revealedAutoCount, setRevealedAutoCount] = useState(0)
   const [animatingKey, setAnimatingKey] = useState<string | null>(null)
   const [matchRecord, setMatchRecord] = useState<MatchRecord>({
@@ -258,6 +270,13 @@ export default function App() {
       setDisplayRemaining({ ...game.remaining })
     }
   }, [game.remaining, isAnimating, isPlayback])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    window.localStorage.setItem(MOBILE_PANEL_MODE_KEY, mobilePanelMode)
+  }, [mobilePanelMode])
 
   useEffect(() => {
     if (!isMobileMenuOpen) {
@@ -672,11 +691,11 @@ export default function App() {
   }
 
   return (
-    <main className="page" style={themeStyle}>
+    <main className={`page mobile-panels-${mobilePanelMode}`} style={themeStyle}>
       <section className="advantage-strip" aria-label="advantage bar">
         <div className="advantage-meta">
           <span className="left-label">{matchMode === 'cpu' ? 'CPU' : '2P'} {leftPercent}%</span>
-          <span className="right-label">{rightPercent}% {matchMode === 'cpu' ? 'YOU' : '1P'}</span>
+          <span className="right-label">{rightPercent}% 1P</span>
         </div>
         <div className="advantage-track">
           <div className="advantage-left" style={{ width: `${leftPercent}%` }} />
@@ -740,11 +759,21 @@ export default function App() {
               })}
             </div>
           </div>
+          {mobilePanelMode === 'faceoff' ? (
+            <div className="mobile-side-influence" style={{ height: `${boardSize}px` }} aria-label="mobile influence bar">
+              <div className="mobile-side-meta top">{leftPercent}%</div>
+              <div className="mobile-side-track">
+                <div className="mobile-side-fill" style={{ height: `${rightPercent}%` }} />
+                <div className="mobile-side-divider" />
+              </div>
+              <div className="mobile-side-meta bottom">{rightPercent}%</div>
+            </div>
+          ) : null}
         </section>
 
         <PlayerPanel
           playerKey="blue"
-          playerLabel={matchMode === 'cpu' ? 'You' : INTERNAL_LABEL.blue}
+          playerLabel={INTERNAL_LABEL.blue}
           colorHex={blueTheme.hex}
           colorSoft={hexToRgba(blueTheme.hex, 0.28)}
           remaining={displayRemaining.blue}
@@ -768,13 +797,33 @@ export default function App() {
         </button>
         {isMobileMenuOpen ? (
           <div className="mobile-menu-panel" role="menu" aria-label="Quick actions">
+            <div className="mobile-menu-group">
+              <div className="mobile-menu-group-title">Info Panel</div>
+              <div className="mobile-menu-segment" role="radiogroup" aria-label="info panel mode">
+                <button
+                  type="button"
+                  className={['mobile-segment-btn', mobilePanelMode === 'standard' ? 'selected' : ''].filter(Boolean).join(' ')}
+                  aria-pressed={mobilePanelMode === 'standard'}
+                  onClick={() => setMobilePanelMode('standard')}
+                >
+                  Standard
+                </button>
+                <button
+                  type="button"
+                  className={['mobile-segment-btn', mobilePanelMode === 'faceoff' ? 'selected' : ''].filter(Boolean).join(' ')}
+                  aria-pressed={mobilePanelMode === 'faceoff'}
+                  onClick={() => setMobilePanelMode('faceoff')}
+                >
+                  Face-off
+                </button>
+              </div>
+            </div>
             <button
               type="button"
               role="menuitem"
               className="mobile-menu-item"
               onClick={() => {
                 setSoundOn((prev) => !prev)
-                setIsMobileMenuOpen(false)
               }}
             >
               Sound: {soundOn ? 'On' : 'Off'}
@@ -1101,10 +1150,7 @@ function cpuDifficultyLabel(difficulty: CpuDifficulty): string {
 
 function winnerLabel(winner: PlayerColor, mode: MatchMode, difficulty: CpuDifficulty): string {
   if (mode === 'cpu') {
-    if (winner === 'blue') {
-      return 'You'
-    }
-    return `CPU (${cpuDifficultyLabel(difficulty)})`
+    return winner === 'blue' ? 'Player 1' : `CPU (${cpuDifficultyLabel(difficulty)})`
   }
   return INTERNAL_LABEL[winner]
 }

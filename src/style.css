@@ -143,25 +143,6 @@ body {
   font-weight: 800;
 }
 
-.player-subline {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.role-chip {
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: #2b3d62;
-  border-radius: 999px;
-  background: #e7eefb;
-  padding: 2px 8px;
-}
-
-.role-chip.difficulty {
-  text-transform: capitalize;
-}
-
 .state-badge {
   font-size: 0.68rem;
   font-weight: 800;
@@ -169,10 +150,6 @@ body {
   border-radius: 999px;
   padding: 3px 7px;
   color: #fff;
-}
-
-.state-badge.ghost {
-  background: #a5b3cc;
 }
 
 .state-badge.turn {
@@ -416,6 +393,10 @@ body {
   color: #fff;
   cursor: pointer;
   box-shadow: 0 4px 10px #0f1a302f;
+}
+
+.mobile-menu {
+  display: none;
 }
 
 .sound-fixed {
@@ -830,6 +811,76 @@ body {
   .table-layout {
     grid-template-columns: 1fr;
     gap: 6px;
+  }
+
+  .sound-fixed,
+  .undo-fixed,
+  .reset-fixed {
+    display: none;
+  }
+
+  .mobile-menu {
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    z-index: 575;
+    display: block;
+  }
+
+  .mobile-menu-toggle {
+    width: 38px;
+    height: 38px;
+    border: 1px solid #9db2d6;
+    border-radius: 10px;
+    background: #f7fbffea;
+    display: grid;
+    place-content: center;
+    gap: 4px;
+    padding: 0;
+    cursor: pointer;
+    box-shadow: 0 3px 8px #15254526;
+  }
+
+  .hamburger-line {
+    display: block;
+    width: 16px;
+    height: 2px;
+    border-radius: 2px;
+    background: #2a3b61;
+  }
+
+  .mobile-menu-panel {
+    margin-top: 6px;
+    min-width: 152px;
+    display: grid;
+    gap: 5px;
+    background: #f5f9ffed;
+    border: 1px solid #b2c5e3;
+    border-radius: 10px;
+    padding: 6px;
+    box-shadow: 0 10px 24px #0f1b3140;
+  }
+
+  .mobile-menu-item {
+    border: 1px solid #c5d4ea;
+    background: #ffffff;
+    color: #20345f;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.82rem;
+    text-align: left;
+    padding: 7px 8px;
+    cursor: pointer;
+  }
+
+  .mobile-menu-item:disabled {
+    opacity: 0.48;
+    cursor: not-allowed;
+  }
+
+  .mobile-menu-item.danger {
+    color: #8e2f2f;
+    border-color: #e0b9b9;
   }
 
   .player-panel {

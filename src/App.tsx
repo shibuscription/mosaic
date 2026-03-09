@@ -61,8 +61,8 @@ const COLOR_OPTIONS: ColorOption[] = [
 ]
 
 const INTERNAL_LABEL: Record<PlayerColor, string> = {
-  blue: '1 Player',
-  yellow: '2 Player',
+  blue: 'Player 1',
+  yellow: 'Player 2',
 }
 
 const BASE_SPACING = 1
@@ -104,6 +104,7 @@ export default function App() {
   const [is3DOpen, setIs3DOpen] = useState(false)
   const [winnerModalVisible, setWinnerModalVisible] = useState(false)
   const [isCpuThinking, setIsCpuThinking] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [revealedAutoCount, setRevealedAutoCount] = useState(0)
   const [animatingKey, setAnimatingKey] = useState<string | null>(null)
   const [matchRecord, setMatchRecord] = useState<MatchRecord>({
@@ -123,6 +124,7 @@ export default function App() {
   ])
 
   const boardStageRef = useRef<HTMLElement | null>(null)
+  const mobileMenuRef = useRef<HTMLDivElement | null>(null)
   const timeoutIdsRef = useRef<number[]>([])
   const cpuTimeoutRef = useRef<number | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
@@ -256,6 +258,27 @@ export default function App() {
       setDisplayRemaining({ ...game.remaining })
     }
   }, [game.remaining, isAnimating, isPlayback])
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) {
+      return
+    }
+
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (!target || !mobileMenuRef.current) {
+        return
+      }
+      if (!mobileMenuRef.current.contains(target)) {
+        setIsMobileMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+    }
+  }, [isMobileMenuOpen])
 
   const positions = useMemo(() => {
     const cells: Array<{
@@ -465,6 +488,7 @@ export default function App() {
     setIs3DOpen(false)
     setWinnerModalVisible(false)
     setIsCpuThinking(false)
+    setIsMobileMenuOpen(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
     setDisplayRemaining({ ...game.remaining })
@@ -484,6 +508,7 @@ export default function App() {
     setIsPlayback(false)
     setIs3DOpen(false)
     setIsCpuThinking(false)
+    setIsMobileMenuOpen(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
     lastWinnerRef.current = null
@@ -516,6 +541,7 @@ export default function App() {
     setIs3DOpen(false)
     setWinnerModalVisible(false)
     setIsCpuThinking(false)
+    setIsMobileMenuOpen(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
     lastWinnerRef.current = null
@@ -542,6 +568,7 @@ export default function App() {
     setIs3DOpen(false)
     setWinnerModalVisible(false)
     setIsCpuThinking(false)
+    setIsMobileMenuOpen(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
 
@@ -649,7 +676,7 @@ export default function App() {
       <section className="advantage-strip" aria-label="advantage bar">
         <div className="advantage-meta">
           <span className="left-label">{matchMode === 'cpu' ? 'CPU' : '2P'} {leftPercent}%</span>
-          <span className="right-label">{rightPercent}% YOU</span>
+          <span className="right-label">{rightPercent}% {matchMode === 'cpu' ? 'YOU' : '1P'}</span>
         </div>
         <div className="advantage-track">
           <div className="advantage-left" style={{ width: `${leftPercent}%` }} />
@@ -662,15 +689,13 @@ export default function App() {
       <section className="table-layout">
         <PlayerPanel
           playerKey="yellow"
-          playerLabel={matchMode === 'cpu' ? `${INTERNAL_LABEL.yellow} (CPU)` : INTERNAL_LABEL.yellow}
+          playerLabel={matchMode === 'cpu' ? `CPU (${cpuDifficultyLabel(cpuDifficulty)})` : INTERNAL_LABEL.yellow}
           colorHex={yellowTheme.hex}
           colorSoft={hexToRgba(yellowTheme.hex, 0.28)}
           remaining={displayRemaining.yellow}
           isTurn={!game.winner && game.currentTurn === 'yellow'}
           isWinner={game.winner === 'yellow'}
           isThinking={matchMode === 'cpu' && !game.winner && game.currentTurn === 'yellow' && isCpuThinking}
-          roleLabel={matchMode === 'cpu' ? 'CPU' : '2 Player'}
-          cpuDifficulty={matchMode === 'cpu' ? cpuDifficulty : null}
         />
 
         <section className="board-stage" aria-label="mosaic board" ref={boardStageRef}>
@@ -719,17 +744,61 @@ export default function App() {
 
         <PlayerPanel
           playerKey="blue"
-          playerLabel={INTERNAL_LABEL.blue}
+          playerLabel={matchMode === 'cpu' ? 'You' : INTERNAL_LABEL.blue}
           colorHex={blueTheme.hex}
           colorSoft={hexToRgba(blueTheme.hex, 0.28)}
           remaining={displayRemaining.blue}
           isTurn={!game.winner && game.currentTurn === 'blue'}
           isWinner={game.winner === 'blue'}
           isThinking={false}
-          roleLabel="You / 1 Player"
-          cpuDifficulty={null}
         />
       </section>
+
+      <div className="mobile-menu" ref={mobileMenuRef}>
+        <button
+          type="button"
+          className="mobile-menu-toggle"
+          aria-label="Open menu"
+          aria-expanded={isMobileMenuOpen}
+          onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+        >
+          <span className="hamburger-line" />
+          <span className="hamburger-line" />
+          <span className="hamburger-line" />
+        </button>
+        {isMobileMenuOpen ? (
+          <div className="mobile-menu-panel" role="menu" aria-label="Quick actions">
+            <button
+              type="button"
+              role="menuitem"
+              className="mobile-menu-item"
+              onClick={() => {
+                setSoundOn((prev) => !prev)
+                setIsMobileMenuOpen(false)
+              }}
+            >
+              Sound: {soundOn ? 'On' : 'Off'}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="mobile-menu-item"
+              onClick={handleUndo}
+              disabled={history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="mobile-menu-item danger"
+              onClick={openSetup}
+            >
+              Reset
+            </button>
+          </div>
+        ) : null}
+      </div>
 
       <button type="button" className="sound-fixed" onClick={() => setSoundOn((prev) => !prev)}>
         Sound: {soundOn ? 'On' : 'Off'}
@@ -751,7 +820,7 @@ export default function App() {
         <div className="winner-overlay" aria-live="polite">
           <div className="winner-card">
             <div className="winner-title">WINNER!</div>
-            <div className="winner-name">{INTERNAL_LABEL[game.winner]} Wins</div>
+            <div className="winner-name">{winnerLabel(game.winner, matchMode, cpuDifficulty)} Wins</div>
             <div className="winner-sub">Color: {colorById.get(playerColors[game.winner])?.label ?? playerColors[game.winner]}</div>
             <div className="winner-actions">
               <button type="button" className="winner-btn view3d" onClick={() => setIs3DOpen(true)}>
@@ -786,8 +855,8 @@ export default function App() {
       {setupOpen ? (
         <div className="setup-overlay" role="dialog" aria-modal="true">
           <div className="setup-modal">
-            <h2>Player Colors</h2>
-            <p>Pick colors for 1P and 2P. Same color is not allowed.</p>
+            <h2>Game Setup</h2>
+            <p>Choose mode and colors. Both players must use different colors.</p>
             <div className="mode-row">
               <div className="picker-label">Game Mode</div>
               <div className="mode-options" role="radiogroup" aria-label="game mode">
@@ -797,7 +866,7 @@ export default function App() {
                   onClick={() => setPendingMode('pvp')}
                   aria-pressed={pendingMode === 'pvp'}
                 >
-                  2 Player
+                  Local 2 Players
                 </button>
                 <button
                   type="button"
@@ -842,14 +911,14 @@ export default function App() {
             ) : null}
 
             <ColorPickerRow
-              label="1 Player"
+              label={pendingMode === 'cpu' ? 'You' : 'Player 1'}
               selected={pendingColors.blue}
               blocked={pendingColors.yellow}
               onSelect={(id) => setPendingColors((prev) => ({ ...prev, blue: id }))}
             />
 
             <ColorPickerRow
-              label="2 Player"
+              label={pendingMode === 'cpu' ? 'CPU' : 'Player 2'}
               selected={pendingColors.yellow}
               blocked={pendingColors.blue}
               onSelect={(id) => setPendingColors((prev) => ({ ...prev, yellow: id }))}
@@ -873,8 +942,6 @@ export default function App() {
 interface PlayerPanelProps {
   playerKey: PlayerColor
   playerLabel: string
-  roleLabel: string
-  cpuDifficulty: CpuDifficulty | null
   colorHex: string
   colorSoft: string
   remaining: number
@@ -886,8 +953,6 @@ interface PlayerPanelProps {
 function PlayerPanel({
   playerKey,
   playerLabel,
-  roleLabel,
-  cpuDifficulty,
   colorHex,
   colorSoft,
   remaining,
@@ -911,7 +976,7 @@ function PlayerPanel({
       style={{ '--accent': colorHex, '--accent-soft': colorSoft } as CSSProperties}
     >
       <div className="panel-badges left">
-        {isThinking ? <span className="state-badge thinking">THINKING</span> : <span className="state-badge ghost">READY</span>}
+        {isThinking ? <span className="state-badge thinking">THINKING</span> : null}
       </div>
       <div className="panel-badges right">
         {isWinner ? <span className="state-badge winner">WINNER</span> : null}
@@ -920,10 +985,6 @@ function PlayerPanel({
 
       <div className="panel-head">
         <div className="player-name">{playerLabel}</div>
-        <div className="player-subline">
-          <span className="role-chip">{roleLabel}</span>
-          {cpuDifficulty ? <span className="role-chip difficulty">Difficulty: {cpuDifficulty}</span> : null}
-        </div>
       </div>
 
       <div className="remaining-text">
@@ -1026,4 +1087,24 @@ function cloneMatchRecord(record: MatchRecord): MatchRecord {
     })),
     winner: record.winner,
   }
+}
+
+function cpuDifficultyLabel(difficulty: CpuDifficulty): string {
+  if (difficulty === 'hard') {
+    return 'Hard'
+  }
+  if (difficulty === 'normal') {
+    return 'Normal'
+  }
+  return 'Easy'
+}
+
+function winnerLabel(winner: PlayerColor, mode: MatchMode, difficulty: CpuDifficulty): string {
+  if (mode === 'cpu') {
+    if (winner === 'blue') {
+      return 'You'
+    }
+    return `CPU (${cpuDifficultyLabel(difficulty)})`
+  }
+  return INTERNAL_LABEL[winner]
 }

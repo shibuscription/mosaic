@@ -606,6 +606,31 @@ body {
   color: #203258;
 }
 
+.three-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.three-playback {
+  border: none;
+  border-radius: 8px;
+  background: #3a5f9e;
+  color: #fff;
+  font-weight: 700;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.three-playback:hover:not(:disabled) {
+  background: #2d4a7a;
+}
+
+.three-playback:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .three-close {
   border: none;
   border-radius: 8px;

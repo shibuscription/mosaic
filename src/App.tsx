@@ -102,6 +102,7 @@ export default function App() {
   const [isAnimating, setIsAnimating] = useState(false)
   const [isPlayback, setIsPlayback] = useState(false)
   const [is3DOpen, setIs3DOpen] = useState(false)
+  const [winnerModalVisible, setWinnerModalVisible] = useState(false)
   const [isCpuThinking, setIsCpuThinking] = useState(false)
   const [revealedAutoCount, setRevealedAutoCount] = useState(0)
   const [animatingKey, setAnimatingKey] = useState<string | null>(null)
@@ -238,12 +239,12 @@ export default function App() {
   }, [cpuDifficulty, game, is3DOpen, isAnimating, isPlayback, matchMode, setupOpen])
 
   useEffect(() => {
-    if (!game.winner || game.winner === lastWinnerRef.current) {
+    if (!winnerModalVisible || !game.winner || game.winner === lastWinnerRef.current) {
       return
     }
     lastWinnerRef.current = game.winner
     playWinnerSound()
-  }, [game.winner])
+  }, [game.winner, winnerModalVisible])
 
   useEffect(() => {
     if (!isAnimating && !isPlayback) {
@@ -357,6 +358,7 @@ export default function App() {
     onComplete?: () => void,
   ): void {
     clearAnimationTimers()
+    setWinnerModalVisible(false)
     setGame(nextState)
     setDisplayRemaining({ ...startRemaining })
 
@@ -366,6 +368,9 @@ export default function App() {
       setAnimatingKey(null)
       setRevealedAutoCount(nextState.lastAutoPlacements.length)
       setDisplayRemaining({ ...nextState.remaining })
+      if (nextState.winner && !isPlayback) {
+        setWinnerModalVisible(true)
+      }
       return
     }
 
@@ -392,6 +397,9 @@ export default function App() {
         setAnimatingKey(null)
         setIsAnimating(false)
         setDisplayRemaining({ ...nextState.remaining })
+        if (nextState.winner && !isPlayback) {
+          setWinnerModalVisible(true)
+        }
         onComplete?.()
       }, manualAnimMs)
       timeoutIdsRef.current.push(id)
@@ -417,6 +425,9 @@ export default function App() {
               setAnimatingKey(null)
               setIsAnimating(false)
               setDisplayRemaining({ ...nextState.remaining })
+              if (nextState.winner && !isPlayback) {
+                setWinnerModalVisible(true)
+              }
               onComplete?.()
             }, autoStepMs)
             timeoutIdsRef.current.push(finishId)
@@ -447,6 +458,7 @@ export default function App() {
     setIsAnimating(false)
     setIsPlayback(false)
     setIs3DOpen(false)
+    setWinnerModalVisible(false)
     setIsCpuThinking(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
@@ -483,6 +495,7 @@ export default function App() {
     setDisplayRemaining({ ...freshGame.remaining })
     setMatchRecord(freshRecord)
     setHistory([{ game: cloneGameState(freshGame), matchRecord: cloneMatchRecord(freshRecord) }])
+    setWinnerModalVisible(false)
     setSetupOpen(false)
   }
 
@@ -496,6 +509,7 @@ export default function App() {
     setIsAnimating(false)
     setIsPlayback(true)
     setIs3DOpen(false)
+    setWinnerModalVisible(false)
     setIsCpuThinking(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
@@ -521,6 +535,7 @@ export default function App() {
     setIsAnimating(false)
     setIsPlayback(false)
     setIs3DOpen(false)
+    setWinnerModalVisible(false)
     setIsCpuThinking(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
@@ -536,6 +551,7 @@ export default function App() {
     setGame(cloneGameState(prevSnapshot.game))
     setDisplayRemaining({ ...prevSnapshot.game.remaining })
     setMatchRecord(cloneMatchRecord(prevSnapshot.matchRecord))
+    setWinnerModalVisible(Boolean(prevSnapshot.game.winner))
   }
 
   function runPlaybackMove(index: number, stateAtTurnStart: ReturnType<typeof createInitialGameState>): void {
@@ -711,7 +727,7 @@ export default function App() {
       </button>
       {isPlayback ? <div className="playback-chip">Playback</div> : null}
 
-      {game.winner ? (
+      {game.winner && winnerModalVisible ? (
         <div className="winner-overlay" aria-live="polite">
           <div className="winner-card">
             <div className="winner-title">WINNER!</div>
@@ -737,7 +753,14 @@ export default function App() {
         </div>
       ) : null}
       {is3DOpen && game.winner ? (
-        <FinalBoard3DModal board={game.board} colors={pieceColorMap} onClose={() => setIs3DOpen(false)} />
+        <FinalBoard3DModal
+          board={game.board}
+          moves={matchRecord.moves}
+          colors={pieceColorMap}
+          onManualSound={playManualSound}
+          onAutoSound={playAutoSound}
+          onClose={() => setIs3DOpen(false)}
+        />
       ) : null}
 
       {setupOpen ? (

@@ -500,7 +500,7 @@ body {
 
 .mode-options {
   display: grid;
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 8px;
 }
 
@@ -566,6 +566,231 @@ body {
   color: #fff;
   background: #223a65;
   cursor: pointer;
+}
+
+.setup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.online-shell {
+  display: grid;
+  justify-content: center;
+  padding: 10px 4px 18px;
+}
+
+.online-card {
+  width: min(680px, 100%);
+  border-radius: 14px;
+  border: 1px solid #9db2d4;
+  background: #f7faff;
+  box-shadow: 0 12px 28px #0f1b3340;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.online-head h2 {
+  margin: 0;
+  color: #1e355f;
+}
+
+.online-head p {
+  margin: 6px 0 0;
+  color: #41547b;
+  font-size: 0.92rem;
+}
+
+.online-session-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.online-session-meta span {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #3f5680;
+  border: 1px solid #c0d0e8;
+  background: #eef4ff;
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+
+.online-error-slot {
+  min-height: 0;
+  min-width: 0;
+}
+
+.online-error-slot.has-error {
+  min-height: 22px;
+  border-radius: 8px;
+  border: 1px solid #e4b6b6;
+  background: #fff1f1;
+  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+}
+
+.online-error-text {
+  color: #9a2b2b;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.online-section h3 {
+  margin: 0 0 8px;
+  color: #1d3258;
+}
+
+.online-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.online-btn {
+  border: 1px solid #9fb3d4;
+  border-radius: 9px;
+  background: #f3f7ff;
+  color: #1a2d52;
+  font-weight: 700;
+  padding: 8px 11px;
+  cursor: pointer;
+}
+
+.online-btn.primary {
+  background: #dce9ff;
+  border-color: #7498ce;
+}
+
+.online-btn.success {
+  background: #dcf4e7;
+  border-color: #88c2a4;
+}
+
+.online-btn.warn {
+  background: #fff0df;
+  border-color: #d5b287;
+}
+
+.online-btn.ghost {
+  background: #f5f8ff;
+}
+
+.online-code-box {
+  border-radius: 10px;
+  border: 1px solid #c2d3eb;
+  background: #f0f6ff;
+  padding: 10px;
+}
+
+.online-code-label {
+  font-size: 0.8rem;
+  color: #4a618d;
+}
+
+.online-code-value {
+  margin-top: 4px;
+  font-size: 1.28rem;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+  color: #1b315a;
+}
+
+.online-input-wrap {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 10px;
+  color: #304a76;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.online-input-wrap input {
+  border: 1px solid #a8beda;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #ffffff;
+  color: #17315e;
+  font-weight: 700;
+}
+
+.online-input-wrap input:focus {
+  outline: 2px solid #9fc0ec;
+  outline-offset: 1px;
+}
+
+.online-waiting-copy {
+  margin: 0 0 10px;
+  color: #3e537f;
+  font-size: 0.9rem;
+}
+
+.online-status-list {
+  border-radius: 10px;
+  border: 1px solid #c4d4eb;
+  background: #f2f7ff;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.online-status-item {
+  color: #2f476f;
+  font-size: 0.9rem;
+}
+
+.waiting-room-code {
+  border-radius: 12px;
+  border: 1px solid #b6c9e6;
+  background: linear-gradient(180deg, #f7fbff 0%, #e9f2ff 100%);
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.waiting-room-code-head {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #46618f;
+  letter-spacing: 0.03em;
+}
+
+.waiting-room-code-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.waiting-room-code-value {
+  font-size: 1.34rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #17315e;
+  background: #ffffff;
+  border: 1px solid #c5d6ee;
+  border-radius: 8px;
+  padding: 5px 10px;
+}
+
+.online-btn.copy {
+  padding: 7px 10px;
+}
+
+.waiting-room-code-sub {
+  margin-top: 6px;
+  font-size: 0.84rem;
+  color: #355381;
+}
+
+.waiting-room-copy-feedback {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1d5e35;
 }
 
 .start-button:disabled {
@@ -1102,7 +1327,7 @@ body {
   }
 
   .mode-options {
-    grid-template-columns: repeat(2, minmax(100px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
   }
 
   .mode-options.difficulty-options {
@@ -1117,6 +1342,11 @@ body {
 
   .winner-card {
     padding: 14px 12px;
+  }
+
+  .online-card {
+    padding: 12px;
+    gap: 10px;
   }
 
   .winner-title {

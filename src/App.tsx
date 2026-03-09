@@ -3,6 +3,17 @@ import { BASE_SIZE, MAX_LEVEL, TOTAL_PIECES, type AutoPlacement, type GameState,
 import { createInitialGameState, getLegalMoves, getLevelSize, getPiece, placeManualPiece } from './game/logic'
 import { chooseCpuMove, type CpuDifficulty } from './game/cpu'
 import { FinalBoard3DModal } from './components/FinalBoard3DModal'
+import { isFirebaseConfigured } from './firebase'
+import {
+  RoomError,
+  createRoom,
+  joinRoom,
+  normalizeRoomCode,
+  submitRoomMove,
+  subscribeRoom,
+  type RoomDoc,
+  deserializeGameState,
+} from './online/room'
 import './style.css'
 
 type DisplayColorId =
@@ -27,8 +38,13 @@ interface PlayerColorConfig {
   blue: DisplayColorId
   yellow: DisplayColorId
 }
-type MatchMode = 'pvp' | 'cpu'
+type MatchMode = 'pvp' | 'cpu' | 'online'
+type SetupStep = 'mode' | 'color'
+type OnlineEntryAction = 'create' | 'join' | null
 type MobilePanelMode = 'standard' | 'faceoff'
+type OnlinePhase = 'create' | 'join' | 'waiting' | 'playing' | 'error' | 'finished'
+type OnlineConnectionState = 'idle' | 'connecting' | 'waiting' | 'connected' | 'disconnected'
+type OnlineSyncState = 'idle' | 'submitting'
 
 interface MoveRecord {
   turn: number
@@ -46,6 +62,19 @@ interface MatchRecord {
 interface UndoSnapshot {
   game: GameState
   matchRecord: MatchRecord
+}
+
+interface OnlineSessionState {
+  phase: OnlinePhase
+  roomCode: string
+  roomInput: string
+  role: PlayerColor | null
+  isHost: boolean
+  connectionState: OnlineConnectionState
+  syncState: OnlineSyncState
+  errorMessage: string
+  waitMessage: string
+  createColors: PlayerColorConfig
 }
 
 const COLOR_OPTIONS: ColorOption[] = [
@@ -80,6 +109,18 @@ const PLAYBACK_MANUAL_MS = 170
 const PLAYBACK_AUTO_MS = 120
 const PLAYBACK_GAP_MS = 70
 const MOBILE_PANEL_MODE_KEY = 'mosaic.mobilePanelMode'
+const INITIAL_ONLINE_SESSION: OnlineSessionState = {
+  phase: 'create',
+  roomCode: '',
+  roomInput: '',
+  role: null,
+  isHost: false,
+  connectionState: 'idle',
+  syncState: 'idle',
+  errorMessage: '',
+  waitMessage: 'Waiting for opponent...',
+  createColors: { blue: 'blue', yellow: 'yellow' },
+}
 
 export default function App() {
   const initialGame = useMemo(() => createInitialGameState(), [])
@@ -93,12 +134,15 @@ export default function App() {
   })
 
   const [setupOpen, setSetupOpen] = useState(true)
+  const [setupStep, setSetupStep] = useState<SetupStep>('mode')
   const [playerColors, setPlayerColors] = useState<PlayerColorConfig>({ blue: 'blue', yellow: 'yellow' })
   const [pendingColors, setPendingColors] = useState<PlayerColorConfig>({ blue: 'blue', yellow: 'yellow' })
   const [matchMode, setMatchMode] = useState<MatchMode>('pvp')
   const [pendingMode, setPendingMode] = useState<MatchMode>('pvp')
+  const [pendingOnlineAction, setPendingOnlineAction] = useState<OnlineEntryAction>(null)
   const [cpuDifficulty, setCpuDifficulty] = useState<CpuDifficulty>('easy')
   const [pendingCpuDifficulty, setPendingCpuDifficulty] = useState<CpuDifficulty>('easy')
+  const [onlineSession, setOnlineSession] = useState<OnlineSessionState>(INITIAL_ONLINE_SESSION)
 
   const [soundOn, setSoundOn] = useState(true)
   const [isAnimating, setIsAnimating] = useState(false)
@@ -139,6 +183,24 @@ export default function App() {
   const mobileMenuRef = useRef<HTMLDivElement | null>(null)
   const timeoutIdsRef = useRef<number[]>([])
   const cpuTimeoutRef = useRef<number | null>(null)
+  const onlineRoomUnsubRef = useRef<(() => void) | null>(null)
+  const onlineLastMoveSignatureRef = useRef<string | null>(null)
+  const gameRef = useRef<GameState>(initialGame)
+  const matchRecordRef = useRef<MatchRecord>({
+    players: { blue: 'blue', yellow: 'yellow' },
+    moves: [],
+    winner: null,
+  })
+  const historyRef = useRef<UndoSnapshot[]>([
+    {
+      game: cloneGameState(initialGame),
+      matchRecord: cloneMatchRecord({
+        players: { blue: 'blue', yellow: 'yellow' },
+        moves: [],
+        winner: null,
+      }),
+    },
+  ])
   const audioCtxRef = useRef<AudioContext | null>(null)
   const lastWinnerRef = useRef<PlayerColor | null>(null)
 
@@ -172,6 +234,10 @@ export default function App() {
   const totalRemaining = leftRemaining + rightRemaining
   const leftPercent = totalRemaining > 0 ? Math.round((rightRemaining / totalRemaining) * 100) : 50
   const rightPercent = 100 - leftPercent
+  const isOnlineMode = matchMode === 'online'
+  const isOnlineMyTurn = isOnlineMode && onlineSession.role === game.currentTurn
+  const isOnlineMockView =
+    !setupOpen && isOnlineMode && onlineSession.phase !== 'playing' && onlineSession.phase !== 'finished'
 
   const legalSet = useMemo(() => {
     if (game.winner) {
@@ -216,12 +282,13 @@ export default function App() {
       resizeObserver.disconnect()
       window.removeEventListener('resize', updateBoardSize)
     }
-  }, [])
+  }, [isOnlineMockView, setupOpen, mobilePanelMode])
 
   useEffect(() => {
     return () => {
       clearAnimationTimers()
       clearCpuTimer()
+      stopOnlineRoomSubscription()
       audioCtxRef.current?.close().catch(() => undefined)
     }
   }, [])
@@ -249,7 +316,7 @@ export default function App() {
       if (!cpuMove) {
         return
       }
-      executeMove(cpuMove.level, cpuMove.row, cpuMove.col)
+      commitMoveByMode(cpuMove.level, cpuMove.row, cpuMove.col)
     }, delayMs)
 
     return () => {
@@ -264,6 +331,24 @@ export default function App() {
     lastWinnerRef.current = game.winner
     playWinnerSound()
   }, [game.winner, winnerModalVisible])
+
+  useEffect(() => {
+    gameRef.current = game
+  }, [game])
+
+  useEffect(() => {
+    matchRecordRef.current = matchRecord
+  }, [matchRecord])
+
+  useEffect(() => {
+    historyRef.current = history
+  }, [history])
+
+  useEffect(() => {
+    if (isOnlineMode && !setupOpen && game.winner) {
+      setOnlineSession((prev) => ({ ...prev, phase: 'finished' }))
+    }
+  }, [game.winner, isOnlineMode, setupOpen])
 
   useEffect(() => {
     if (!isAnimating && !isPlayback) {
@@ -346,21 +431,13 @@ export default function App() {
     return cells
   }, [game.board, game.lastMove, legalSet, hiddenAutoKeySet, animatingKey])
 
-  function executeMove(level: number, row: number, col: number): void {
-    clearCpuTimer()
-    setIsCpuThinking(false)
-
-    if (setupOpen || isAnimating || isPlayback || is3DOpen || game.winner) {
-      return
-    }
-
-    const key = toMoveKey(level, row, col)
-    if (!legalSet.has(key)) {
-      return
-    }
-
-    const actor = game.currentTurn
-    const nextState = placeManualPiece(game, level, row, col)
+  function commitResolvedMove(
+    level: number,
+    row: number,
+    col: number,
+    actor: PlayerColor,
+    nextState: ReturnType<typeof placeManualPiece>,
+  ): void {
     const moveRecord: MoveRecord = {
       turn: matchRecord.moves.length + 1,
       player: actor,
@@ -376,18 +453,83 @@ export default function App() {
 
     setMatchRecord(nextRecord)
     setHistory((prev) => [...prev, { game: cloneGameState(nextState), matchRecord: cloneMatchRecord(nextRecord) }])
-
     playMoveSequence(nextState, game.remaining)
+  }
+
+  function handleLocalMoveCommit(level: number, row: number, col: number): void {
+    const actor = game.currentTurn
+    const nextState = placeManualPiece(game, level, row, col)
+    commitResolvedMove(level, row, col, actor, nextState)
+  }
+
+  function canSubmitOnlineMove(): boolean {
+    return (
+      matchMode === 'online' &&
+      onlineSession.phase === 'playing' &&
+      onlineSession.connectionState === 'connected' &&
+      onlineSession.syncState === 'idle' &&
+      Boolean(onlineSession.roomCode) &&
+      onlineSession.role === game.currentTurn
+    )
+  }
+
+  async function handleOnlineMoveRequest(level: number, row: number, col: number): Promise<void> {
+    if (!canSubmitOnlineMove()) {
+      return
+    }
+    const actor = onlineSession.role
+    if (!actor) {
+      return
+    }
+
+    setOnlineSession((prev) => ({
+      ...prev,
+      syncState: 'submitting',
+      errorMessage: '',
+    }))
+
+    try {
+      await submitRoomMove(onlineSession.roomCode, actor, { level, row, col })
+    } catch (error) {
+      setOnlineSession((prev) => ({
+        ...prev,
+        syncState: 'idle',
+        errorMessage: mapRoomErrorMessage(error, 'Failed to submit move.'),
+      }))
+    }
+  }
+
+  function commitMoveByMode(level: number, row: number, col: number): void {
+    clearCpuTimer()
+    setIsCpuThinking(false)
+
+    if (setupOpen || isAnimating || isPlayback || is3DOpen || game.winner) {
+      return
+    }
+
+    const key = toMoveKey(level, row, col)
+    if (!legalSet.has(key)) {
+      return
+    }
+
+    if (matchMode === 'online') {
+      void handleOnlineMoveRequest(level, row, col)
+      return
+    }
+    handleLocalMoveCommit(level, row, col)
   }
 
   function onCellClick(level: number, row: number, col: number): void {
     if (setupOpen || isAnimating || isPlayback || isCpuThinking) {
       return
     }
+    if (matchMode === 'online' && onlineSession.phase !== 'playing' && onlineSession.phase !== 'finished') {
+      return
+    }
     if (matchMode === 'cpu' && game.currentTurn === 'yellow') {
       return
     }
-    executeMove(level, row, col)
+    commitMoveByMode(level, row, col)
   }
 
   function playMoveSequence(
@@ -499,6 +641,305 @@ export default function App() {
     }
   }
 
+  function stopOnlineRoomSubscription(): void {
+    if (onlineRoomUnsubRef.current) {
+      onlineRoomUnsubRef.current()
+      onlineRoomUnsubRef.current = null
+    }
+  }
+
+  function resetOnlineSessionState(): void {
+    stopOnlineRoomSubscription()
+    onlineLastMoveSignatureRef.current = null
+    setOnlineSession({
+      ...INITIAL_ONLINE_SESSION,
+      createColors: { ...playerColors },
+    })
+  }
+
+  function mapRoomErrorMessage(error: unknown, fallback: string): string {
+    if (error instanceof RoomError) {
+      return error.message
+    }
+    if (error instanceof Error && error.message) {
+      return error.message
+    }
+    return fallback
+  }
+
+  function hasBoardChanged(prev: GameState, next: GameState): boolean {
+    for (let level = 0; level < prev.board.length; level += 1) {
+      const prevRows = prev.board[level]
+      const nextRows = next.board[level]
+      for (let row = 0; row < prevRows.length; row += 1) {
+        const prevCols = prevRows[row]
+        const nextCols = nextRows[row]
+        for (let col = 0; col < prevCols.length; col += 1) {
+          const a = prevCols[col]
+          const b = nextCols[col]
+          if (!a && !b) {
+            continue
+          }
+          if (!a || !b) {
+            return true
+          }
+          if (a.color !== b.color || a.source !== b.source) {
+            return true
+          }
+        }
+      }
+    }
+    return false
+  }
+
+  function buildMoveSignature(state: GameState): string | null {
+    if (!state.lastMove || !state.lastActor) {
+      return null
+    }
+    const m = state.lastMove
+    return JSON.stringify({
+      actor: state.lastActor,
+      move: [m.level, m.row, m.col],
+      auto: state.lastAutoPlacements.map((item) => [item.level, item.row, item.col, item.color]),
+      turn: state.currentTurn,
+      remaining: state.remaining,
+      winner: state.winner,
+    })
+  }
+
+  function appendOnlineMoveRecordFromSnapshot(nextGame: GameState, prevRemaining: Record<PlayerColor, number>): void {
+    if (!nextGame.lastMove || !nextGame.lastActor) {
+      return
+    }
+
+    const signature = buildMoveSignature(nextGame)
+    if (!signature || onlineLastMoveSignatureRef.current === signature) {
+      return
+    }
+    onlineLastMoveSignatureRef.current = signature
+
+    const currentRecord = matchRecordRef.current
+    const moveRecord: MoveRecord = {
+      turn: currentRecord.moves.length + 1,
+      player: nextGame.lastActor,
+      manual: { ...nextGame.lastMove },
+      autoPlacements: nextGame.lastAutoPlacements.map((item) => ({ ...item })),
+    }
+    const nextRecord: MatchRecord = {
+      ...currentRecord,
+      moves: [...currentRecord.moves, moveRecord],
+      winner: nextGame.winner,
+    }
+
+    setMatchRecord(nextRecord)
+    setHistory((prevHistory) => [
+      ...prevHistory,
+      { game: cloneGameState(nextGame), matchRecord: cloneMatchRecord(nextRecord) },
+    ])
+    startResolvedAnimation(nextGame, prevRemaining, MANUAL_ANIM_MS, AUTO_STEP_MS)
+  }
+
+  function applyRoomSnapshot(room: RoomDoc): void {
+    const nextGame = deserializeGameState(room.boardState)
+    const prevGame = gameRef.current
+    const boardChanged = hasBoardChanged(prevGame, nextGame)
+    const nextRoomColors: PlayerColorConfig = {
+      blue: isDisplayColorId(room.playerColors?.blue) ? room.playerColors.blue : 'blue',
+      yellow: isDisplayColorId(room.playerColors?.yellow) ? room.playerColors.yellow : 'yellow',
+    }
+
+    setPlayerColors(nextRoomColors)
+    if (boardChanged && nextGame.lastMove && !isPlayback) {
+      appendOnlineMoveRecordFromSnapshot(nextGame, prevGame.remaining)
+    } else {
+      setGame(nextGame)
+      setDisplayRemaining({ ...nextGame.remaining })
+      setWinnerModalVisible(Boolean(nextGame.winner))
+    }
+    setOnlineSession((prev) => {
+      let nextPhase: OnlinePhase = prev.phase
+      if (room.status === 'finished') {
+        nextPhase = 'finished'
+      } else if (room.status === 'playing') {
+        nextPhase = 'playing'
+      } else if (room.status === 'waiting' && prev.phase !== 'create') {
+        nextPhase = 'waiting'
+      }
+
+      return {
+        ...prev,
+        roomCode: room.roomCode,
+        phase: nextPhase,
+        connectionState: room.status === 'waiting' ? 'waiting' : 'connected',
+        waitMessage:
+          room.status === 'waiting'
+            ? 'Waiting for opponent...'
+            : room.status === 'playing'
+              ? 'Match is in progress.'
+              : 'Match finished.',
+        errorMessage: '',
+        syncState: 'idle',
+        createColors: nextRoomColors,
+      }
+    })
+  }
+
+  function startOnlineRoomSubscription(roomCode: string): void {
+    stopOnlineRoomSubscription()
+    onlineRoomUnsubRef.current = subscribeRoom(
+      roomCode,
+      (room) => {
+        if (!room) {
+          setOnlineSession((prev) => ({
+            ...prev,
+            phase: 'error',
+            connectionState: 'disconnected',
+            errorMessage: 'Room no longer exists.',
+            syncState: 'idle',
+          }))
+          return
+        }
+        applyRoomSnapshot(room)
+      },
+      (error) => {
+        setOnlineSession((prev) => ({
+          ...prev,
+          phase: 'error',
+          connectionState: 'disconnected',
+          errorMessage: mapRoomErrorMessage(error, 'Failed to subscribe room updates.'),
+          syncState: 'idle',
+        }))
+      },
+    )
+  }
+
+  function beginOnlineCreate(): void {
+    setOnlineSession((prev) => ({
+      ...prev,
+      phase: 'create',
+      roomCode: '',
+      roomInput: '',
+      role: 'blue',
+      isHost: true,
+      connectionState: 'idle',
+      errorMessage: '',
+      waitMessage: 'Set colors and create a room.',
+      createColors: { ...playerColors },
+    }))
+  }
+
+  async function submitOnlineCreateRoom(): Promise<void> {
+    if (!isFirebaseConfigured()) {
+      setOnlineSession((prev) => ({
+        ...prev,
+        phase: 'error',
+        connectionState: 'disconnected',
+        errorMessage: 'Firebase config is missing. Set VITE_FIREBASE_* variables.',
+      }))
+      return
+    }
+
+    if (onlineSession.createColors.blue === onlineSession.createColors.yellow) {
+      setOnlineSession((prev) => ({
+        ...prev,
+        phase: 'create',
+        errorMessage: 'Player 1 and Player 2 must use different colors.',
+      }))
+      return
+    }
+
+    setOnlineSession((prev) => ({
+      ...prev,
+      connectionState: 'connecting',
+      errorMessage: '',
+      waitMessage: 'Creating room...',
+    }))
+
+    try {
+      const { roomCode } = await createRoom({
+        blue: onlineSession.createColors.blue,
+        yellow: onlineSession.createColors.yellow,
+      })
+      startOnlineRoomSubscription(roomCode)
+      setOnlineSession((prev) => ({
+        ...prev,
+        phase: 'waiting',
+        roomCode,
+        role: 'blue',
+        isHost: true,
+        connectionState: 'waiting',
+        waitMessage: 'Waiting for opponent...',
+        errorMessage: '',
+      }))
+      setPlayerColors({ ...onlineSession.createColors })
+    } catch (error) {
+      setOnlineSession((prev) => ({
+        ...prev,
+        phase: 'error',
+        connectionState: 'disconnected',
+        errorMessage: mapRoomErrorMessage(error, 'Failed to create room.'),
+      }))
+    }
+  }
+
+  function beginOnlineJoin(): void {
+    setOnlineSession((prev) => ({
+      ...prev,
+      phase: 'join',
+      roomCode: '',
+      roomInput: '',
+      role: 'yellow',
+      isHost: false,
+      connectionState: 'idle',
+      syncState: 'idle',
+      errorMessage: '',
+      waitMessage: 'Joined. Waiting for host to start...',
+    }))
+  }
+
+  async function confirmOnlineJoin(): Promise<void> {
+    if (!isFirebaseConfigured()) {
+      setOnlineSession((prev) => ({
+        ...prev,
+        phase: 'error',
+        connectionState: 'disconnected',
+        errorMessage: 'Firebase config is missing. Set VITE_FIREBASE_* variables.',
+      }))
+      return
+    }
+
+    const normalizedCode = normalizeRoomCode(onlineSession.roomInput)
+    setOnlineSession((prev) => ({
+      ...prev,
+      phase: 'join',
+      connectionState: 'connecting',
+      errorMessage: '',
+      syncState: 'idle',
+    }))
+
+    try {
+      const { roomCode } = await joinRoom(normalizedCode)
+      startOnlineRoomSubscription(roomCode)
+      setOnlineSession((prev) => ({
+        ...prev,
+        phase: 'waiting',
+        roomCode,
+        role: 'yellow',
+        isHost: false,
+        connectionState: 'waiting',
+        errorMessage: '',
+        waitMessage: 'Joined. Waiting for match start...',
+      }))
+    } catch (error) {
+      setOnlineSession((prev) => ({
+        ...prev,
+        phase: 'error',
+        connectionState: 'disconnected',
+        errorMessage: mapRoomErrorMessage(error, 'Failed to join room.'),
+      }))
+    }
+  }
+
   function openSetup(): void {
     clearAnimationTimers()
     clearCpuTimer()
@@ -513,14 +954,24 @@ export default function App() {
     setDisplayRemaining({ ...game.remaining })
     setPendingColors(playerColors)
     setPendingMode(matchMode)
+    setPendingOnlineAction(null)
     setPendingCpuDifficulty(cpuDifficulty)
+    resetOnlineSessionState()
+    setSetupStep('mode')
     setSetupOpen(true)
   }
 
-  function startWithSelectedColors(): void {
-    if (pendingColors.blue === pendingColors.yellow) {
+  function openSetupForOnline(action: OnlineEntryAction): void {
+    openSetup()
+    setPendingMode('online')
+    setPendingOnlineAction(action)
+  }
+
+  function prepareFreshMatch(nextColors: PlayerColorConfig, nextMode: MatchMode): void {
+    if (nextColors.blue === nextColors.yellow) {
       return
     }
+    stopOnlineRoomSubscription()
     clearAnimationTimers()
     clearCpuTimer()
     setIsAnimating(false)
@@ -531,12 +982,13 @@ export default function App() {
     setAnimatingKey(null)
     setRevealedAutoCount(0)
     lastWinnerRef.current = null
-    setPlayerColors(pendingColors)
-    setMatchMode(pendingMode)
+    setPlayerColors(nextColors)
+    setMatchMode(nextMode)
     setCpuDifficulty(pendingCpuDifficulty)
+    resetOnlineSessionState()
     const freshGame = createInitialGameState()
     const freshRecord = {
-      players: pendingColors,
+      players: nextColors,
       moves: [],
       winner: null,
     } satisfies MatchRecord
@@ -545,7 +997,40 @@ export default function App() {
     setMatchRecord(freshRecord)
     setHistory([{ game: cloneGameState(freshGame), matchRecord: cloneMatchRecord(freshRecord) }])
     setWinnerModalVisible(false)
+  }
+
+  function proceedFromGameSetup(): void {
+    if (pendingMode === 'online') {
+      if (!pendingOnlineAction) {
+        return
+      }
+      prepareFreshMatch(playerColors, 'online')
+      setSetupOpen(false)
+      setSetupStep('mode')
+      setOnlineSession({
+        ...INITIAL_ONLINE_SESSION,
+        createColors: { ...playerColors },
+      })
+      if (pendingOnlineAction === 'create') {
+        beginOnlineCreate()
+      } else if (pendingOnlineAction === 'join') {
+        beginOnlineJoin()
+      }
+      setPendingOnlineAction(null)
+      return
+    }
+    setPendingColors(playerColors)
+    setSetupStep('color')
+  }
+
+  function startWithColorSetup(): void {
+    if (pendingColors.blue === pendingColors.yellow) {
+      return
+    }
+    prepareFreshMatch(pendingColors, pendingMode)
     setSetupOpen(false)
+    setSetupStep('mode')
+    setPendingOnlineAction(null)
   }
 
   function handlePlayback(): void {
@@ -576,7 +1061,7 @@ export default function App() {
   }
 
   function handleUndo(): void {
-    if (history.length <= 1 || isAnimating || isPlayback || setupOpen) {
+    if (matchMode === 'online' || history.length <= 1 || isAnimating || isPlayback || setupOpen) {
       return
     }
 
@@ -692,23 +1177,88 @@ export default function App() {
 
   return (
     <main className={`page mobile-panels-${mobilePanelMode}`} style={themeStyle}>
-      <section className="advantage-strip" aria-label="advantage bar">
-        <div className="advantage-meta">
-          <span className="left-label">{matchMode === 'cpu' ? 'CPU' : '2P'} {leftPercent}%</span>
-          <span className="right-label">{rightPercent}% 1P</span>
-        </div>
-        <div className="advantage-track">
-          <div className="advantage-left" style={{ width: `${leftPercent}%` }} />
-          <div className="advantage-divider" />
-        </div>
-      </section>
+      {!isOnlineMockView ? (
+        <section className="advantage-strip" aria-label="advantage bar">
+          <div className="advantage-meta">
+            <span className="left-label">{matchMode === 'cpu' ? 'CPU' : matchMode === 'online' ? 'ONLINE' : '2P'} {leftPercent}%</span>
+            <span className="right-label">{rightPercent}% 1P</span>
+          </div>
+          <div className="advantage-track">
+            <div className="advantage-left" style={{ width: `${leftPercent}%` }} />
+            <div className="advantage-divider" />
+          </div>
+        </section>
+      ) : null}
 
       <div className="mini-title">Mosaic</div>
 
+      {isOnlineMockView ? (
+        <OnlineMockPanel
+          phase={onlineSession.phase}
+          roomCode={onlineSession.roomCode}
+          roomInput={onlineSession.roomInput}
+          waitMessage={onlineSession.waitMessage}
+          errorMessage={onlineSession.errorMessage}
+          createColors={onlineSession.createColors}
+          role={onlineSession.role}
+          isHost={onlineSession.isHost}
+          connectionState={onlineSession.connectionState}
+          syncState={onlineSession.syncState}
+          onInputRoomCode={(value) =>
+            setOnlineSession((prev) => ({
+              ...prev,
+              roomInput: value,
+            }))
+          }
+          onSelectCreateColor={(player, id) =>
+            setOnlineSession((prev) => ({
+              ...prev,
+              createColors: {
+                ...prev.createColors,
+                [player]: id,
+              },
+            }))
+          }
+          onCreateRoom={() => {
+            void submitOnlineCreateRoom()
+          }}
+          onConfirmJoin={() => {
+            void confirmOnlineJoin()
+          }}
+          onBackFromCreate={() => {
+            stopOnlineRoomSubscription()
+            openSetupForOnline('create')
+          }}
+          onBackFromJoinOrError={() => {
+            stopOnlineRoomSubscription()
+            openSetupForOnline('join')
+          }}
+          onCancelWaiting={() => {
+            stopOnlineRoomSubscription()
+            setOnlineSession((prev) => ({
+              ...prev,
+              phase: 'create',
+              roomCode: '',
+              connectionState: 'idle',
+              syncState: 'idle',
+              waitMessage: 'Set colors and create a room.',
+              errorMessage: '',
+            }))
+          }}
+        />
+      ) : (
       <section className="table-layout">
         <PlayerPanel
           playerKey="yellow"
-          playerLabel={matchMode === 'cpu' ? `CPU (${cpuDifficultyLabel(cpuDifficulty)})` : INTERNAL_LABEL.yellow}
+          playerLabel={
+            matchMode === 'cpu'
+              ? `CPU (${cpuDifficultyLabel(cpuDifficulty)})`
+              : matchMode === 'online'
+                ? onlineSession.role === 'yellow'
+                  ? 'Player 2 (You)'
+                  : 'Player 2'
+                : INTERNAL_LABEL.yellow
+          }
           colorHex={yellowTheme.hex}
           colorSoft={hexToRgba(yellowTheme.hex, 0.28)}
           remaining={displayRemaining.yellow}
@@ -730,7 +1280,12 @@ export default function App() {
 
                 return (
                   <div key={cell.key}>
-                    {cell.legal && !game.winner && !cell.pieceColor && !setupOpen && !isAnimating ? (
+                    {cell.legal &&
+                    !game.winner &&
+                    !cell.pieceColor &&
+                    !setupOpen &&
+                    !isAnimating &&
+                    (!isOnlineMode || isOnlineMyTurn) ? (
                       <button
                         className="token-hit"
                         data-turn={game.currentTurn}
@@ -773,7 +1328,13 @@ export default function App() {
 
         <PlayerPanel
           playerKey="blue"
-          playerLabel={INTERNAL_LABEL.blue}
+          playerLabel={
+            matchMode === 'online'
+              ? onlineSession.role === 'blue'
+                ? 'Player 1 (You)'
+                : 'Player 1'
+              : INTERNAL_LABEL.blue
+          }
           colorHex={blueTheme.hex}
           colorSoft={hexToRgba(blueTheme.hex, 0.28)}
           remaining={displayRemaining.blue}
@@ -782,7 +1343,9 @@ export default function App() {
           isThinking={false}
         />
       </section>
+      )}
 
+      {!isOnlineMockView ? (
       <div className="mobile-menu" ref={mobileMenuRef}>
         <button
           type="button"
@@ -833,7 +1396,7 @@ export default function App() {
               role="menuitem"
               className="mobile-menu-item"
               onClick={handleUndo}
-              disabled={history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
+              disabled={matchMode === 'online' || history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
             >
               Undo
             </button>
@@ -848,28 +1411,35 @@ export default function App() {
           </div>
         ) : null}
       </div>
+      ) : null}
 
+      {!isOnlineMockView ? (
       <button type="button" className="sound-fixed" onClick={() => setSoundOn((prev) => !prev)}>
         Sound: {soundOn ? 'On' : 'Off'}
       </button>
+      ) : null}
+      {!isOnlineMockView ? (
       <button
         type="button"
         className="undo-fixed"
         onClick={handleUndo}
-        disabled={history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
+        disabled={matchMode === 'online' || history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
       >
         Undo
       </button>
+      ) : null}
+      {!isOnlineMockView ? (
       <button type="button" className="reset-fixed" onClick={openSetup}>
         Reset
       </button>
+      ) : null}
       {isPlayback ? <div className="playback-chip">Playback</div> : null}
 
       {game.winner && winnerModalVisible ? (
         <div className="winner-overlay" aria-live="polite">
           <div className="winner-card">
             <div className="winner-title">WINNER!</div>
-            <div className="winner-name">{winnerLabel(game.winner, matchMode, cpuDifficulty)} Wins</div>
+            <div className="winner-name">{winnerLabel(game.winner, matchMode, cpuDifficulty, onlineSession.role)} Wins</div>
             <div className="winner-sub">Color: {colorById.get(playerColors[game.winner])?.label ?? playerColors[game.winner]}</div>
             <div className="winner-actions">
               <button type="button" className="winner-btn view3d" onClick={() => setIs3DOpen(true)}>
@@ -904,83 +1474,147 @@ export default function App() {
       {setupOpen ? (
         <div className="setup-overlay" role="dialog" aria-modal="true">
           <div className="setup-modal">
-            <h2>Game Setup</h2>
-            <p>Choose mode and colors. Both players must use different colors.</p>
-            <div className="mode-row">
-              <div className="picker-label">Game Mode</div>
-              <div className="mode-options" role="radiogroup" aria-label="game mode">
+            {setupStep === 'mode' ? (
+              <>
+                <h2>Game Setup</h2>
+                <p>Choose how you want to play.</p>
+                <div className="mode-row">
+                  <div className="picker-label">Game Mode</div>
+                  <div className="mode-options" role="radiogroup" aria-label="game mode">
+                    <button
+                      type="button"
+                      className={['mode-option', pendingMode === 'pvp' ? 'selected' : ''].filter(Boolean).join(' ')}
+                      onClick={() => {
+                        setPendingMode('pvp')
+                        setPendingOnlineAction(null)
+                      }}
+                      aria-pressed={pendingMode === 'pvp'}
+                    >
+                      Local Match
+                    </button>
+                    <button
+                      type="button"
+                      className={['mode-option', pendingMode === 'cpu' ? 'selected' : ''].filter(Boolean).join(' ')}
+                      onClick={() => {
+                        setPendingMode('cpu')
+                        setPendingOnlineAction(null)
+                      }}
+                      aria-pressed={pendingMode === 'cpu'}
+                    >
+                      CPU Match
+                    </button>
+                    <button
+                      type="button"
+                      className={['mode-option', pendingMode === 'online' ? 'selected' : ''].filter(Boolean).join(' ')}
+                      onClick={() => setPendingMode('online')}
+                      aria-pressed={pendingMode === 'online'}
+                    >
+                      Online Match
+                    </button>
+                  </div>
+                </div>
+                {pendingMode === 'cpu' ? (
+                  <div className="mode-row">
+                    <div className="picker-label">CPU Difficulty</div>
+                    <div className="mode-options difficulty-options" role="radiogroup" aria-label="cpu difficulty">
+                      <button
+                        type="button"
+                        className={['mode-option', pendingCpuDifficulty === 'easy' ? 'selected' : ''].filter(Boolean).join(' ')}
+                        onClick={() => setPendingCpuDifficulty('easy')}
+                        aria-pressed={pendingCpuDifficulty === 'easy'}
+                      >
+                        Easy
+                      </button>
+                      <button
+                        type="button"
+                        className={['mode-option', pendingCpuDifficulty === 'normal' ? 'selected' : ''].filter(Boolean).join(' ')}
+                        onClick={() => setPendingCpuDifficulty('normal')}
+                        aria-pressed={pendingCpuDifficulty === 'normal'}
+                      >
+                        Normal
+                      </button>
+                      <button
+                        type="button"
+                        className={['mode-option', pendingCpuDifficulty === 'hard' ? 'selected' : ''].filter(Boolean).join(' ')}
+                        onClick={() => setPendingCpuDifficulty('hard')}
+                        aria-pressed={pendingCpuDifficulty === 'hard'}
+                      >
+                        Hard
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                {pendingMode === 'online' ? (
+                  <div className="mode-row">
+                    <div className="picker-label">Online Action</div>
+                    <div className="mode-options" role="radiogroup" aria-label="online action">
+                      <button
+                        type="button"
+                        className={['mode-option', pendingOnlineAction === 'create' ? 'selected' : ''].filter(Boolean).join(' ')}
+                        onClick={() => setPendingOnlineAction('create')}
+                        aria-pressed={pendingOnlineAction === 'create'}
+                      >
+                        Create Room
+                      </button>
+                      <button
+                        type="button"
+                        className={['mode-option', pendingOnlineAction === 'join' ? 'selected' : ''].filter(Boolean).join(' ')}
+                        onClick={() => setPendingOnlineAction('join')}
+                        aria-pressed={pendingOnlineAction === 'join'}
+                      >
+                        Join Room
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
                 <button
                   type="button"
-                  className={['mode-option', pendingMode === 'pvp' ? 'selected' : ''].filter(Boolean).join(' ')}
-                  onClick={() => setPendingMode('pvp')}
-                  aria-pressed={pendingMode === 'pvp'}
+                  className="start-button"
+                  onClick={proceedFromGameSetup}
+                  disabled={pendingMode === 'online' && !pendingOnlineAction}
                 >
-                  Local 2 Players
+                  Continue
                 </button>
-                <button
-                  type="button"
-                  className={['mode-option', pendingMode === 'cpu' ? 'selected' : ''].filter(Boolean).join(' ')}
-                  onClick={() => setPendingMode('cpu')}
-                  aria-pressed={pendingMode === 'cpu'}
-                >
-                  vs CPU
-                </button>
-              </div>
-            </div>
-            {pendingMode === 'cpu' ? (
-              <div className="mode-row">
-                <div className="picker-label">CPU Difficulty</div>
-                <div className="mode-options difficulty-options" role="radiogroup" aria-label="cpu difficulty">
+              </>
+            ) : (
+              <>
+                <h2>Color Setup</h2>
+                <p>Choose colors for Player 1 and Player 2.</p>
+
+                <ColorPickerRow
+                  label={pendingMode === 'cpu' ? 'Player 1 (You)' : 'Player 1'}
+                  selected={pendingColors.blue}
+                  blocked={pendingColors.yellow}
+                  onSelect={(id) => setPendingColors((prev) => ({ ...prev, blue: id }))}
+                />
+
+                <ColorPickerRow
+                  label={pendingMode === 'cpu' ? 'Player 2 (CPU)' : 'Player 2'}
+                  selected={pendingColors.yellow}
+                  blocked={pendingColors.blue}
+                  onSelect={(id) => setPendingColors((prev) => ({ ...prev, yellow: id }))}
+                />
+
+                <div className="setup-actions">
                   <button
                     type="button"
-                    className={['mode-option', pendingCpuDifficulty === 'easy' ? 'selected' : ''].filter(Boolean).join(' ')}
-                    onClick={() => setPendingCpuDifficulty('easy')}
-                    aria-pressed={pendingCpuDifficulty === 'easy'}
+                    className="mode-option"
+                    onClick={() => setSetupStep('mode')}
                   >
-                    Easy
+                    Back
                   </button>
                   <button
                     type="button"
-                    className={['mode-option', pendingCpuDifficulty === 'normal' ? 'selected' : ''].filter(Boolean).join(' ')}
-                    onClick={() => setPendingCpuDifficulty('normal')}
-                    aria-pressed={pendingCpuDifficulty === 'normal'}
+                    className="start-button"
+                    onClick={startWithColorSetup}
+                    disabled={pendingColors.blue === pendingColors.yellow}
                   >
-                    Normal
-                  </button>
-                  <button
-                    type="button"
-                    className={['mode-option', pendingCpuDifficulty === 'hard' ? 'selected' : ''].filter(Boolean).join(' ')}
-                    onClick={() => setPendingCpuDifficulty('hard')}
-                    aria-pressed={pendingCpuDifficulty === 'hard'}
-                  >
-                    Hard
+                    Start Match
                   </button>
                 </div>
-              </div>
-            ) : null}
-
-            <ColorPickerRow
-              label={pendingMode === 'cpu' ? 'You' : 'Player 1'}
-              selected={pendingColors.blue}
-              blocked={pendingColors.yellow}
-              onSelect={(id) => setPendingColors((prev) => ({ ...prev, blue: id }))}
-            />
-
-            <ColorPickerRow
-              label={pendingMode === 'cpu' ? 'CPU' : 'Player 2'}
-              selected={pendingColors.yellow}
-              blocked={pendingColors.blue}
-              onSelect={(id) => setPendingColors((prev) => ({ ...prev, yellow: id }))}
-            />
-
-            <button
-              type="button"
-              className="start-button"
-              onClick={startWithSelectedColors}
-              disabled={pendingColors.blue === pendingColors.yellow}
-            >
-              Start
-            </button>
+              </>
+            )}
           </div>
         </div>
       ) : null}
@@ -997,6 +1631,197 @@ interface PlayerPanelProps {
   isTurn: boolean
   isWinner: boolean
   isThinking: boolean
+}
+
+interface OnlineMockPanelProps {
+  phase: OnlinePhase
+  roomCode: string
+  roomInput: string
+  waitMessage: string
+  errorMessage: string
+  createColors: PlayerColorConfig
+  role: PlayerColor | null
+  isHost: boolean
+  connectionState: OnlineConnectionState
+  syncState: OnlineSyncState
+  onInputRoomCode: (value: string) => void
+  onSelectCreateColor: (player: PlayerColor, id: DisplayColorId) => void
+  onCreateRoom: () => void
+  onConfirmJoin: () => void
+  onBackFromCreate: () => void
+  onBackFromJoinOrError: () => void
+  onCancelWaiting: () => void
+}
+
+function OnlineMockPanel({
+  phase,
+  roomCode,
+  roomInput,
+  waitMessage,
+  errorMessage,
+  createColors,
+  role,
+  isHost,
+  connectionState,
+  syncState,
+  onInputRoomCode,
+  onSelectCreateColor,
+  onCreateRoom,
+  onConfirmJoin,
+  onBackFromCreate,
+  onBackFromJoinOrError,
+  onCancelWaiting,
+}: OnlineMockPanelProps) {
+  const [copyFeedback, setCopyFeedback] = useState('')
+
+  function handleCopyRoomCode(): void {
+    if (!roomCode) {
+      return
+    }
+
+    if (!navigator.clipboard?.writeText) {
+      setCopyFeedback('Clipboard unavailable.')
+      return
+    }
+
+    navigator.clipboard
+      .writeText(roomCode)
+      .then(() => {
+        setCopyFeedback('Copied!')
+      })
+      .catch(() => {
+        setCopyFeedback('Copy failed.')
+      })
+  }
+
+  useEffect(() => {
+    if (!copyFeedback) {
+      return
+    }
+    const timeoutId = window.setTimeout(() => setCopyFeedback(''), 1400)
+    return () => window.clearTimeout(timeoutId)
+  }, [copyFeedback])
+
+  return (
+    <section className="online-shell" aria-label="online mock">
+      <div className="online-card">
+        <div className="online-head">
+          <h2>Online Match</h2>
+          <p>Private room battle for two players.</p>
+        </div>
+
+        <div className="online-session-meta" aria-live="polite">
+          <span>You: {role === 'blue' ? 'Player 1' : role === 'yellow' ? 'Player 2' : 'Not assigned'}</span>
+          <span>{isHost ? 'Host' : 'Guest'}</span>
+          <span>Status: {connectionState === 'connected' ? 'Connected' : connectionState === 'connecting' ? 'Connecting...' : connectionState === 'waiting' ? 'Waiting...' : 'Disconnected'}</span>
+          {syncState === 'submitting' ? <span>Sending move...</span> : null}
+        </div>
+
+        <div className={['online-error-slot', errorMessage ? 'has-error' : ''].filter(Boolean).join(' ')} role="status" aria-live="polite">
+          {errorMessage ? <span className="online-error-text">{errorMessage}</span> : null}
+        </div>
+
+        {phase === 'create' ? (
+          <div className="online-section">
+            <h3>Create Room</h3>
+            <p className="online-waiting-copy">Choose colors, then create a room.</p>
+            <ColorPickerRow
+              label="Player 1 Color"
+              selected={createColors.blue}
+              blocked={createColors.yellow}
+              onSelect={(id) => onSelectCreateColor('blue', id)}
+            />
+            <ColorPickerRow
+              label="Player 2 Color"
+              selected={createColors.yellow}
+              blocked={createColors.blue}
+              onSelect={(id) => onSelectCreateColor('yellow', id)}
+            />
+            <div className="online-actions">
+              <button
+                type="button"
+                className="online-btn primary"
+                onClick={onCreateRoom}
+                disabled={createColors.blue === createColors.yellow || connectionState === 'connecting'}
+              >
+                Create Room
+              </button>
+              <button type="button" className="online-btn ghost" onClick={onBackFromCreate}>
+                Back
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {phase === 'join' ? (
+          <div className="online-section">
+            <h3>Join Room</h3>
+            <p className="online-waiting-copy">Enter a room code to join an existing match.</p>
+            <label className="online-input-wrap">
+              <span>Room Code</span>
+              <input
+                type="text"
+                value={roomInput}
+                onChange={(event) => onInputRoomCode(event.target.value)}
+                placeholder="e.g. AB12CD"
+                maxLength={12}
+              />
+            </label>
+            <div className="online-actions">
+              <button type="button" className="online-btn primary" onClick={onConfirmJoin}>
+                Join
+              </button>
+              <button type="button" className="online-btn ghost" onClick={onBackFromJoinOrError}>
+                Back
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {phase === 'waiting' ? (
+          <div className="online-section">
+            <h3>Waiting Room</h3>
+            <div className="waiting-room-code">
+              <div className="waiting-room-code-head">Room Code</div>
+              <div className="waiting-room-code-main">
+                <span className="waiting-room-code-value">{roomCode || 'N/A'}</span>
+                <button type="button" className="online-btn ghost copy" onClick={handleCopyRoomCode} disabled={!roomCode}>
+                  Copy
+                </button>
+              </div>
+              <div className="waiting-room-code-sub">Share this code with your opponent.</div>
+              {copyFeedback ? <div className="waiting-room-copy-feedback">{copyFeedback}</div> : null}
+            </div>
+            <p className="online-waiting-copy">Waiting for opponent to join and start the match.</p>
+            <div className="online-status-list">
+              <div className="online-status-item">
+                Colors: P1 {colorLabel(createColors.blue)} / P2 {colorLabel(createColors.yellow)}
+              </div>
+              <div className="online-status-item">{waitMessage}</div>
+              <div className="online-status-item">Connection: {connectionState === 'connected' ? 'Connected' : connectionState === 'connecting' ? 'Connecting...' : connectionState === 'waiting' ? 'Waiting...' : 'Disconnected'}</div>
+            </div>
+            <div className="online-actions">
+              <button type="button" className="online-btn ghost" onClick={onCancelWaiting}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {phase === 'error' ? (
+          <div className="online-section">
+            <h3>Error</h3>
+            <p className="online-waiting-copy">Unable to continue this online match. Please try again.</p>
+            <div className="online-actions">
+              <button type="button" className="online-btn primary" onClick={onBackFromJoinOrError}>
+                Back
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  )
 }
 
 function PlayerPanel({
@@ -1093,6 +1918,15 @@ function ColorPickerRow({ label, selected, blocked, onSelect }: ColorPickerRowPr
   )
 }
 
+function isDisplayColorId(value: unknown): value is DisplayColorId {
+  return typeof value === 'string' && COLOR_OPTIONS.some((option) => option.id === value)
+}
+
+function colorLabel(id: DisplayColorId): string {
+  const found = COLOR_OPTIONS.find((option) => option.id === id)
+  return found ? found.label : id
+}
+
 function toMoveKey(level: number, row: number, col: number): string {
   return `${level}-${row}-${col}`
 }
@@ -1148,9 +1982,20 @@ function cpuDifficultyLabel(difficulty: CpuDifficulty): string {
   return 'Easy'
 }
 
-function winnerLabel(winner: PlayerColor, mode: MatchMode, difficulty: CpuDifficulty): string {
+function winnerLabel(
+  winner: PlayerColor,
+  mode: MatchMode,
+  difficulty: CpuDifficulty,
+  onlineRole: PlayerColor | null,
+): string {
   if (mode === 'cpu') {
     return winner === 'blue' ? 'Player 1' : `CPU (${cpuDifficultyLabel(difficulty)})`
+  }
+  if (mode === 'online') {
+    if (winner === 'blue') {
+      return onlineRole === 'blue' ? 'Player 1 (You)' : 'Player 1'
+    }
+    return onlineRole === 'yellow' ? 'Player 2 (You)' : 'Player 2'
   }
   return INTERNAL_LABEL[winner]
 }

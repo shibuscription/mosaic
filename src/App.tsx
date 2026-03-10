@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { BASE_SIZE, MAX_LEVEL, TOTAL_PIECES, type AutoPlacement, type GameState, type Move, type PlayerColor } from './game/types'
 import { createInitialGameState, getLegalMoves, getLevelSize, getPiece, placeManualPiece } from './game/logic'
 import { chooseCpuMove, type CpuDifficulty } from './game/cpu'
-import { FinalBoard3DModal } from './components/FinalBoard3DModal'
+import { Board3DViewport } from './components/Board3DViewport'
 import { isFirebaseConfigured } from './firebase'
 import {
   RoomError,
@@ -44,6 +44,8 @@ type MatchMode = 'pvp' | 'cpu' | 'online'
 type SetupStep = 'mode' | 'color'
 type OnlineEntryAction = 'create' | 'join' | null
 type MobilePanelMode = 'standard' | 'faceoff'
+type BoardRendererMode = '2d' | '3d'
+type PlaybackStatus = 'playing' | 'paused'
 type OnlinePhase = 'create' | 'join' | 'waiting' | 'playing' | 'error' | 'finished' | 'closed' | 'interrupted'
 type OnlineConnectionState = 'idle' | 'connecting' | 'waiting' | 'connected' | 'disconnected'
 type OnlineSyncState = 'idle' | 'submitting'
@@ -64,6 +66,16 @@ interface MatchRecord {
 interface UndoSnapshot {
   game: GameState
   matchRecord: MatchRecord
+}
+
+interface PlaybackFrame {
+  game: GameState
+  remaining: Record<PlayerColor, number>
+  animatingKey: string | null
+  revealedAutoCount: number
+  sound: 'manual' | 'auto' | null
+  autoChainIndex: number
+  delayMs: number
 }
 
 interface OnlineSessionState {
@@ -151,8 +163,10 @@ export default function App() {
   const [soundOn, setSoundOn] = useState(true)
   const [isAnimating, setIsAnimating] = useState(false)
   const [isPlayback, setIsPlayback] = useState(false)
-  const [is3DOpen, setIs3DOpen] = useState(false)
+  const [playbackStatus, setPlaybackStatus] = useState<PlaybackStatus | null>(null)
+  const [playbackRenderer, setPlaybackRenderer] = useState<BoardRendererMode | null>(null)
   const [winnerModalVisible, setWinnerModalVisible] = useState(false)
+  const [boardRenderer, setBoardRenderer] = useState<BoardRendererMode>('2d')
   const [isCpuThinking, setIsCpuThinking] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [mobilePanelMode, setMobilePanelMode] = useState<MobilePanelMode>(() => {
@@ -186,6 +200,12 @@ export default function App() {
   const boardStageRef = useRef<HTMLElement | null>(null)
   const mobileMenuRef = useRef<HTMLDivElement | null>(null)
   const timeoutIdsRef = useRef<number[]>([])
+  const playbackTimerRef = useRef<number | null>(null)
+  const playbackFramesRef = useRef<PlaybackFrame[]>([])
+  const playbackCursorRef = useRef(0)
+  const playbackFinalGameRef = useRef<GameState | null>(null)
+  const playbackFinalRemainingRef = useRef<Record<PlayerColor, number> | null>(null)
+  const playbackStatusRef = useRef<PlaybackStatus | null>(null)
   const cpuTimeoutRef = useRef<number | null>(null)
   const onlineRoomUnsubRef = useRef<(() => void) | null>(null)
   const onlineLastMoveSignatureRef = useRef<string | null>(null)
@@ -273,7 +293,8 @@ export default function App() {
       const rect = stage.getBoundingClientRect()
       const viewportWidth = document.documentElement.clientWidth
       const mobileHorizontalPadding = 12
-      const availableWidth = Math.min(stage.clientWidth, viewportWidth - mobileHorizontalPadding)
+      const faceoffOffset = mobilePanelMode === 'faceoff' && viewportWidth <= 979 ? 24 : 0
+      const availableWidth = Math.min(stage.clientWidth - faceoffOffset, viewportWidth - mobileHorizontalPadding)
       const availableHeight = window.innerHeight - rect.top - 16
       const next = Math.floor(Math.max(MIN_BOARD_PIXELS, Math.min(availableWidth, availableHeight, MAX_BOARD_PIXELS)))
       setBoardSize(next)
@@ -294,6 +315,7 @@ export default function App() {
   useEffect(() => {
     return () => {
       clearAnimationTimers()
+      clearPlaybackTimer()
       clearCpuTimer()
       stopOnlineRoomSubscription()
       audioCtxRef.current?.close().catch(() => undefined)
@@ -306,7 +328,6 @@ export default function App() {
       setupOpen ||
       isAnimating ||
       isPlayback ||
-      is3DOpen ||
       game.winner ||
       matchMode !== 'cpu' ||
       game.currentTurn !== 'yellow'
@@ -329,7 +350,7 @@ export default function App() {
     return () => {
       clearCpuTimer()
     }
-  }, [cpuDifficulty, game, is3DOpen, isAnimating, isPlayback, matchMode, setupOpen])
+  }, [cpuDifficulty, game, isAnimating, isPlayback, matchMode, setupOpen])
 
   useEffect(() => {
     if (!winnerModalVisible || !game.winner || game.winner === lastWinnerRef.current) {
@@ -350,6 +371,10 @@ export default function App() {
   useEffect(() => {
     historyRef.current = history
   }, [history])
+
+  useEffect(() => {
+    playbackStatusRef.current = playbackStatus
+  }, [playbackStatus])
 
   useEffect(() => {
     if (!shouldWarnOnlineLeave) {
@@ -549,7 +574,7 @@ export default function App() {
     clearCpuTimer()
     setIsCpuThinking(false)
 
-    if (setupOpen || isAnimating || isPlayback || is3DOpen || game.winner) {
+    if (setupOpen || isAnimating || isPlayback || game.winner) {
       return
     }
 
@@ -1082,10 +1107,12 @@ export default function App() {
       void leaveOnlineRoomExplicitly()
     }
     clearAnimationTimers()
+    clearPlaybackTimer()
     clearCpuTimer()
     setIsAnimating(false)
     setIsPlayback(false)
-    setIs3DOpen(false)
+    setPlaybackStatus(null)
+    setPlaybackRenderer(null)
     setWinnerModalVisible(false)
     setIsCpuThinking(false)
     setIsMobileMenuOpen(false)
@@ -1096,6 +1123,7 @@ export default function App() {
     setPendingMode(matchMode)
     setPendingOnlineAction(null)
     setPendingCpuDifficulty(cpuDifficulty)
+    setBoardRenderer('2d')
     resetOnlineSessionState()
     setSetupStep('mode')
     setSetupOpen(true)
@@ -1116,15 +1144,18 @@ export default function App() {
     }
     stopOnlineRoomSubscription()
     clearAnimationTimers()
+    clearPlaybackTimer()
     clearCpuTimer()
     setIsAnimating(false)
     setIsPlayback(false)
-    setIs3DOpen(false)
+    setPlaybackStatus(null)
+    setPlaybackRenderer(null)
     setIsCpuThinking(false)
     setIsMobileMenuOpen(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
     lastWinnerRef.current = null
+    setBoardRenderer('2d')
     setPlayerColors(nextColors)
     setMatchMode(nextMode)
     setCpuDifficulty(pendingCpuDifficulty)
@@ -1176,31 +1207,189 @@ export default function App() {
     setPendingOnlineAction(null)
   }
 
-  function handlePlayback(): void {
+  function clearPlaybackTimer(): void {
+    if (playbackTimerRef.current !== null) {
+      window.clearTimeout(playbackTimerRef.current)
+      playbackTimerRef.current = null
+    }
+  }
+
+  function buildPlaybackFrames(baseRecord: MatchRecord): {
+    frames: PlaybackFrame[]
+    finalGame: GameState
+    finalRemaining: Record<PlayerColor, number>
+  } {
+    const frames: PlaybackFrame[] = []
+    let state = createInitialGameState()
+
+    for (const record of baseRecord.moves) {
+      const resolved = placeManualPiece(state, record.manual.level, record.manual.row, record.manual.col)
+      const manualState = cloneGameState(resolved)
+      for (const placement of record.autoPlacements) {
+        manualState.board[placement.level][placement.row][placement.col] = null
+      }
+      manualState.winner = null
+
+      const manualRemaining = { ...state.remaining }
+      manualRemaining[record.player] = Math.max(0, manualRemaining[record.player] - 1)
+      frames.push({
+        game: manualState,
+        remaining: manualRemaining,
+        animatingKey: toMoveKey(record.manual.level, record.manual.row, record.manual.col),
+        revealedAutoCount: 0,
+        sound: 'manual',
+        autoChainIndex: 0,
+        delayMs: PLAYBACK_MANUAL_MS,
+      })
+
+      let chainRemaining = { ...manualRemaining }
+      const chainState = cloneGameState(manualState)
+      record.autoPlacements.forEach((auto, chainIndex) => {
+        chainState.board[auto.level][auto.row][auto.col] = { color: auto.color, source: 'auto' }
+        chainRemaining = {
+          ...chainRemaining,
+          [auto.color]: Math.max(0, chainRemaining[auto.color] - 1),
+        }
+        frames.push({
+          game: cloneGameState(chainState),
+          remaining: { ...chainRemaining },
+          animatingKey: toMoveKey(auto.level, auto.row, auto.col),
+          revealedAutoCount: chainIndex + 1,
+          sound: 'auto',
+          autoChainIndex: chainIndex,
+          delayMs: PLAYBACK_AUTO_MS,
+        })
+      })
+      state = resolved
+    }
+
+    return {
+      frames,
+      finalGame: cloneGameState(state),
+      finalRemaining: { ...state.remaining },
+    }
+  }
+
+  function applyPlaybackFrame(frame: PlaybackFrame): void {
+    setIsAnimating(true)
+    setGame(cloneGameState(frame.game))
+    setDisplayRemaining({ ...frame.remaining })
+    setAnimatingKey(frame.animatingKey)
+    setRevealedAutoCount(frame.revealedAutoCount)
+    if (frame.sound === 'manual') {
+      playManualSound()
+    } else if (frame.sound === 'auto') {
+      playAutoSound(frame.autoChainIndex)
+    }
+  }
+
+  function finalizePlayback(showWinnerModal: boolean): void {
+    clearPlaybackTimer()
+    setIsPlayback(false)
+    setPlaybackStatus(null)
+    setPlaybackRenderer(null)
+    playbackStatusRef.current = null
+    const finalGame = playbackFinalGameRef.current
+    const finalRemaining = playbackFinalRemainingRef.current
+    if (finalGame && finalRemaining) {
+      setGame(cloneGameState(finalGame))
+      setDisplayRemaining({ ...finalRemaining })
+      setWinnerModalVisible(showWinnerModal)
+    }
+    setIsAnimating(false)
+    setAnimatingKey(null)
+    const finalAutoCount = finalGame ? finalGame.lastAutoPlacements.length : 0
+    setRevealedAutoCount(finalAutoCount)
+  }
+
+  function schedulePlaybackStep(delayMs: number): void {
+    clearPlaybackTimer()
+    playbackTimerRef.current = window.setTimeout(() => {
+      if (playbackStatusRef.current !== 'playing') {
+        return
+      }
+
+      const frames = playbackFramesRef.current
+      const cursor = playbackCursorRef.current
+      if (cursor >= frames.length) {
+        playbackTimerRef.current = window.setTimeout(() => {
+          finalizePlayback(true)
+        }, PLAYBACK_GAP_MS)
+        return
+      }
+
+      const frame = frames[cursor]
+      applyPlaybackFrame(frame)
+      playbackCursorRef.current = cursor + 1
+      schedulePlaybackStep(frame.delayMs)
+    }, delayMs)
+  }
+
+  function runPlayback(renderer: BoardRendererMode): void {
     if (matchRecord.moves.length === 0 || isPlayback) {
       return
     }
 
+    const { frames, finalGame, finalRemaining } = buildPlaybackFrames(matchRecord)
+    if (frames.length === 0) {
+      return
+    }
+
     clearAnimationTimers()
+    clearPlaybackTimer()
     clearCpuTimer()
     setIsAnimating(false)
     setIsPlayback(true)
-    setIs3DOpen(false)
+    setPlaybackStatus('playing')
+    setPlaybackRenderer(renderer)
+    playbackStatusRef.current = 'playing'
     setWinnerModalVisible(false)
     setIsCpuThinking(false)
     setIsMobileMenuOpen(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
+    setBoardRenderer(renderer)
     lastWinnerRef.current = null
+
+    playbackFramesRef.current = frames
+    playbackCursorRef.current = 0
+    playbackFinalGameRef.current = finalGame
+    playbackFinalRemainingRef.current = finalRemaining
 
     const initial = createInitialGameState()
     setGame(initial)
     setDisplayRemaining({ ...initial.remaining })
+    schedulePlaybackStep(90)
+  }
 
-    const startId = window.setTimeout(() => {
-      runPlaybackMove(0, initial)
-    }, 80)
-    timeoutIdsRef.current.push(startId)
+  function handlePlayback2D(): void {
+    runPlayback('2d')
+  }
+
+  function handlePlayback3D(): void {
+    runPlayback('3d')
+  }
+
+  function handlePauseResumePlayback(): void {
+    if (!isPlayback) {
+      return
+    }
+    if (playbackStatusRef.current === 'playing') {
+      clearPlaybackTimer()
+      setPlaybackStatus('paused')
+      playbackStatusRef.current = 'paused'
+      return
+    }
+    setPlaybackStatus('playing')
+    playbackStatusRef.current = 'playing'
+    schedulePlaybackStep(70)
+  }
+
+  function handleStopPlayback(): void {
+    if (!isPlayback) {
+      return
+    }
+    finalizePlayback(true)
   }
 
   function handleUndo(): void {
@@ -1209,10 +1398,12 @@ export default function App() {
     }
 
     clearAnimationTimers()
+    clearPlaybackTimer()
     clearCpuTimer()
     setIsAnimating(false)
     setIsPlayback(false)
-    setIs3DOpen(false)
+    setPlaybackStatus(null)
+    setPlaybackRenderer(null)
     setWinnerModalVisible(false)
     setIsCpuThinking(false)
     setIsMobileMenuOpen(false)
@@ -1231,28 +1422,6 @@ export default function App() {
     setDisplayRemaining({ ...prevSnapshot.game.remaining })
     setMatchRecord(cloneMatchRecord(prevSnapshot.matchRecord))
     setWinnerModalVisible(Boolean(prevSnapshot.game.winner))
-  }
-
-  function runPlaybackMove(index: number, stateAtTurnStart: ReturnType<typeof createInitialGameState>): void {
-    if (index >= matchRecord.moves.length) {
-      setIsPlayback(false)
-      return
-    }
-
-    const record = matchRecord.moves[index]
-    const resolved = placeManualPiece(
-      stateAtTurnStart,
-      record.manual.level,
-      record.manual.row,
-      record.manual.col,
-    )
-
-    startResolvedAnimation(resolved, stateAtTurnStart.remaining, PLAYBACK_MANUAL_MS, PLAYBACK_AUTO_MS, () => {
-      const id = window.setTimeout(() => {
-        runPlaybackMove(index + 1, resolved)
-      }, PLAYBACK_GAP_MS)
-      timeoutIdsRef.current.push(id)
-    })
   }
 
   function ensureAudioContext(): AudioContext | null {
@@ -1415,52 +1584,72 @@ export default function App() {
         />
 
         <section className="board-stage" aria-label="mosaic board" ref={boardStageRef}>
-          <div className="board-wrap" style={{ width: `${boardSize}px`, height: `${boardSize}px` }}>
-            <div className="board">
-              {positions.map((cell) => {
-                if (!cell.pieceColor && !cell.legal) {
-                  return null
+          {boardRenderer === '3d' ? (
+            <div className="board-wrap board-wrap-3d" style={{ width: `${boardSize}px`, height: `${boardSize}px` }}>
+              <Board3DViewport
+                board={game.board}
+                colors={pieceColorMap}
+                onStartPlayback={game.winner && !isPlayback ? handlePlayback3D : undefined}
+                onSwitchTo2D={
+                  !isPlayback
+                    ? () => {
+                        setBoardRenderer('2d')
+                        if (game.winner) {
+                          setWinnerModalVisible(true)
+                        }
+                      }
+                    : undefined
                 }
-
-                const visualZ = 10 + cell.level * 10 + (cell.pieceColor ? 1 : 0)
-                const hitZ = 200 + cell.level
-
-                return (
-                  <div key={cell.key}>
-                    {cell.legal &&
-                    !game.winner &&
-                    !cell.pieceColor &&
-                    !setupOpen &&
-                    !isAnimating &&
-                    (!isOnlineMode || (onlineSession.phase === 'playing' && isOnlineMyTurn)) ? (
-                      <button
-                        className="token-hit"
-                        data-turn={game.currentTurn}
-                        style={{ left: `${cell.left}%`, top: `${cell.top}%`, zIndex: `${hitZ}` }}
-                        onClick={() => onCellClick(cell.level, cell.row, cell.col)}
-                        type="button"
-                        aria-label={`L${cell.level} row ${cell.row + 1} col ${cell.col + 1}`}
-                      />
-                    ) : null}
-
-                    <div
-                      className={[
-                        'token-visual',
-                        cell.pieceColor ? 'filled' : 'empty legal',
-                        cell.isLastMove ? 'last-move' : '',
-                        cell.isAnimatingSpawn ? 'appear' : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      style={{ left: `${cell.left}%`, top: `${cell.top}%`, zIndex: `${visualZ}` }}
-                    >
-                      {cell.pieceColor ? <span className={`piece ${cell.pieceColor}`} /> : <span className="guide" />}
-                    </div>
-                  </div>
-                )
-              })}
+              />
             </div>
-          </div>
+          ) : (
+            <div className="board-wrap" style={{ width: `${boardSize}px`, height: `${boardSize}px` }}>
+              <div className="board">
+                {positions.map((cell) => {
+                  if (!cell.pieceColor && !cell.legal) {
+                    return null
+                  }
+
+                  const visualZ = 10 + cell.level * 10 + (cell.pieceColor ? 1 : 0)
+                  const hitZ = 200 + cell.level
+
+                  return (
+                    <div key={cell.key}>
+                      {cell.legal &&
+                      !game.winner &&
+                      !cell.pieceColor &&
+                      !setupOpen &&
+                      !isAnimating &&
+                      (!isOnlineMode || (onlineSession.phase === 'playing' && isOnlineMyTurn)) ? (
+                        <button
+                          className="token-hit"
+                          data-turn={game.currentTurn}
+                          style={{ left: `${cell.left}%`, top: `${cell.top}%`, zIndex: `${hitZ}` }}
+                          onClick={() => onCellClick(cell.level, cell.row, cell.col)}
+                          type="button"
+                          aria-label={`L${cell.level} row ${cell.row + 1} col ${cell.col + 1}`}
+                        />
+                      ) : null}
+
+                      <div
+                        className={[
+                          'token-visual',
+                          cell.pieceColor ? 'filled' : 'empty legal',
+                          cell.isLastMove ? 'last-move' : '',
+                          cell.isAnimatingSpawn ? 'appear' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        style={{ left: `${cell.left}%`, top: `${cell.top}%`, zIndex: `${visualZ}` }}
+                      >
+                        {cell.pieceColor ? <span className={`piece ${cell.pieceColor}`} /> : <span className="guide" />}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           {mobilePanelMode === 'faceoff' ? (
             <div className="mobile-side-influence" style={{ height: `${boardSize}px` }} aria-label="mobile influence bar">
               <div className="mobile-side-meta top">{leftPercent}%</div>
@@ -1580,7 +1769,17 @@ export default function App() {
         Reset
       </button>
       ) : null}
-      {isPlayback ? <div className="playback-chip">Playback</div> : null}
+      {isPlayback ? (
+        <div className="playback-chip playback-controls">
+          <span className="playback-label">{playbackRenderer === '3d' ? '3D Playback' : 'Playback'}</span>
+          <button type="button" className="playback-control-btn" onClick={handlePauseResumePlayback}>
+            {playbackStatus === 'paused' ? 'Resume' : 'Pause'}
+          </button>
+          <button type="button" className="playback-control-btn stop" onClick={handleStopPlayback}>
+            Stop
+          </button>
+        </div>
+      ) : null}
 
       {game.winner && winnerModalVisible ? (
         <div className="winner-overlay" aria-live="polite">
@@ -1592,10 +1791,17 @@ export default function App() {
               aria-label="winner color"
             />
             <div className="winner-actions">
-              <button type="button" className="winner-btn view3d" onClick={() => setIs3DOpen(true)}>
+              <button
+                type="button"
+                className="winner-btn view3d"
+                onClick={() => {
+                  setBoardRenderer('3d')
+                  setWinnerModalVisible(false)
+                }}
+              >
                 3D View
               </button>
-              <button type="button" className="winner-btn playback" onClick={handlePlayback}>
+              <button type="button" className="winner-btn playback" onClick={handlePlayback2D}>
                 Playback
               </button>
               <button type="button" className="winner-btn restart" onClick={openSetup}>
@@ -1609,16 +1815,6 @@ export default function App() {
             </div>
           </div>
         </div>
-      ) : null}
-      {is3DOpen && game.winner ? (
-        <FinalBoard3DModal
-          board={game.board}
-          moves={matchRecord.moves}
-          colors={pieceColorMap}
-          onManualSound={playManualSound}
-          onAutoSound={playAutoSound}
-          onClose={() => setIs3DOpen(false)}
-        />
       ) : null}
 
       {setupOpen ? (

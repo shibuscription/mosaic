@@ -1,0 +1,216 @@
+import { useEffect, useRef, useState } from 'react'
+import * as THREE from 'three'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { BASE_SIZE, type Board, type PieceColor } from '../game/types'
+
+interface Board3DViewportProps {
+  board: Board
+  colors: Record<PieceColor, string>
+  onStartPlayback?: () => void
+  onSwitchTo2D?: () => void
+}
+
+export function Board3DViewport({ board, colors, onStartPlayback, onSwitchTo2D }: Board3DViewportProps) {
+  const mountRef = useRef<HTMLDivElement | null>(null)
+  const [autoRotate, setAutoRotate] = useState(true)
+  const autoRotateRef = useRef(true)
+  const boardRef = useRef<Board>(board)
+  const renderBoardRef = useRef<(targetBoard: Board) => void>(() => undefined)
+
+  useEffect(() => {
+    autoRotateRef.current = autoRotate
+  }, [autoRotate])
+
+  useEffect(() => {
+    boardRef.current = board
+    renderBoardRef.current(board)
+  }, [board])
+
+  useEffect(() => {
+    const mount = mountRef.current
+    if (!mount) {
+      return
+    }
+
+    const scene = new THREE.Scene()
+    scene.background = new THREE.Color('#edf2ff')
+
+    const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100)
+    camera.position.set(5.35, 6.0, 6.65)
+    camera.lookAt(0, 0.8, 0)
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    renderer.shadowMap.enabled = true
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    mount.appendChild(renderer.domElement)
+
+    const controls = new OrbitControls(camera, renderer.domElement)
+    controls.enablePan = false
+    controls.enableRotate = true
+    controls.enableZoom = false
+    controls.enableDamping = true
+    controls.dampingFactor = 0.075
+    controls.target.set(0, 0.58, 0)
+    controls.update()
+
+    const ambientLight = new THREE.AmbientLight('#ffffff', 0.45)
+    const hemi = new THREE.HemisphereLight('#ffffff', '#cad7ef', 0.32)
+    const keyLight = new THREE.DirectionalLight('#ffffff', 1.05)
+    keyLight.position.set(8, 12, 5)
+    keyLight.castShadow = true
+    keyLight.shadow.mapSize.set(1024, 1024)
+    keyLight.shadow.bias = -0.00018
+    keyLight.shadow.radius = 2.2
+    keyLight.shadow.camera.near = 0.5
+    keyLight.shadow.camera.far = 30
+    keyLight.shadow.camera.left = -5.8
+    keyLight.shadow.camera.right = 5.8
+    keyLight.shadow.camera.top = 5.8
+    keyLight.shadow.camera.bottom = -5.8
+
+    scene.add(ambientLight)
+    scene.add(hemi)
+    scene.add(keyLight)
+
+    const boardGroup = new THREE.Group()
+    scene.add(boardGroup)
+
+    const diskRadius = 0.36
+    const diskHeight = 0.115
+    const gridSpacing = 0.7
+    const levelHeight = 0.19
+    const boardSpan = (BASE_SIZE - 1) * gridSpacing + diskRadius * 2
+    const centerOffset = ((BASE_SIZE - 1) * gridSpacing) / 2
+    const diskGeometry = new THREE.CylinderGeometry(diskRadius, diskRadius, diskHeight, 40)
+    const pieceMeshes = new Map<string, THREE.Mesh>()
+
+    const toKey = (level: number, row: number, col: number): string => `${level}-${row}-${col}`
+    const addPieceMesh = (level: number, row: number, col: number, color: PieceColor) => {
+      const key = toKey(level, row, col)
+      if (pieceMeshes.has(key)) {
+        return
+      }
+      const x = col * gridSpacing + level * (gridSpacing / 2) - centerOffset
+      const z = row * gridSpacing + level * (gridSpacing / 2) - centerOffset
+      const y = level * levelHeight
+      const material = new THREE.MeshStandardMaterial({
+        color: colors[color],
+        roughness: 0.33,
+        metalness: 0.06,
+      })
+      const mesh = new THREE.Mesh(diskGeometry, material)
+      mesh.position.set(x, y, z)
+      mesh.castShadow = true
+      mesh.receiveShadow = true
+      boardGroup.add(mesh)
+      pieceMeshes.set(key, mesh)
+    }
+
+    const disposePieceMeshes = () => {
+      pieceMeshes.forEach((mesh) => {
+        if (Array.isArray(mesh.material)) {
+          mesh.material.forEach((m: THREE.Material) => m.dispose())
+        } else {
+          mesh.material.dispose()
+        }
+        boardGroup.remove(mesh)
+      })
+      pieceMeshes.clear()
+    }
+
+    const renderBoard = (targetBoard: Board) => {
+      disposePieceMeshes()
+      for (let level = 0; level < targetBoard.length; level += 1) {
+        for (let row = 0; row < targetBoard[level].length; row += 1) {
+          for (let col = 0; col < targetBoard[level][row].length; col += 1) {
+            const piece = targetBoard[level][row][col]
+            if (!piece) {
+              continue
+            }
+            addPieceMesh(level, row, col, piece.color)
+          }
+        }
+      }
+    }
+    renderBoardRef.current = renderBoard
+
+    const basePlate = new THREE.Mesh(
+      new THREE.BoxGeometry(boardSpan + 0.9, 0.12, boardSpan + 0.9),
+      new THREE.MeshStandardMaterial({ color: '#d9e3f5', roughness: 0.7, metalness: 0.02 }),
+    )
+    basePlate.position.set(0, -0.11, 0)
+    basePlate.receiveShadow = true
+    boardGroup.add(basePlate)
+    renderBoard(boardRef.current)
+
+    const resize = () => {
+      const width = Math.max(1, mount.clientWidth)
+      const height = Math.max(1, mount.clientHeight)
+      renderer.setSize(width, height)
+      camera.aspect = width / height
+      if (width <= 420) {
+        camera.fov = 48
+        camera.position.set(6.15, 6.8, 7.95)
+      } else {
+        camera.fov = 42
+        camera.position.set(5.35, 6.0, 6.65)
+      }
+      camera.updateProjectionMatrix()
+      controls.update()
+    }
+
+    resize()
+    const resizeObserver = new ResizeObserver(resize)
+    resizeObserver.observe(mount)
+
+    const onManualStart = () => setAutoRotate(false)
+    controls.addEventListener('start', onManualStart)
+
+    let frameId = 0
+    const renderLoop = () => {
+      if (autoRotateRef.current) {
+        boardGroup.rotation.y += 0.0035
+      }
+      controls.update()
+      renderer.render(scene, camera)
+      frameId = window.requestAnimationFrame(renderLoop)
+    }
+    renderLoop()
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      resizeObserver.disconnect()
+      controls.removeEventListener('start', onManualStart)
+      controls.dispose()
+      mount.removeChild(renderer.domElement)
+      diskGeometry.dispose()
+      basePlate.geometry.dispose()
+      ;(basePlate.material as THREE.Material).dispose()
+      disposePieceMeshes()
+      renderer.dispose()
+    }
+  }, [colors])
+
+  return (
+    <div className="inline-3d-shell">
+      <div className="inline-3d-controls">
+        {onStartPlayback ? (
+          <button type="button" className="inline-3d-playback" onClick={onStartPlayback}>
+            Playback
+          </button>
+        ) : null}
+        <button type="button" className="inline-3d-rotate" onClick={() => setAutoRotate((prev) => !prev)}>
+          Rotate: {autoRotate ? 'On' : 'Off'}
+        </button>
+        {onSwitchTo2D ? (
+          <button type="button" className="inline-3d-back" onClick={onSwitchTo2D}>
+            2D View
+          </button>
+        ) : null}
+      </div>
+      <div className="inline-3d-canvas" ref={mountRef} />
+    </div>
+  )
+}

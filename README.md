@@ -1,7 +1,7 @@
 # Mosaic (Browser)
 
 ブラウザで遊べるボードゲーム「モザイク」の実装です。  
-2D対局画面でプレイし、終局後は 3D View / 3D Playback で盤面を確認できます。
+2D対局画面でプレイし、終局後は中央盤面を 2D / 3D で切り替えながら盤面を確認できます。
 
 - 技術スタック: React + TypeScript + Vite
 - 対応: PC / スマホ / タブレット
@@ -33,8 +33,8 @@ https://mosaic-game-bef28.web.app
 - 終局後の Winner モーダル
 - 棋譜の内部記録（手置き + 自動積み上がり）
 - 2D Playback（終局後に初手から再生）
-- 3D View（終局後の最終盤面表示）
-- 3D Playback（3Dモーダル内で手順再生）
+- 3D View（終局後の中央盤面を3D静止表示）
+- 3D Playback（3D View内の `Playback` から開始）
 - サウンド ON/OFF、連鎖音程変化、勝利音
 - 駒配置アニメーション / 連鎖の時間差表示
 - 残数表示の段階更新（着地タイミングに同期）
@@ -133,12 +133,17 @@ https://mosaic-game-bef28.web.app
 2. 合法手をクリック/タップして着手
 3. 必要に応じて Undo / Sound / Reset を使用
 4. 終局後は Winner モーダルで
-   - `Playback`（2D再生）
-   - `3D View`（3Dモーダルを開く）
+   - `3D View`（中央盤面を3D終局表示へ切替）
+   - `Playback`（2D Playbackを開始）
    - `Restart`（設定モーダルへ）
-5. 3Dモーダル内で
-   - `Playback`（3D Playback）
-   - `Close`
+5. 3D View中は
+   - `Rotate: On/Off`（自動回転の切替）
+   - ドラッグ / スワイプ（手動回転、手動操作時は auto-rotate OFF）
+   - `Playback`（3D Playbackを開始）
+   - `2D View`（終局後の2D result viewへ戻る）
+6. Playback中は 2D / 3D 共通で
+   - `Pause` / `Resume`
+   - `Stop`（その表示モードの終局静止状態へ戻る）
 
 ## 演出・UI仕様
 
@@ -162,10 +167,13 @@ https://mosaic-game-bef28.web.app
 
 - 棋譜を内部保持（手置き・自動積み上がり・勝者）
 - 2D Playback: 終局後に初手から再生
-- 3D View: 最終盤面を薄い円盤駒で表示（回転・ズーム）
-- 3D Playback: 3D上で手順再生
-  - 再生中は自動回転停止
-  - サウンド連動
+- 3D View: 中央盤面を3D表示モードへ切り替え、終局静止状態から開始
+- 3D Playback: 3D View内の `Playback` から開始
+- Playback操作（2D / 3D共通）
+  - `Pause` / `Resume` / `Stop`
+  - `Stop` 時は現在の表示モード（2Dまたは3D）の終局静止状態へ戻る
+- 2D / 3D result view 往復
+  - `2D View` で戻っても終局モーダルが再表示され、`3D View / Playback / Restart` 導線を維持
 
 ## フェーズ3: オンライン対戦（予定）
 
@@ -356,8 +364,8 @@ src/
   style.css
     レイアウト、レスポンシブ、演出、モーダル、勢力バー
   components/
-    FinalBoard3DModal.tsx
-      3D View / 3D Playback
+    Board3DViewport.tsx
+      中央盤面の3D表示モード（Rotate / Playback / 2D View）
   game/
     types.ts
     logic.ts

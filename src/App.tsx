@@ -8,9 +8,11 @@ import {
   RoomError,
   createRoom,
   joinRoom,
+  markPlayerLeft,
   normalizeRoomCode,
   submitRoomMove,
   subscribeRoom,
+  updateRoomHeartbeat,
   type RoomDoc,
   deserializeGameState,
 } from './online/room'
@@ -42,7 +44,7 @@ type MatchMode = 'pvp' | 'cpu' | 'online'
 type SetupStep = 'mode' | 'color'
 type OnlineEntryAction = 'create' | 'join' | null
 type MobilePanelMode = 'standard' | 'faceoff'
-type OnlinePhase = 'create' | 'join' | 'waiting' | 'playing' | 'error' | 'finished'
+type OnlinePhase = 'create' | 'join' | 'waiting' | 'playing' | 'error' | 'finished' | 'closed' | 'interrupted'
 type OnlineConnectionState = 'idle' | 'connecting' | 'waiting' | 'connected' | 'disconnected'
 type OnlineSyncState = 'idle' | 'submitting'
 
@@ -109,6 +111,8 @@ const PLAYBACK_MANUAL_MS = 170
 const PLAYBACK_AUTO_MS = 120
 const PLAYBACK_GAP_MS = 70
 const MOBILE_PANEL_MODE_KEY = 'mosaic.mobilePanelMode'
+const ONLINE_HEARTBEAT_INTERVAL_MS = 5000
+const ONLINE_HEARTBEAT_TIMEOUT_MS = 15000
 const INITIAL_ONLINE_SESSION: OnlineSessionState = {
   phase: 'create',
   roomCode: '',
@@ -185,6 +189,7 @@ export default function App() {
   const cpuTimeoutRef = useRef<number | null>(null)
   const onlineRoomUnsubRef = useRef<(() => void) | null>(null)
   const onlineLastMoveSignatureRef = useRef<string | null>(null)
+  const onlineLeaveInFlightRef = useRef(false)
   const gameRef = useRef<GameState>(initialGame)
   const matchRecordRef = useRef<MatchRecord>({
     players: { blue: 'blue', yellow: 'yellow' },
@@ -236,6 +241,8 @@ export default function App() {
   const rightPercent = 100 - leftPercent
   const isOnlineMode = matchMode === 'online'
   const isOnlineMyTurn = isOnlineMode && onlineSession.role === game.currentTurn
+  const shouldWarnOnlineLeave =
+    isOnlineMode && (onlineSession.phase === 'waiting' || onlineSession.phase === 'playing')
   const isOnlineMockView =
     !setupOpen && isOnlineMode && onlineSession.phase !== 'playing' && onlineSession.phase !== 'finished'
 
@@ -343,6 +350,45 @@ export default function App() {
   useEffect(() => {
     historyRef.current = history
   }, [history])
+
+  useEffect(() => {
+    if (!shouldWarnOnlineLeave) {
+      return
+    }
+
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload)
+    }
+  }, [shouldWarnOnlineLeave])
+
+  useEffect(() => {
+    const roomCode = onlineSession.roomCode
+    const role = onlineSession.role
+    if (!shouldWarnOnlineLeave || !roomCode || !role) {
+      return
+    }
+
+    let active = true
+    const runHeartbeat = () => {
+      if (!active) {
+        return
+      }
+      updateRoomHeartbeat(roomCode, role).catch(() => undefined)
+    }
+
+    runHeartbeat()
+    const intervalId = window.setInterval(runHeartbeat, ONLINE_HEARTBEAT_INTERVAL_MS)
+    return () => {
+      active = false
+      window.clearInterval(intervalId)
+    }
+  }, [shouldWarnOnlineLeave, onlineSession.roomCode, onlineSession.role])
 
   useEffect(() => {
     if (isOnlineMode && !setupOpen && game.winner) {
@@ -523,7 +569,7 @@ export default function App() {
     if (setupOpen || isAnimating || isPlayback || isCpuThinking) {
       return
     }
-    if (matchMode === 'online' && onlineSession.phase !== 'playing' && onlineSession.phase !== 'finished') {
+    if (matchMode === 'online' && onlineSession.phase !== 'playing') {
       return
     }
     if (matchMode === 'cpu' && game.currentTurn === 'yellow') {
@@ -667,6 +713,61 @@ export default function App() {
     return fallback
   }
 
+  function getTimestampMs(value: unknown): number | null {
+    if (!value) {
+      return null
+    }
+    if (typeof value === 'object' && value !== null && 'toMillis' in value && typeof (value as { toMillis: unknown }).toMillis === 'function') {
+      return (value as { toMillis: () => number }).toMillis()
+    }
+    if (typeof value === 'object' && value !== null && 'seconds' in value && typeof (value as { seconds: unknown }).seconds === 'number') {
+      return (value as { seconds: number }).seconds * 1000
+    }
+    return null
+  }
+
+  function isOpponentTimedOut(room: RoomDoc, myRole: PlayerColor): boolean {
+    const opponentKey = myRole === 'blue' ? 'player2' : 'player1'
+    const opponent = room.players[opponentKey]
+    if (!opponent?.joined || opponent.status === 'left') {
+      return false
+    }
+    const lastSeenMs = getTimestampMs(opponent.lastSeenAt)
+    if (!lastSeenMs) {
+      return false
+    }
+    return Date.now() - lastSeenMs >= ONLINE_HEARTBEAT_TIMEOUT_MS
+  }
+
+  async function leaveOnlineRoomExplicitly(): Promise<void> {
+    const roomCode = onlineSession.roomCode
+    const role = onlineSession.role
+    if (onlineLeaveInFlightRef.current) {
+      return
+    }
+    if (!shouldWarnOnlineLeave || !roomCode || !role) {
+      return
+    }
+
+    onlineLeaveInFlightRef.current = true
+    try {
+      await markPlayerLeft(roomCode, role)
+    } catch {
+      // no-op: keep navigation possible even if leave update fails
+    } finally {
+      onlineLeaveInFlightRef.current = false
+    }
+  }
+
+  function confirmLeaveOnlineIfNeeded(): boolean {
+    if (!shouldWarnOnlineLeave) {
+      return true
+    }
+    return window.confirm(
+      'Leave the online match?\nIf you leave now, the room will be closed or the match may be interrupted.',
+    )
+  }
+
   function hasBoardChanged(prev: GameState, next: GameState): boolean {
     for (let level = 0; level < prev.board.length; level += 1) {
       const prevRows = prev.board[level]
@@ -758,25 +859,58 @@ export default function App() {
     }
     setOnlineSession((prev) => {
       let nextPhase: OnlinePhase = prev.phase
+      let nextWaitMessage =
+        room.status === 'waiting'
+          ? 'Waiting for opponent...'
+          : room.status === 'playing'
+            ? 'Match is in progress.'
+            : 'Match finished.'
+      let nextConnectionState: OnlineConnectionState = room.status === 'waiting' ? 'waiting' : 'connected'
+
+      const myRole = prev.role
+      if (myRole) {
+        const opponentKey = myRole === 'blue' ? 'player2' : 'player1'
+        const opponent = room.players[opponentKey]
+        const opponentLeft = opponent?.status === 'left'
+        const opponentTimeout = isOpponentTimedOut(room, myRole)
+
+        if (room.status === 'playing' && (opponentLeft || opponentTimeout)) {
+          nextPhase = 'interrupted'
+          nextConnectionState = 'disconnected'
+          nextWaitMessage = opponentLeft ? 'Opponent left the match.' : 'Opponent disconnected.'
+        } else if (room.status === 'waiting' && (opponentLeft || opponentTimeout)) {
+          if (myRole === 'yellow') {
+            nextPhase = 'closed'
+            nextConnectionState = 'disconnected'
+            nextWaitMessage = opponentLeft ? 'Host left the room.' : 'Host disconnected.'
+          } else {
+            nextPhase = 'waiting'
+            nextConnectionState = 'waiting'
+            nextWaitMessage = opponentLeft ? 'Opponent left. Waiting for another player.' : 'Opponent disconnected. Waiting...'
+          }
+        }
+      }
+
       if (room.status === 'finished') {
         nextPhase = 'finished'
+        nextConnectionState = 'connected'
+        nextWaitMessage = 'Match finished.'
       } else if (room.status === 'playing') {
-        nextPhase = 'playing'
+        if (nextPhase !== 'interrupted') {
+          nextPhase = 'playing'
+        }
       } else if (room.status === 'waiting' && prev.phase !== 'create') {
-        nextPhase = 'waiting'
+        if (nextPhase !== 'closed') {
+          nextPhase = 'waiting'
+        }
       }
 
       return {
         ...prev,
         roomCode: room.roomCode,
         phase: nextPhase,
-        connectionState: room.status === 'waiting' ? 'waiting' : 'connected',
-        waitMessage:
-          room.status === 'waiting'
-            ? 'Waiting for opponent...'
-            : room.status === 'playing'
-              ? 'Match is in progress.'
-              : 'Match finished.',
+        connectionState: nextConnectionState,
+        waitMessage: nextWaitMessage,
         errorMessage: '',
         syncState: 'idle',
         createColors: nextRoomColors,
@@ -940,7 +1074,13 @@ export default function App() {
     }
   }
 
-  function openSetup(): void {
+  function openSetup(): boolean {
+    if (!confirmLeaveOnlineIfNeeded()) {
+      return false
+    }
+    if (shouldWarnOnlineLeave) {
+      void leaveOnlineRoomExplicitly()
+    }
     clearAnimationTimers()
     clearCpuTimer()
     setIsAnimating(false)
@@ -959,10 +1099,13 @@ export default function App() {
     resetOnlineSessionState()
     setSetupStep('mode')
     setSetupOpen(true)
+    return true
   }
 
   function openSetupForOnline(action: OnlineEntryAction): void {
-    openSetup()
+    if (!openSetup()) {
+      return
+    }
     setPendingMode('online')
     setPendingOnlineAction(action)
   }
@@ -1234,6 +1377,10 @@ export default function App() {
             openSetupForOnline('join')
           }}
           onCancelWaiting={() => {
+            if (!confirmLeaveOnlineIfNeeded()) {
+              return
+            }
+            void leaveOnlineRoomExplicitly()
             stopOnlineRoomSubscription()
             setOnlineSession((prev) => ({
               ...prev,
@@ -1285,7 +1432,7 @@ export default function App() {
                     !cell.pieceColor &&
                     !setupOpen &&
                     !isAnimating &&
-                    (!isOnlineMode || isOnlineMyTurn) ? (
+                    (!isOnlineMode || (onlineSession.phase === 'playing' && isOnlineMyTurn)) ? (
                       <button
                         className="token-hit"
                         data-turn={game.currentTurn}
@@ -1818,6 +1965,33 @@ function OnlineMockPanel({
             <div className="online-actions">
               <button type="button" className="online-btn primary" onClick={onBackFromJoinOrError}>
                 Back
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {phase === 'closed' ? (
+          <div className="online-section">
+            <h3>Room Closed</h3>
+            <p className="online-waiting-copy">{waitMessage || 'Host left the room.'}</p>
+            <div className="online-actions">
+              <button type="button" className="online-btn primary" onClick={onBackFromCreate}>
+                Create Room Again
+              </button>
+              <button type="button" className="online-btn ghost" onClick={onBackFromJoinOrError}>
+                Join Another Room
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {phase === 'interrupted' ? (
+          <div className="online-section">
+            <h3>Match Interrupted</h3>
+            <p className="online-waiting-copy">{waitMessage || 'Opponent disconnected.'}</p>
+            <div className="online-actions">
+              <button type="button" className="online-btn primary" onClick={onBackFromJoinOrError}>
+                Back to Menu
               </button>
             </div>
           </div>

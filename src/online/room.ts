@@ -5,6 +5,7 @@ import {
   runTransaction,
   serverTimestamp,
   setDoc,
+  updateDoc,
   type Unsubscribe,
 } from 'firebase/firestore'
 import { db } from '../firebase'
@@ -19,10 +20,14 @@ import {
 } from '../game/types'
 
 export type RoomStatus = 'waiting' | 'playing' | 'finished'
+export type RoomPlayerStatus = 'connected' | 'left'
 
 export interface RoomSlot {
   role: PlayerColor
   joined: boolean
+  status: RoomPlayerStatus
+  joinedAt?: unknown
+  lastSeenAt?: unknown
 }
 
 export interface RoomPlayers {
@@ -83,6 +88,10 @@ export class RoomError extends Error {
 }
 
 const ROOM_COLLECTION = 'rooms'
+
+function roleToPlayerKey(role: PlayerColor): 'player1' | 'player2' {
+  return role === 'blue' ? 'player1' : 'player2'
+}
 
 export function generateRoomCode(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase()
@@ -197,8 +206,14 @@ export async function createRoom(playerColors: { blue: string; yellow: string })
       roomCode,
       status: 'waiting',
       players: {
-        player1: { role: 'blue', joined: true },
-        player2: { role: 'yellow', joined: false },
+        player1: {
+          role: 'blue',
+          joined: true,
+          status: 'connected',
+          joinedAt: serverTimestamp(),
+          lastSeenAt: serverTimestamp(),
+        },
+        player2: { role: 'yellow', joined: false, status: 'connected' },
       },
       playerColors: {
         blue: playerColors.blue,
@@ -243,6 +258,9 @@ export async function joinRoom(rawCode: string): Promise<{ roomCode: string }> {
     txn.update(roomRef, {
       status: 'playing',
       'players.player2.joined': true,
+      'players.player2.status': 'connected',
+      'players.player2.joinedAt': serverTimestamp(),
+      'players.player2.lastSeenAt': serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
   })
@@ -306,5 +324,24 @@ export async function submitRoomMove(
       status: nextState.winner ? 'finished' : 'playing',
       updatedAt: serverTimestamp(),
     })
+  })
+}
+
+export async function updateRoomHeartbeat(roomCode: string, role: PlayerColor): Promise<void> {
+  const roomRef = doc(db, ROOM_COLLECTION, roomCode)
+  const playerKey = roleToPlayerKey(role)
+  await updateDoc(roomRef, {
+    [`players.${playerKey}.lastSeenAt`]: serverTimestamp(),
+    [`players.${playerKey}.status`]: 'connected',
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function markPlayerLeft(roomCode: string, role: PlayerColor): Promise<void> {
+  const roomRef = doc(db, ROOM_COLLECTION, roomCode)
+  const playerKey = roleToPlayerKey(role)
+  await updateDoc(roomRef, {
+    [`players.${playerKey}.status`]: 'left',
+    updatedAt: serverTimestamp(),
   })
 }

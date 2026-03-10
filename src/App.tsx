@@ -1438,9 +1438,12 @@ export default function App() {
       {game.winner && winnerModalVisible ? (
         <div className="winner-overlay" aria-live="polite">
           <div className="winner-card">
-            <div className="winner-title">WINNER!</div>
-            <div className="winner-name">{winnerLabel(game.winner, matchMode, cpuDifficulty, onlineSession.role)} Wins</div>
-            <div className="winner-sub">Color: {colorById.get(playerColors[game.winner])?.label ?? playerColors[game.winner]}</div>
+            <div className="winner-title">{winnerHeadline(game.winner, matchMode, onlineSession.role)}</div>
+            <div
+              className="winner-color-dot"
+              style={{ background: colorById.get(playerColors[game.winner])?.hex ?? '#8f9aae' }}
+              aria-label="winner color"
+            />
             <div className="winner-actions">
               <button type="button" className="winner-btn view3d" onClick={() => setIs3DOpen(true)}>
                 3D View
@@ -1982,20 +1985,12 @@ function cpuDifficultyLabel(difficulty: CpuDifficulty): string {
   return 'Easy'
 }
 
-function winnerLabel(
-  winner: PlayerColor,
-  mode: MatchMode,
-  difficulty: CpuDifficulty,
-  onlineRole: PlayerColor | null,
-): string {
+function winnerHeadline(winner: PlayerColor, mode: MatchMode, onlineRole: PlayerColor | null): string {
   if (mode === 'cpu') {
-    return winner === 'blue' ? 'Player 1' : `CPU (${cpuDifficultyLabel(difficulty)})`
+    return winner === 'blue' ? 'YOU WIN!' : 'YOU LOSE'
   }
   if (mode === 'online') {
-    if (winner === 'blue') {
-      return onlineRole === 'blue' ? 'Player 1 (You)' : 'Player 1'
-    }
-    return onlineRole === 'yellow' ? 'Player 2 (You)' : 'Player 2'
+    return winner === onlineRole ? 'YOU WIN!' : 'YOU LOSE'
   }
-  return INTERNAL_LABEL[winner]
+  return winner === 'blue' ? 'PLAYER 1 WINS!' : 'PLAYER 2 WINS!'
 }

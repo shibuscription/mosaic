@@ -821,23 +821,19 @@ body {
 }
 
 .winner-title {
-  font-size: 1.35rem;
+  font-size: 1.3rem;
   font-weight: 900;
   letter-spacing: 0.05em;
   color: #22345d;
 }
 
-.winner-name {
-  margin-top: 4px;
-  font-size: 1.02rem;
-  font-weight: 800;
-  color: #142649;
-}
-
-.winner-sub {
-  margin-top: 6px;
-  font-size: 0.86rem;
-  color: #3d4f75;
+.winner-color-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  margin: 8px auto 0;
+  border: 2px solid #ffffffd9;
+  box-shadow: 0 2px 6px #20315352;
 }
 
 .winner-actions {

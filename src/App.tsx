@@ -1,7 +1,17 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+﻿import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { BASE_SIZE, MAX_LEVEL, TOTAL_PIECES, type AutoPlacement, type GameState, type Move, type PlayerColor } from './game/types'
 import { createInitialGameState, getLegalMoves, getLevelSize, getPiece, placeManualPiece } from './game/logic'
-import { chooseCpuMove, type CpuDifficulty } from './game/cpu'
+import {
+  chooseCpuMove,
+  chooseCpuMoveWithAnalysis,
+  computeHardScoreFromBreakdown,
+  DEFAULT_HARD_SCORE_COMPONENTS,
+  type CpuDifficulty,
+  type HardMoveAnalysis,
+  type HardMoveCandidate,
+  type HardScoreComponentKey,
+  type HardScoreComponentToggles,
+} from './game/cpu'
 import { Board3DViewport } from './components/Board3DViewport'
 import { isFirebaseConfigured } from './firebase'
 import {
@@ -91,6 +101,74 @@ interface OnlineSessionState {
   createColors: PlayerColorConfig
 }
 
+type DebugScoreCategoryKey = 'gain' | 'growth' | 'safety' | 'lookahead'
+
+interface DebugScoreCategory {
+  key: DebugScoreCategoryKey
+  label: string
+}
+
+interface DebugScoreComponentDefinition {
+  key: HardScoreComponentKey
+  label: string
+  category: DebugScoreCategoryKey
+  description: string
+}
+
+type DebugOverlayMode = 'total' | HardScoreComponentKey
+
+const DEBUG_SCORE_CATEGORIES: DebugScoreCategory[] = [
+  { key: 'gain', label: 'Gain' },
+  { key: 'growth', label: 'Growth' },
+  { key: 'safety', label: 'Safety' },
+  { key: 'lookahead', label: 'Lookahead' },
+]
+
+const DEBUG_SCORE_COMPONENTS: DebugScoreComponentDefinition[] = [
+  {
+    key: 'immediateValue',
+    label: 'Immediate',
+    category: 'gain',
+    description: 'この手を打った瞬間の価値。base 値に係数を掛けた applied 値を合計へ反映。',
+  },
+  {
+    key: 'endgameAdjustment',
+    label: 'Endgame',
+    category: 'gain',
+    description: '終盤で置き切り勝ちに近づく補正。自分のコマを多く減らせる手を評価。',
+  },
+  {
+    key: 'patternGrowth',
+    label: 'Pattern Growth',
+    category: 'growth',
+    description: '次につながる自分の形づくりを評価。',
+  },
+  {
+    key: 'urgentThreatBlock',
+    label: 'Urgent Threat Block',
+    category: 'safety',
+    description: '相手の即危険な形を止める評価。',
+  },
+  {
+    key: 'selfReservedCompletionPenalty',
+    label: 'Reserved Completion',
+    category: 'safety',
+    description: '予約済みの自連鎖を自分で回収しすぎないための減点。',
+  },
+  {
+    key: 'chainBackfirePenalty',
+    label: 'Chain Backfire',
+    category: 'safety',
+    description: '自分の手が相手連鎖の燃料になる危険への減点。',
+  },
+  {
+    key: 'opponentReplyRisk',
+    label: 'Reply Risk',
+    category: 'lookahead',
+    description: 'この手の後に相手最善返しがどれだけ強いかを減点。',
+  },
+]
+
 const COLOR_OPTIONS: ColorOption[] = [
   { id: 'blue', label: 'Royal Blue', hex: '#2563eb' },
   { id: 'cyan', label: 'Pastel Sky', hex: '#8ecae6' },
@@ -168,6 +246,14 @@ export default function App() {
   const [winnerModalVisible, setWinnerModalVisible] = useState(false)
   const [boardRenderer, setBoardRenderer] = useState<BoardRendererMode>('2d')
   const [isCpuThinking, setIsCpuThinking] = useState(false)
+  const [hardDebugAnalysis, setHardDebugAnalysis] = useState<HardMoveAnalysis | null>(null)
+  const [debugScoreComponents, setDebugScoreComponents] = useState<HardScoreComponentToggles>(() => ({
+    ...DEFAULT_HARD_SCORE_COMPONENTS,
+  }))
+  const [isDebugHudCollapsed, setIsDebugHudCollapsed] = useState(true)
+  const [debugOverlayMode, setDebugOverlayMode] = useState<DebugOverlayMode>('total')
+  const [selectedDebugMoveKey, setSelectedDebugMoveKey] = useState<string | null>(null)
+  const [hoveredDebugMoveKey, setHoveredDebugMoveKey] = useState<string | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [mobilePanelMode, setMobilePanelMode] = useState<MobilePanelMode>(() => {
     if (typeof window === 'undefined') {
@@ -207,6 +293,7 @@ export default function App() {
   const playbackFinalRemainingRef = useRef<Record<PlayerColor, number> | null>(null)
   const playbackStatusRef = useRef<PlaybackStatus | null>(null)
   const cpuTimeoutRef = useRef<number | null>(null)
+  const pendingCpuMoveRef = useRef<Move | null>(null)
   const onlineRoomUnsubRef = useRef<(() => void) | null>(null)
   const onlineLastMoveSignatureRef = useRef<string | null>(null)
   const onlineLeaveInFlightRef = useRef(false)
@@ -259,12 +346,24 @@ export default function App() {
   const totalRemaining = leftRemaining + rightRemaining
   const leftPercent = totalRemaining > 0 ? Math.round((rightRemaining / totalRemaining) * 100) : 50
   const rightPercent = 100 - leftPercent
+  const debugMode = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+    return new URLSearchParams(window.location.search).get('debug') === '1'
+  }, [])
   const isOnlineMode = matchMode === 'online'
   const isOnlineMyTurn = isOnlineMode && onlineSession.role === game.currentTurn
   const shouldWarnOnlineLeave =
     isOnlineMode && (onlineSession.phase === 'waiting' || onlineSession.phase === 'playing')
   const isOnlineMockView =
     !setupOpen && isOnlineMode && onlineSession.phase !== 'playing' && onlineSession.phase !== 'finished'
+  const showHardDebugOverlay =
+    debugMode &&
+    !setupOpen &&
+    matchMode === 'cpu' &&
+    cpuDifficulty === 'hard' &&
+    !isPlayback
 
   const legalSet = useMemo(() => {
     if (game.winner) {
@@ -282,6 +381,215 @@ export default function App() {
       game.lastAutoPlacements.slice(revealedAutoCount).map((item) => toMoveKey(item.level, item.row, item.col)),
     )
   }, [game.lastAutoPlacements, isAnimating, revealedAutoCount])
+
+  const hardDebugCandidates = useMemo(() => {
+    if (!hardDebugAnalysis) {
+      return []
+    }
+
+    const selectedKey = toMoveKey(
+      hardDebugAnalysis.selected.level,
+      hardDebugAnalysis.selected.row,
+      hardDebugAnalysis.selected.col,
+    )
+    const rescored = hardDebugAnalysis.candidates
+      .map((item) => {
+        const moveKey = toMoveKey(item.move.level, item.move.row, item.move.col)
+        return {
+          ...item,
+          score: computeHardScoreFromBreakdown(item.breakdown, debugScoreComponents),
+          isSelected: moveKey === selectedKey,
+        }
+      })
+      .sort((a, b) => b.score - a.score)
+      .map((item, index) => ({
+        ...item,
+        rank: index + 1,
+      }))
+
+    return rescored
+  }, [debugScoreComponents, hardDebugAnalysis])
+
+  const hardDebugTopCandidates = useMemo(() => {
+    return hardDebugCandidates.slice(0, 5)
+  }, [hardDebugCandidates])
+
+  const hardDebugSelectedCandidate = useMemo(() => {
+    if (!hardDebugCandidates.length) {
+      return null
+    }
+    if (selectedDebugMoveKey) {
+      const selected = hardDebugCandidates.find(
+        (item) => toMoveKey(item.move.level, item.move.row, item.move.col) === selectedDebugMoveKey,
+      )
+      if (selected) {
+        return selected
+      }
+    }
+    return hardDebugCandidates.find((item) => item.isSelected) ?? hardDebugCandidates[0] ?? null
+  }, [hardDebugCandidates, selectedDebugMoveKey])
+
+  const hardDebugHoveredCandidate = useMemo(() => {
+    if (!hardDebugCandidates.length || !hoveredDebugMoveKey) {
+      return null
+    }
+    return (
+      hardDebugCandidates.find(
+        (item) => toMoveKey(item.move.level, item.move.row, item.move.col) === hoveredDebugMoveKey,
+      ) ?? null
+    )
+  }, [hardDebugCandidates, hoveredDebugMoveKey])
+
+  const hardDebugDetailCandidate = useMemo<HardMoveCandidate | null>(() => {
+    return hardDebugHoveredCandidate ?? hardDebugSelectedCandidate
+  }, [hardDebugHoveredCandidate, hardDebugSelectedCandidate])
+
+  const hardDebugComponentValueByKey = useMemo<Record<HardScoreComponentKey, number> | null>(() => {
+    if (!hardDebugDetailCandidate) {
+      return null
+    }
+    const b = hardDebugDetailCandidate.breakdown
+    return {
+      immediateValue: b.immediateValue,
+      patternGrowth: b.patternGrowth,
+      urgentThreatBlock: b.urgentThreatBlock,
+      opponentReplyRisk: -b.opponentReplyRisk,
+      selfReservedCompletionPenalty: -b.selfReservedCompletionPenalty,
+      chainBackfirePenalty: -b.chainBackfirePenalty,
+      endgameAdjustment: b.endgameAdjustment,
+    }
+  }, [hardDebugDetailCandidate])
+
+  const debugComponentsByCategory = useMemo(() => {
+    const grouped = new Map<DebugScoreCategoryKey, DebugScoreComponentDefinition[]>()
+    for (const category of DEBUG_SCORE_CATEGORIES) {
+      grouped.set(category.key, [])
+    }
+    for (const item of DEBUG_SCORE_COMPONENTS) {
+      grouped.get(item.category)?.push(item)
+    }
+    return grouped
+  }, [])
+
+  const debugOverlayModeLabel = useMemo(() => {
+    if (debugOverlayMode === 'total') {
+      return 'Total'
+    }
+    if (debugOverlayMode === 'immediateValue') {
+      return 'Immediate (base)'
+    }
+    return DEBUG_SCORE_COMPONENTS.find((item) => item.key === debugOverlayMode)?.label ?? 'Total'
+  }, [debugOverlayMode])
+
+  const debugHeatmapModeLabel = useMemo(() => {
+    return debugOverlayMode === 'total' ? 'absolute' : 'relative'
+  }, [debugOverlayMode])
+
+  const hardDebugOverlayMap = useMemo(() => {
+    const map = new Map<string, { value: number; text: string; style: CSSProperties }>()
+    if (!hardDebugCandidates.length) {
+      return { map }
+    }
+
+    const rawValues = hardDebugCandidates.map((candidate) => {
+      const value = getDebugOverlayMetricValue(candidate, debugOverlayMode)
+      return {
+        key: toMoveKey(candidate.move.level, candidate.move.row, candidate.move.col),
+        value,
+      }
+    })
+
+    if (debugOverlayMode === 'total') {
+      for (const entry of rawValues) {
+        map.set(entry.key, {
+          value: entry.value,
+          text: Math.round(entry.value).toString(),
+          style: {},
+        })
+      }
+      return { map }
+    }
+
+    const sorted = rawValues.map((item) => item.value).sort((a, b) => a - b)
+    const lowerIndex = Math.max(0, Math.floor((sorted.length - 1) * 0.1))
+    const upperIndex = Math.max(0, Math.floor((sorted.length - 1) * 0.9))
+    let lower = sorted[lowerIndex] ?? 0
+    let upper = sorted[upperIndex] ?? 0
+
+    if (upper - lower < 1e-6) {
+      lower = sorted[0] ?? 0
+      upper = sorted[sorted.length - 1] ?? 0
+    }
+
+    const spread = upper - lower
+
+    for (const entry of rawValues) {
+      const clipped = spread < 1e-6 ? 0 : Math.max(lower, Math.min(upper, entry.value))
+      const normalized01 = spread < 1e-6 ? 0.5 : (clipped - lower) / spread
+      const relative = normalized01 * 2 - 1
+      const intensity = Math.sqrt(Math.abs(relative))
+      let background = 'rgba(255, 255, 255, 0.84)'
+      let border = 'rgba(170, 180, 198, 0.72)'
+      let color = '#1f365f'
+
+      if (Math.abs(relative) >= 0.03) {
+        const alpha = 0.16 + intensity * 0.6
+        if (relative > 0) {
+          background = `rgba(44, 176, 102, ${alpha.toFixed(3)})`
+          border = `rgba(29, 126, 71, ${(0.38 + intensity * 0.46).toFixed(3)})`
+          color = '#0f2f20'
+        } else {
+          background = `rgba(232, 77, 86, ${alpha.toFixed(3)})`
+          border = `rgba(159, 30, 47, ${(0.38 + intensity * 0.46).toFixed(3)})`
+          color = '#4a0f1a'
+        }
+      }
+
+      map.set(entry.key, {
+        value: entry.value,
+        text: entry.value.toFixed(1),
+        style: {
+          backgroundColor: background,
+          borderColor: border,
+          color,
+        },
+      })
+    }
+
+    return { map }
+  }, [debugOverlayMode, hardDebugCandidates])
+
+  const hardDebugCandidateMap = useMemo(() => {
+    const map = new Map<string, HardMoveCandidate>()
+    if (!showHardDebugOverlay || !hardDebugCandidates.length) {
+      return map
+    }
+    for (const item of hardDebugCandidates) {
+      map.set(toMoveKey(item.move.level, item.move.row, item.move.col), item)
+    }
+    return map
+  }, [hardDebugCandidates, showHardDebugOverlay])
+
+  useEffect(() => {
+    if (!hardDebugAnalysis) {
+      setSelectedDebugMoveKey(null)
+      setHoveredDebugMoveKey(null)
+      return
+    }
+    const selected = hardDebugAnalysis.candidates.find((item) => item.isSelected) ?? hardDebugAnalysis.candidates[0]
+    if (selected) {
+      setSelectedDebugMoveKey(toMoveKey(selected.move.level, selected.move.row, selected.move.col))
+    } else {
+      setSelectedDebugMoveKey(null)
+    }
+    setHoveredDebugMoveKey(null)
+  }, [hardDebugAnalysis])
+
+  useEffect(() => {
+    if (!showHardDebugOverlay) {
+      setIsDebugHudCollapsed(true)
+    }
+  }, [showHardDebugOverlay])
 
   useEffect(() => {
     const stage = boardStageRef.current
@@ -324,6 +632,7 @@ export default function App() {
 
   useEffect(() => {
     clearCpuTimer()
+    pendingCpuMoveRef.current = null
     if (
       setupOpen ||
       isAnimating ||
@@ -337,10 +646,22 @@ export default function App() {
     }
 
     setIsCpuThinking(true)
+
+    if (debugMode && cpuDifficulty === 'hard') {
+      const analyzed = chooseCpuMoveWithAnalysis(game, 'yellow', 'hard', {
+        enabledComponents: debugScoreComponents,
+      })
+      pendingCpuMoveRef.current = analyzed.move
+      setHardDebugAnalysis(analyzed.analysis)
+    } else {
+      setHardDebugAnalysis(null)
+    }
+
     const delayMs = 700 + Math.floor(Math.random() * 301)
     cpuTimeoutRef.current = window.setTimeout(() => {
       setIsCpuThinking(false)
-      const cpuMove = chooseCpuMove(game, 'yellow', cpuDifficulty)
+      const cpuMove = pendingCpuMoveRef.current ?? chooseCpuMove(game, 'yellow', cpuDifficulty)
+      pendingCpuMoveRef.current = null
       if (!cpuMove) {
         return
       }
@@ -350,7 +671,7 @@ export default function App() {
     return () => {
       clearCpuTimer()
     }
-  }, [cpuDifficulty, game, isAnimating, isPlayback, matchMode, setupOpen])
+  }, [cpuDifficulty, debugMode, debugScoreComponents, game, isAnimating, isPlayback, matchMode, setupOpen])
 
   useEffect(() => {
     if (!winnerModalVisible || !game.winner || game.winner === lastWinnerRef.current) {
@@ -529,6 +850,9 @@ export default function App() {
 
   function handleLocalMoveCommit(level: number, row: number, col: number): void {
     const actor = game.currentTurn
+    if (debugMode && matchMode === 'cpu' && actor === 'blue') {
+      setHardDebugAnalysis(null)
+    }
     const nextState = placeManualPiece(game, level, row, col)
     commitResolvedMove(level, row, col, actor, nextState)
   }
@@ -1115,6 +1439,8 @@ export default function App() {
     setPlaybackRenderer(null)
     setWinnerModalVisible(false)
     setIsCpuThinking(false)
+    setHardDebugAnalysis(null)
+    setDebugOverlayMode('total')
     setIsMobileMenuOpen(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
@@ -1151,6 +1477,8 @@ export default function App() {
     setPlaybackStatus(null)
     setPlaybackRenderer(null)
     setIsCpuThinking(false)
+    setHardDebugAnalysis(null)
+    setDebugOverlayMode('total')
     setIsMobileMenuOpen(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
@@ -1626,9 +1954,51 @@ export default function App() {
                           data-turn={game.currentTurn}
                           style={{ left: `${cell.left}%`, top: `${cell.top}%`, zIndex: `${hitZ}` }}
                           onClick={() => onCellClick(cell.level, cell.row, cell.col)}
+                          onMouseEnter={() => {
+                            if (!showHardDebugOverlay) {
+                              return
+                            }
+                            setHoveredDebugMoveKey(cell.key)
+                          }}
+                          onMouseLeave={() => {
+                            if (!showHardDebugOverlay) {
+                              return
+                            }
+                            setHoveredDebugMoveKey((prev) => (prev === cell.key ? null : prev))
+                          }}
                           type="button"
                           aria-label={`L${cell.level} row ${cell.row + 1} col ${cell.col + 1}`}
                         />
+                      ) : null}
+                      {showHardDebugOverlay ? (
+                        (() => {
+                          const debug = hardDebugCandidateMap.get(cell.key)
+                          const overlay = hardDebugOverlayMap.map.get(cell.key)
+                          if (!debug) {
+                            return null
+                          }
+                          return (
+                            <div
+                              className={[
+                                'cpu-debug-marker',
+                                debug.rank <= 5 ? 'top' : '',
+                                selectedDebugMoveKey === cell.key ? 'selected' : '',
+                                hoveredDebugMoveKey === cell.key ? 'hovered' : '',
+                              ]
+                                .filter(Boolean)
+                                .join(' ')}
+                              style={{
+                                left: `${cell.left}%`,
+                                top: `${cell.top}%`,
+                                zIndex: `${hitZ + 1}`,
+                                ...(overlay?.style ?? {}),
+                              }}
+                            >
+                              {debug.rank <= 5 ? <span className="rank">#{debug.rank}</span> : null}
+                              <span className="score">{overlay?.text ?? Math.round(debug.score)}</span>
+                            </div>
+                          )
+                        })()
                       ) : null}
 
                       <div
@@ -1768,6 +2138,208 @@ export default function App() {
       <button type="button" className="reset-fixed" onClick={openSetup}>
         Reset
       </button>
+      ) : null}
+      {showHardDebugOverlay ? (
+        <aside className={['cpu-debug-hud', isDebugHudCollapsed ? 'collapsed' : ''].filter(Boolean).join(' ')} aria-live="polite">
+          <div className="cpu-debug-header">
+            <div className="cpu-debug-title">CPU Debug (Hard)</div>
+            <button
+              type="button"
+              className="cpu-debug-toggle"
+              onClick={() => {
+                setIsDebugHudCollapsed((prev) => !prev)
+              }}
+              aria-label={isDebugHudCollapsed ? 'Expand debug HUD' : 'Collapse debug HUD'}
+            >
+              {isDebugHudCollapsed ? '+' : '-'}
+            </button>
+          </div>
+          <div className="cpu-debug-body">
+            <div className="cpu-debug-overlay-status">
+              <span className="cpu-debug-overlay-chip">
+                Board overlay: {debugOverlayModeLabel}
+              </span>
+              <span className="cpu-debug-overlay-chip">
+                Heatmap: {debugHeatmapModeLabel}
+              </span>
+              {!isDebugHudCollapsed ? (
+                <label className="cpu-debug-overlay-total-row">
+                  <input
+                    type="radio"
+                    name="board-overlay-mode"
+                    checked={debugOverlayMode === 'total'}
+                    onChange={() => setDebugOverlayMode('total')}
+                  />
+                  <span>Total</span>
+                </label>
+              ) : null}
+              {!isDebugHudCollapsed ? (
+                <span className="cpu-debug-overlay-legend">
+                  negative
+                  <span className="heat-neg" />
+                  <span className="heat-mid" />
+                  <span className="heat-pos" />
+                  positive
+                </span>
+              ) : null}
+            </div>
+            {!isDebugHudCollapsed ? (
+              <>
+              <div className="cpu-debug-controls">
+                {DEBUG_SCORE_CATEGORIES.map((category) => {
+                  const items = debugComponentsByCategory.get(category.key) ?? []
+                  const enabledCount = items.filter((item) => debugScoreComponents[item.key]).length
+                  const allEnabled = enabledCount === items.length
+                  const someEnabled = enabledCount > 0 && !allEnabled
+                  return (
+                    <section key={category.key} className="cpu-debug-group">
+                      <button
+                        type="button"
+                        className={['cpu-debug-group-toggle', allEnabled ? 'all-on' : '', someEnabled ? 'some-on' : '']
+                          .filter(Boolean)
+                          .join(' ')}
+                        onClick={() => {
+                          setDebugScoreComponents((prev) => {
+                            const nextEnabled = !allEnabled
+                            const next = { ...prev }
+                            for (const item of items) {
+                              next[item.key] = nextEnabled
+                            }
+                            return next
+                          })
+                        }}
+                        aria-pressed={allEnabled}
+                      >
+                        <span>{category.label}</span>
+                        <span>{allEnabled ? 'On' : someEnabled ? 'Some' : 'Off'}</span>
+                      </button>
+                      <div className="cpu-debug-component-list">
+                        {items.map((item) => (
+                          <label
+                            key={item.key}
+                            className={[
+                              'cpu-debug-component-row',
+                              !debugScoreComponents[item.key] ? 'off' : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' ')}
+                          >
+                            <input
+                              className="cpu-debug-overlay-radio"
+                              type="radio"
+                              name="board-overlay-mode"
+                              checked={debugOverlayMode === item.key}
+                              onChange={() => setDebugOverlayMode(item.key)}
+                            />
+                            <span className="cpu-debug-component-name">{item.label}</span>
+                            <span className="cpu-debug-help" title={item.description} aria-label={`${item.label} help`}>
+                              ?
+                            </span>
+                            <span className="cpu-debug-component-value">
+                              {hardDebugComponentValueByKey
+                                ? hardDebugComponentValueByKey[item.key].toFixed(1)
+                                : '-'}
+                            </span>
+                            <input
+                              className="cpu-debug-component-enable"
+                              type="checkbox"
+                              checked={debugScoreComponents[item.key]}
+                              onChange={(event) => {
+                                const checked = event.target.checked
+                                setDebugScoreComponents((prev) => ({ ...prev, [item.key]: checked }))
+                              }}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </section>
+                  )
+                })}
+              </div>
+              {hardDebugDetailCandidate ? (
+                <div className="cpu-debug-selected">
+              <div className="line">
+              {hardDebugHoveredCandidate ? 'Hovering' : 'Selected'}: L{hardDebugDetailCandidate.move.level} ({hardDebugDetailCandidate.move.row + 1},{hardDebugDetailCandidate.move.col + 1})
+              </div>
+              <div className="line">Phase: {hardDebugAnalysis ? hardEndgamePhaseLabel(hardDebugAnalysis.phase) : 'Normal'}</div>
+              <div className="line">
+                Endgame gate tolerance:{' '}
+                {hardDebugAnalysis && Number.isFinite(hardDebugAnalysis.endgameGateTolerance)
+                  ? hardDebugAnalysis.endgameGateTolerance.toFixed(1)
+                  : '--'}
+              </div>
+              <div className="line">Total: {hardDebugDetailCandidate.score.toFixed(1)}</div>
+              <div className="line">
+                Endgame: {hardDebugDetailCandidate.endgameScore.toFixed(1)} ({hardDebugDetailCandidate.endgameGatePassed ? 'gate: pass' : 'gate: out'})
+              </div>
+              <div className="line">
+                Immediate: {hardDebugDetailCandidate.breakdown.immediateBaseValue.toFixed(1)} x {hardDebugDetailCandidate.breakdown.immediateMultiplier.toFixed(2)} x {hardDebugDetailCandidate.breakdown.immediatePhaseMultiplier.toFixed(2)} = {hardDebugDetailCandidate.breakdown.immediateAppliedValue.toFixed(1)}
+              </div>
+              <div className="line">
+                Pattern Growth: {hardDebugDetailCandidate.breakdown.patternGrowthBaseValue.toFixed(1)} x{' '}
+                {(hardDebugAnalysis?.phasePatternGrowthMultiplier ?? 1).toFixed(2)} ={' '}
+                {hardDebugDetailCandidate.breakdown.patternGrowthAppliedValue.toFixed(1)}
+              </div>
+              <div className="line">
+                Reply Risk: -{hardDebugDetailCandidate.breakdown.opponentReplyRiskBaseValue.toFixed(1)} x{' '}
+                {(hardDebugAnalysis?.phaseReplyRiskMultiplier ?? 1).toFixed(2)} = -{hardDebugDetailCandidate.breakdown.opponentReplyRiskAppliedValue.toFixed(1)}
+              </div>
+              <div className="line sub">
+                enemy best reply: {hardDebugDetailCandidate.breakdown.replyRiskBestMoveLabel}
+              </div>
+              <div className="line sub">
+                enemy reply raw: {hardDebugDetailCandidate.breakdown.replyRiskBestMoveRawScore.toFixed(1)} / instant win:{' '}
+                {hardDebugDetailCandidate.breakdown.replyRiskBestMoveInstantWin ? 'yes' : 'no'}
+              </div>
+              <div className="line sub">
+                reply breakdown: immediate {hardDebugDetailCandidate.breakdown.replyRiskEnemyImmediate.toFixed(1)} / pattern{' '}
+                {hardDebugDetailCandidate.breakdown.replyRiskEnemyPatternGrowth.toFixed(1)} / potential{' '}
+                {hardDebugDetailCandidate.breakdown.replyRiskEnemyPatternPotential.toFixed(1)} / suppression{' '}
+                {hardDebugDetailCandidate.breakdown.replyRiskEnemySuppression.toFixed(1)}
+              </div>
+              <div className="line sub">
+                reply transform: raw {hardDebugDetailCandidate.breakdown.replyRiskRawBeforeCompression.toFixed(1)} x{' '}
+                {hardDebugDetailCandidate.breakdown.replyRiskFactor.toFixed(2)} = compressed{' '}
+                {hardDebugDetailCandidate.breakdown.replyRiskCompressedValue.toFixed(1)}
+              </div>
+              <div className="line sub">reply compression: {hardDebugDetailCandidate.breakdown.replyRiskCompressionInfo}</div>
+              <div className="line">
+                Phase multipliers: Immediate {(hardDebugAnalysis?.phaseImmediateMultiplier ?? 1).toFixed(2)} / Pattern{' '}
+                {(hardDebugAnalysis?.phasePatternGrowthMultiplier ?? 1).toFixed(2)} / Reply{' '}
+                {(hardDebugAnalysis?.phaseReplyRiskMultiplier ?? 1).toFixed(2)}
+              </div>
+                </div>
+              ) : (
+                <div className="cpu-debug-selected">
+                  <div className="line">No analysis yet.</div>
+                  <div className="line">CPU values will appear on its next evaluation.</div>
+                  <div className="line">Total: --</div>
+                </div>
+              )}
+              <div className="cpu-debug-list">
+                {hardDebugTopCandidates.map((item) => (
+                  <button
+                    key={toMoveKey(item.move.level, item.move.row, item.move.col)}
+                    type="button"
+                    className={[
+                      'cpu-debug-item',
+                      selectedDebugMoveKey === toMoveKey(item.move.level, item.move.row, item.move.col) ? 'selected' : '',
+                      hoveredDebugMoveKey === toMoveKey(item.move.level, item.move.row, item.move.col) ? 'hovered' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    onClick={() => setSelectedDebugMoveKey(toMoveKey(item.move.level, item.move.row, item.move.col))}
+                  >
+                    <span>#{item.rank}</span>
+                    <span>L{item.move.level} ({item.move.row + 1},{item.move.col + 1})</span>
+                    <span>{item.score.toFixed(1)}</span>
+                  </button>
+                ))}
+              </div>
+              </>
+            ) : null}
+          </div>
+        </aside>
       ) : null}
       {isPlayback ? (
         <div className="playback-chip playback-controls">
@@ -2304,6 +2876,32 @@ function toMoveKey(level: number, row: number, col: number): string {
   return `${level}-${row}-${col}`
 }
 
+function getDebugOverlayMetricValue(candidate: HardMoveCandidate, mode: DebugOverlayMode): number {
+  const b = candidate.breakdown
+  if (mode === 'total') {
+    return candidate.score
+  }
+  if (mode === 'immediateValue') {
+    return b.immediateBaseValue
+  }
+  if (mode === 'patternGrowth') {
+    return b.patternGrowth
+  }
+  if (mode === 'urgentThreatBlock') {
+    return b.urgentThreatBlock
+  }
+  if (mode === 'opponentReplyRisk') {
+    return -b.opponentReplyRisk
+  }
+  if (mode === 'selfReservedCompletionPenalty') {
+    return -b.selfReservedCompletionPenalty
+  }
+  if (mode === 'chainBackfirePenalty') {
+    return -b.chainBackfirePenalty
+  }
+  return b.endgameAdjustment
+}
+
 function hexToRgba(hex: string, alpha: number): string {
   const normalized = hex.replace('#', '')
   const value =
@@ -2353,6 +2951,16 @@ function cpuDifficultyLabel(difficulty: CpuDifficulty): string {
     return 'Normal'
   }
   return 'Easy'
+}
+
+function hardEndgamePhaseLabel(phase: 'normal' | 'endgame' | 'late_endgame'): string {
+  if (phase === 'late_endgame') {
+    return 'Late Endgame'
+  }
+  if (phase === 'endgame') {
+    return 'Endgame'
+  }
+  return 'Normal'
 }
 
 function winnerHeadline(winner: PlayerColor, mode: MatchMode, onlineRole: PlayerColor | null): string {

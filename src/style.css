@@ -375,6 +375,48 @@ body {
   cursor: pointer;
 }
 
+.cpu-debug-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border-radius: 8px;
+  padding: 2px 5px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #f8fbff;
+  background: #2f436ecc;
+  border: 1px solid #9cb3db;
+  pointer-events: none;
+  display: grid;
+  gap: 1px;
+  text-align: center;
+}
+
+.cpu-debug-marker.top {
+  background: #2f5d79d4;
+}
+
+.cpu-debug-marker.selected {
+  background: #8c3b53e6;
+  border-color: #f5c1cf;
+  box-shadow: 0 0 0 1px #f5c1cf66;
+}
+
+.cpu-debug-marker.hovered {
+  background: #2f5a8fe6;
+  border-color: #c7dcff;
+}
+
+.cpu-debug-marker .rank {
+  font-size: 0.6rem;
+  opacity: 0.95;
+}
+
+.cpu-debug-marker .score {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
 .token-visual .guide,
 .token-visual .piece {
   width: 96%;
@@ -500,6 +542,282 @@ body {
 
 .reset-fixed:hover {
   background: #182a48;
+}
+
+.cpu-debug-hud {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: 620;
+  width: min(360px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  border-radius: 10px;
+  border: 1px solid #8ea3c8;
+  background: #f5f9ffeb;
+  box-shadow: 0 10px 24px #16294940;
+  padding: 6px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 4px;
+  font-size: 0.74rem;
+  color: #20355f;
+}
+
+.cpu-debug-hud.collapsed {
+  width: min(220px, calc(100vw - 24px));
+  max-height: none;
+  gap: 3px;
+  padding: 5px 6px;
+}
+
+.cpu-debug-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.cpu-debug-body {
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 4px;
+  padding-right: 2px;
+}
+
+.cpu-debug-title {
+  font-weight: 900;
+}
+
+.cpu-debug-toggle {
+  border: 1px solid #9fb7dd;
+  background: #e7f0ff;
+  color: #1e4071;
+  border-radius: 7px;
+  width: 26px;
+  height: 24px;
+  font-size: 0.95rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cpu-debug-toggle:hover {
+  background: #dbe9ff;
+}
+
+.cpu-debug-overlay-status {
+  display: grid;
+  gap: 3px;
+}
+
+.cpu-debug-overlay-chip {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.64rem;
+  font-weight: 800;
+  color: #1f3f6f;
+  background: #e8f1ff;
+  border: 1px solid #b8cdeb;
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+.cpu-debug-hud.collapsed .cpu-debug-overlay-chip {
+  font-size: 0.62rem;
+  padding: 1px 7px;
+}
+
+.cpu-debug-overlay-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.62rem;
+  color: #4a5f84;
+}
+
+.cpu-debug-overlay-total-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.64rem;
+  color: #29456f;
+}
+
+.cpu-debug-overlay-total-row input {
+  width: 14px;
+  height: 14px;
+  accent-color: #355f9f;
+}
+
+.cpu-debug-overlay-legend .heat-neg,
+.cpu-debug-overlay-legend .heat-mid,
+.cpu-debug-overlay-legend .heat-pos {
+  width: 14px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid #b7c2d6;
+}
+
+.cpu-debug-overlay-legend .heat-neg {
+  background: rgba(232, 77, 86, 0.68);
+}
+
+.cpu-debug-overlay-legend .heat-mid {
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.cpu-debug-overlay-legend .heat-pos {
+  background: rgba(44, 176, 102, 0.68);
+}
+
+.cpu-debug-selected {
+  display: grid;
+  gap: 2px;
+}
+
+.cpu-debug-selected .line {
+  font-size: 0.69rem;
+}
+
+.cpu-debug-selected .line.sub {
+  font-size: 0.65rem;
+  opacity: 0.9;
+  padding-left: 8px;
+}
+
+.cpu-debug-selected .line.dimmed {
+  opacity: 0.52;
+}
+
+.cpu-debug-controls {
+  display: grid;
+  gap: 3px;
+}
+
+.cpu-debug-group {
+  border: 1px solid #ccd9ef;
+  background: #f8fbff;
+  border-radius: 8px;
+  padding: 4px;
+  display: grid;
+  gap: 3px;
+}
+
+.cpu-debug-group-toggle {
+  border: 1px solid #bed0eb;
+  background: #ebf2ff;
+  border-radius: 6px;
+  color: #20355f;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 800;
+  font-size: 0.68rem;
+  padding: 3px 6px;
+  cursor: pointer;
+}
+
+.cpu-debug-group-toggle.some-on {
+  background: #f2f7ff;
+}
+
+.cpu-debug-group-toggle.all-on {
+  border-color: #8fb0e3;
+  background: #e3eeff;
+}
+
+.cpu-debug-component-list {
+  display: grid;
+  gap: 2px;
+}
+
+.cpu-debug-component-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.66rem;
+  color: #2a3f67;
+}
+
+.cpu-debug-component-row.off {
+  opacity: 0.62;
+}
+
+.cpu-debug-component-row input {
+  width: 14px;
+  height: 14px;
+  accent-color: #355f9f;
+}
+
+.cpu-debug-overlay-radio {
+  margin: 0;
+}
+
+.cpu-debug-component-enable {
+  margin: 0;
+  justify-self: end;
+}
+
+.cpu-debug-component-name {
+  line-height: 1.2;
+}
+
+.cpu-debug-help {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid #a8bddf;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.6rem;
+  font-weight: 900;
+  color: #29497a;
+  background: #f2f7ff;
+  cursor: help;
+}
+
+.cpu-debug-component-value {
+  min-width: 56px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  color: #213b66;
+}
+
+.cpu-debug-list {
+  display: grid;
+  gap: 2px;
+}
+
+.cpu-debug-item {
+  border: none;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 38px 1fr auto;
+  gap: 6px;
+  align-items: center;
+  border-radius: 6px;
+  background: #e9f0fd;
+  padding: 3px 5px;
+  text-align: left;
+  color: #20355f;
+  cursor: pointer;
+}
+
+.cpu-debug-item.selected {
+  background: #fde8ef;
+  border: 1px solid #efb9ca;
+}
+
+.cpu-debug-item.hovered {
+  background: #e4efff;
+  border: 1px solid #b7cffa;
 }
 
 .playback-chip {
@@ -1360,6 +1678,37 @@ body {
 
   .winner-title {
     font-size: 1.2rem;
+  }
+
+  .cpu-debug-hud {
+    left: 6px;
+    bottom: 6px;
+    width: min(340px, calc(100vw - 12px));
+    max-height: calc(100vh - 12px);
+    font-size: 0.7rem;
+    padding: 5px;
+  }
+
+  .cpu-debug-selected .line {
+    font-size: 0.68rem;
+  }
+
+  .cpu-debug-hud.collapsed {
+    width: min(200px, calc(100vw - 12px));
+  }
+
+  .cpu-debug-group-toggle {
+    font-size: 0.64rem;
+    padding: 2px 5px;
+  }
+
+  .cpu-debug-component-row {
+    font-size: 0.64rem;
+    gap: 5px;
+  }
+
+  .cpu-debug-component-value {
+    min-width: 46px;
   }
 
   .board-wrap-3d {

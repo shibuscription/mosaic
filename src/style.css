@@ -881,7 +881,7 @@ body {
 }
 
 .setup-modal {
-  width: min(640px, 100%);
+  width: min(760px, 100%);
   border-radius: 14px;
   border: 1px solid #9db2d4;
   background: #f7faff;
@@ -889,6 +889,19 @@ body {
   padding: 16px;
   display: grid;
   gap: 12px;
+}
+
+.setup-config-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.setup-config-left,
+.setup-config-right {
+  display: grid;
+  gap: 10px;
 }
 
 .setup-modal h2 {
@@ -990,6 +1003,14 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.online-setup-overlay {
+  z-index: 620;
+}
+
+.online-setup-modal {
+  width: min(760px, 100%);
 }
 
 .online-shell {
@@ -1220,7 +1241,7 @@ body {
   position: fixed;
   inset: 0;
   z-index: 680;
-  pointer-events: auto;
+  pointer-events: none;
   display: grid;
   place-items: center;
   padding: 20px;
@@ -1228,6 +1249,7 @@ body {
 
 .winner-card {
   position: relative;
+  pointer-events: auto;
   width: min(380px, 92vw);
   border-radius: 16px;
   border: 1px solid #9bb2d8;
@@ -1653,6 +1675,11 @@ body {
     gap: 10px;
   }
 
+  .setup-config-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
   .mode-options {
     grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
   }
@@ -1671,7 +1698,8 @@ body {
     padding: 14px 12px;
   }
 
-  .online-card {
+  .online-card,
+  .online-setup-modal {
     padding: 12px;
     gap: 10px;
   }

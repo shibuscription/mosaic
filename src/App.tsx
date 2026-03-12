@@ -53,6 +53,9 @@ interface PlayerColorConfig {
 type MatchMode = 'pvp' | 'cpu' | 'online'
 type SetupStep = 'mode' | 'color'
 type OnlineEntryAction = 'create' | 'join' | null
+type CpuTurnOrder = 'you_first' | 'you_second'
+type HostTurnOrder = 'host_first' | 'host_second'
+type CpuMatchType = 'you_vs_cpu' | 'cpu_vs_cpu'
 type MobilePanelMode = 'standard' | 'faceoff'
 type BoardRendererMode = '2d' | '3d'
 type PlaybackStatus = 'playing' | 'paused'
@@ -234,8 +237,16 @@ export default function App() {
   const [matchMode, setMatchMode] = useState<MatchMode>('pvp')
   const [pendingMode, setPendingMode] = useState<MatchMode>('pvp')
   const [pendingOnlineAction, setPendingOnlineAction] = useState<OnlineEntryAction>(null)
+  const [cpuMatchType, setCpuMatchType] = useState<CpuMatchType>('you_vs_cpu')
+  const [pendingCpuMatchType, setPendingCpuMatchType] = useState<CpuMatchType>('you_vs_cpu')
   const [cpuDifficulty, setCpuDifficulty] = useState<CpuDifficulty>('easy')
   const [pendingCpuDifficulty, setPendingCpuDifficulty] = useState<CpuDifficulty>('easy')
+  const [cpu1Difficulty, setCpu1Difficulty] = useState<CpuDifficulty>('easy')
+  const [cpu2Difficulty, setCpu2Difficulty] = useState<CpuDifficulty>('easy')
+  const [pendingCpu1Difficulty, setPendingCpu1Difficulty] = useState<CpuDifficulty>('easy')
+  const [pendingCpu2Difficulty, setPendingCpu2Difficulty] = useState<CpuDifficulty>('easy')
+  const [pendingCpuTurnOrder, setPendingCpuTurnOrder] = useState<CpuTurnOrder>('you_first')
+  const [pendingHostTurnOrder, setPendingHostTurnOrder] = useState<HostTurnOrder>('host_first')
   const [onlineSession, setOnlineSession] = useState<OnlineSessionState>(INITIAL_ONLINE_SESSION)
 
   const [soundOn, setSoundOn] = useState(true)
@@ -362,6 +373,7 @@ export default function App() {
     debugMode &&
     !setupOpen &&
     matchMode === 'cpu' &&
+    cpuMatchType === 'you_vs_cpu' &&
     cpuDifficulty === 'hard' &&
     !isPlayback
 
@@ -633,13 +645,23 @@ export default function App() {
   useEffect(() => {
     clearCpuTimer()
     pendingCpuMoveRef.current = null
+    const actor = game.currentTurn
+    const isCpuTurn =
+      matchMode === 'cpu' &&
+      (cpuMatchType === 'cpu_vs_cpu' || actor === 'yellow')
+
+    const currentCpuDifficulty: CpuDifficulty =
+      cpuMatchType === 'cpu_vs_cpu'
+        ? actor === 'blue'
+          ? cpu1Difficulty
+          : cpu2Difficulty
+        : cpuDifficulty
     if (
       setupOpen ||
       isAnimating ||
       isPlayback ||
       game.winner ||
-      matchMode !== 'cpu' ||
-      game.currentTurn !== 'yellow'
+      !isCpuTurn
     ) {
       setIsCpuThinking(false)
       return
@@ -647,8 +669,8 @@ export default function App() {
 
     setIsCpuThinking(true)
 
-    if (debugMode && cpuDifficulty === 'hard') {
-      const analyzed = chooseCpuMoveWithAnalysis(game, 'yellow', 'hard', {
+    if (debugMode && cpuMatchType === 'you_vs_cpu' && actor === 'yellow' && currentCpuDifficulty === 'hard') {
+      const analyzed = chooseCpuMoveWithAnalysis(game, actor, 'hard', {
         enabledComponents: debugScoreComponents,
       })
       pendingCpuMoveRef.current = analyzed.move
@@ -660,7 +682,7 @@ export default function App() {
     const delayMs = 700 + Math.floor(Math.random() * 301)
     cpuTimeoutRef.current = window.setTimeout(() => {
       setIsCpuThinking(false)
-      const cpuMove = pendingCpuMoveRef.current ?? chooseCpuMove(game, 'yellow', cpuDifficulty)
+      const cpuMove = pendingCpuMoveRef.current ?? chooseCpuMove(game, actor, currentCpuDifficulty)
       pendingCpuMoveRef.current = null
       if (!cpuMove) {
         return
@@ -671,7 +693,19 @@ export default function App() {
     return () => {
       clearCpuTimer()
     }
-  }, [cpuDifficulty, debugMode, debugScoreComponents, game, isAnimating, isPlayback, matchMode, setupOpen])
+  }, [
+    cpu1Difficulty,
+    cpu2Difficulty,
+    cpuDifficulty,
+    cpuMatchType,
+    debugMode,
+    debugScoreComponents,
+    game,
+    isAnimating,
+    isPlayback,
+    matchMode,
+    setupOpen,
+  ])
 
   useEffect(() => {
     if (!winnerModalVisible || !game.winner || game.winner === lastWinnerRef.current) {
@@ -921,7 +955,7 @@ export default function App() {
     if (matchMode === 'online' && onlineSession.phase !== 'playing') {
       return
     }
-    if (matchMode === 'cpu' && game.currentTurn === 'yellow') {
+    if (matchMode === 'cpu' && (cpuMatchType === 'cpu_vs_cpu' || game.currentTurn === 'yellow')) {
       return
     }
     commitMoveByMode(level, row, col)
@@ -1296,22 +1330,7 @@ export default function App() {
     )
   }
 
-  function beginOnlineCreate(): void {
-    setOnlineSession((prev) => ({
-      ...prev,
-      phase: 'create',
-      roomCode: '',
-      roomInput: '',
-      role: 'blue',
-      isHost: true,
-      connectionState: 'idle',
-      errorMessage: '',
-      waitMessage: 'Set colors and create a room.',
-      createColors: { ...playerColors },
-    }))
-  }
-
-  async function submitOnlineCreateRoom(): Promise<void> {
+  async function submitOnlineCreateFromSetup(): Promise<void> {
     if (!isFirebaseConfigured()) {
       setOnlineSession((prev) => ({
         ...prev,
@@ -1322,27 +1341,35 @@ export default function App() {
       return
     }
 
-    if (onlineSession.createColors.blue === onlineSession.createColors.yellow) {
-      setOnlineSession((prev) => ({
-        ...prev,
-        phase: 'create',
-        errorMessage: 'Player 1 and Player 2 must use different colors.',
-      }))
+    if (pendingColors.blue === pendingColors.yellow) {
       return
     }
 
+    const hostStarts = pendingHostTurnOrder === 'host_first'
+    const openingTurn: PlayerColor = hostStarts ? 'blue' : 'yellow'
+    prepareFreshMatch(pendingColors, 'online', openingTurn)
+    setSetupOpen(false)
+    setSetupStep('mode')
+    setPendingOnlineAction(null)
     setOnlineSession((prev) => ({
       ...prev,
+      phase: 'waiting',
+      roomCode: '',
+      roomInput: '',
+      role: 'blue',
+      isHost: true,
       connectionState: 'connecting',
+      syncState: 'idle',
       errorMessage: '',
       waitMessage: 'Creating room...',
+      createColors: { ...pendingColors },
     }))
 
     try {
       const { roomCode } = await createRoom({
-        blue: onlineSession.createColors.blue,
-        yellow: onlineSession.createColors.yellow,
-      })
+        blue: pendingColors.blue,
+        yellow: pendingColors.yellow,
+      }, hostStarts)
       startOnlineRoomSubscription(roomCode)
       setOnlineSession((prev) => ({
         ...prev,
@@ -1354,7 +1381,6 @@ export default function App() {
         waitMessage: 'Waiting for opponent...',
         errorMessage: '',
       }))
-      setPlayerColors({ ...onlineSession.createColors })
     } catch (error) {
       setOnlineSession((prev) => ({
         ...prev,
@@ -1448,7 +1474,10 @@ export default function App() {
     setPendingColors(playerColors)
     setPendingMode(matchMode)
     setPendingOnlineAction(null)
+    setPendingCpuMatchType(cpuMatchType)
     setPendingCpuDifficulty(cpuDifficulty)
+    setPendingCpu1Difficulty(cpu1Difficulty)
+    setPendingCpu2Difficulty(cpu2Difficulty)
     setBoardRenderer('2d')
     resetOnlineSessionState()
     setSetupStep('mode')
@@ -1464,7 +1493,11 @@ export default function App() {
     setPendingOnlineAction(action)
   }
 
-  function prepareFreshMatch(nextColors: PlayerColorConfig, nextMode: MatchMode): void {
+  function prepareFreshMatch(
+    nextColors: PlayerColorConfig,
+    nextMode: MatchMode,
+    startingTurn: PlayerColor = 'blue',
+  ): void {
     if (nextColors.blue === nextColors.yellow) {
       return
     }
@@ -1486,9 +1519,14 @@ export default function App() {
     setBoardRenderer('2d')
     setPlayerColors(nextColors)
     setMatchMode(nextMode)
+    setCpuMatchType(pendingCpuMatchType)
     setCpuDifficulty(pendingCpuDifficulty)
+    setCpu1Difficulty(pendingCpu1Difficulty)
+    setCpu2Difficulty(pendingCpu2Difficulty)
     resetOnlineSessionState()
     const freshGame = createInitialGameState()
+    freshGame.currentTurn = startingTurn
+    freshGame.message = startingTurn === 'blue' ? "Player 1's turn" : "Player 2's turn"
     const freshRecord = {
       players: nextColors,
       moves: [],
@@ -1506,19 +1544,20 @@ export default function App() {
       if (!pendingOnlineAction) {
         return
       }
-      prepareFreshMatch(playerColors, 'online')
-      setSetupOpen(false)
-      setSetupStep('mode')
-      setOnlineSession({
-        ...INITIAL_ONLINE_SESSION,
-        createColors: { ...playerColors },
-      })
-      if (pendingOnlineAction === 'create') {
-        beginOnlineCreate()
-      } else if (pendingOnlineAction === 'join') {
+      if (pendingOnlineAction === 'join') {
+        prepareFreshMatch(playerColors, 'online')
+        setSetupOpen(false)
+        setSetupStep('mode')
+        setOnlineSession({
+          ...INITIAL_ONLINE_SESSION,
+          createColors: { ...playerColors },
+        })
         beginOnlineJoin()
+        setPendingOnlineAction(null)
+        return
       }
-      setPendingOnlineAction(null)
+      setPendingColors(playerColors)
+      setSetupStep('color')
       return
     }
     setPendingColors(playerColors)
@@ -1529,7 +1568,19 @@ export default function App() {
     if (pendingColors.blue === pendingColors.yellow) {
       return
     }
-    prepareFreshMatch(pendingColors, pendingMode)
+    if (pendingMode === 'online' && pendingOnlineAction === 'create') {
+      void submitOnlineCreateFromSetup()
+      return
+    }
+    const openingTurn: PlayerColor =
+      pendingMode === 'cpu'
+        ? pendingCpuMatchType === 'cpu_vs_cpu'
+          ? 'blue'
+          : pendingCpuTurnOrder === 'you_second'
+            ? 'yellow'
+            : 'blue'
+        : 'blue'
+    prepareFreshMatch(pendingColors, pendingMode, openingTurn)
     setSetupOpen(false)
     setSetupStep('mode')
     setPendingOnlineAction(null)
@@ -1820,8 +1871,8 @@ export default function App() {
       {!isOnlineMockView ? (
         <section className="advantage-strip" aria-label="advantage bar">
           <div className="advantage-meta">
-            <span className="left-label">{matchMode === 'cpu' ? 'CPU' : '2P'} {leftPercent}%</span>
-            <span className="right-label">{rightPercent}% 1P</span>
+            <span className="left-label">{matchMode === 'cpu' && cpuMatchType === 'cpu_vs_cpu' ? 'CPU 2' : matchMode === 'cpu' ? 'CPU' : '2P'} {leftPercent}%</span>
+            <span className="right-label">{rightPercent}% {matchMode === 'cpu' && cpuMatchType === 'cpu_vs_cpu' ? 'CPU 1' : '1P'}</span>
           </div>
           <div className="advantage-track">
             <div className="advantage-left" style={{ width: `${leftPercent}%` }} />
@@ -1850,22 +1901,10 @@ export default function App() {
               roomInput: value,
             }))
           }
-          onSelectCreateColor={(player, id) =>
-            setOnlineSession((prev) => ({
-              ...prev,
-              createColors: {
-                ...prev.createColors,
-                [player]: id,
-              },
-            }))
-          }
-          onCreateRoom={() => {
-            void submitOnlineCreateRoom()
-          }}
           onConfirmJoin={() => {
             void confirmOnlineJoin()
           }}
-          onBackFromCreate={() => {
+          onBackToCreateSetup={() => {
             stopOnlineRoomSubscription()
             openSetupForOnline('create')
           }}
@@ -1879,15 +1918,7 @@ export default function App() {
             }
             void leaveOnlineRoomExplicitly()
             stopOnlineRoomSubscription()
-            setOnlineSession((prev) => ({
-              ...prev,
-              phase: 'create',
-              roomCode: '',
-              connectionState: 'idle',
-              syncState: 'idle',
-              waitMessage: 'Set colors and create a room.',
-              errorMessage: '',
-            }))
+            openSetupForOnline('create')
           }}
         />
       ) : (
@@ -1896,7 +1927,9 @@ export default function App() {
           playerKey="yellow"
           playerLabel={
             matchMode === 'cpu'
-              ? `CPU (${cpuDifficultyLabel(cpuDifficulty)})`
+              ? cpuMatchType === 'cpu_vs_cpu'
+                ? `CPU 2 (${cpuDifficultyLabel(cpu2Difficulty)})`
+                : `CPU (${cpuDifficultyLabel(cpuDifficulty)})`
               : matchMode === 'online'
                 ? onlineSession.role === 'yellow'
                   ? 'Player 2 (You)'
@@ -1948,6 +1981,7 @@ export default function App() {
                       !cell.pieceColor &&
                       !setupOpen &&
                       !isAnimating &&
+                      !(matchMode === 'cpu' && (cpuMatchType === 'cpu_vs_cpu' || game.currentTurn === 'yellow')) &&
                       (!isOnlineMode || (onlineSession.phase === 'playing' && isOnlineMyTurn)) ? (
                         <button
                           className="token-hit"
@@ -2035,7 +2069,11 @@ export default function App() {
         <PlayerPanel
           playerKey="blue"
           playerLabel={
-            matchMode === 'online'
+            matchMode === 'cpu'
+              ? cpuMatchType === 'cpu_vs_cpu'
+                ? `CPU 1 (${cpuDifficultyLabel(cpu1Difficulty)})`
+                : INTERNAL_LABEL.blue
+              : matchMode === 'online'
               ? onlineSession.role === 'blue'
                 ? 'Player 1 (You)'
                 : 'Player 1'
@@ -2046,7 +2084,7 @@ export default function App() {
           remaining={displayRemaining.blue}
           isTurn={!game.winner && game.currentTurn === 'blue'}
           isWinner={game.winner === 'blue'}
-          isThinking={false}
+          isThinking={matchMode === 'cpu' && cpuMatchType === 'cpu_vs_cpu' && !game.winner && game.currentTurn === 'blue' && isCpuThinking}
         />
       </section>
       )}
@@ -2356,7 +2394,7 @@ export default function App() {
       {game.winner && winnerModalVisible ? (
         <div className="winner-overlay" aria-live="polite">
           <div className="winner-card">
-            <div className="winner-title">{winnerHeadline(game.winner, matchMode, onlineSession.role)}</div>
+            <div className="winner-title">{winnerHeadline(game.winner, matchMode, onlineSession.role, cpuMatchType)}</div>
             <div
               className="winner-color-dot"
               style={{ background: colorById.get(playerColors[game.winner])?.hex ?? '#8f9aae' }}
@@ -2433,6 +2471,29 @@ export default function App() {
                 </div>
                 {pendingMode === 'cpu' ? (
                   <div className="mode-row">
+                    <div className="picker-label">Match Type</div>
+                    <div className="mode-options" role="radiogroup" aria-label="cpu match type">
+                      <button
+                        type="button"
+                        className={['mode-option', pendingCpuMatchType === 'you_vs_cpu' ? 'selected' : ''].filter(Boolean).join(' ')}
+                        onClick={() => setPendingCpuMatchType('you_vs_cpu')}
+                        aria-pressed={pendingCpuMatchType === 'you_vs_cpu'}
+                      >
+                        You vs CPU
+                      </button>
+                      <button
+                        type="button"
+                        className={['mode-option', pendingCpuMatchType === 'cpu_vs_cpu' ? 'selected' : ''].filter(Boolean).join(' ')}
+                        onClick={() => setPendingCpuMatchType('cpu_vs_cpu')}
+                        aria-pressed={pendingCpuMatchType === 'cpu_vs_cpu'}
+                      >
+                        CPU vs CPU
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                {pendingMode === 'cpu' && pendingCpuMatchType === 'you_vs_cpu' ? (
+                  <div className="mode-row">
                     <div className="picker-label">CPU Difficulty</div>
                     <div className="mode-options difficulty-options" role="radiogroup" aria-label="cpu difficulty">
                       <button
@@ -2461,6 +2522,68 @@ export default function App() {
                       </button>
                     </div>
                   </div>
+                ) : null}
+                {pendingMode === 'cpu' && pendingCpuMatchType === 'cpu_vs_cpu' ? (
+                  <>
+                    <div className="mode-row">
+                      <div className="picker-label">CPU 1 Difficulty</div>
+                      <div className="mode-options difficulty-options" role="radiogroup" aria-label="cpu 1 difficulty">
+                        <button
+                          type="button"
+                          className={['mode-option', pendingCpu1Difficulty === 'easy' ? 'selected' : ''].filter(Boolean).join(' ')}
+                          onClick={() => setPendingCpu1Difficulty('easy')}
+                          aria-pressed={pendingCpu1Difficulty === 'easy'}
+                        >
+                          Easy
+                        </button>
+                        <button
+                          type="button"
+                          className={['mode-option', pendingCpu1Difficulty === 'normal' ? 'selected' : ''].filter(Boolean).join(' ')}
+                          onClick={() => setPendingCpu1Difficulty('normal')}
+                          aria-pressed={pendingCpu1Difficulty === 'normal'}
+                        >
+                          Normal
+                        </button>
+                        <button
+                          type="button"
+                          className={['mode-option', pendingCpu1Difficulty === 'hard' ? 'selected' : ''].filter(Boolean).join(' ')}
+                          onClick={() => setPendingCpu1Difficulty('hard')}
+                          aria-pressed={pendingCpu1Difficulty === 'hard'}
+                        >
+                          Hard
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mode-row">
+                      <div className="picker-label">CPU 2 Difficulty</div>
+                      <div className="mode-options difficulty-options" role="radiogroup" aria-label="cpu 2 difficulty">
+                        <button
+                          type="button"
+                          className={['mode-option', pendingCpu2Difficulty === 'easy' ? 'selected' : ''].filter(Boolean).join(' ')}
+                          onClick={() => setPendingCpu2Difficulty('easy')}
+                          aria-pressed={pendingCpu2Difficulty === 'easy'}
+                        >
+                          Easy
+                        </button>
+                        <button
+                          type="button"
+                          className={['mode-option', pendingCpu2Difficulty === 'normal' ? 'selected' : ''].filter(Boolean).join(' ')}
+                          onClick={() => setPendingCpu2Difficulty('normal')}
+                          aria-pressed={pendingCpu2Difficulty === 'normal'}
+                        >
+                          Normal
+                        </button>
+                        <button
+                          type="button"
+                          className={['mode-option', pendingCpu2Difficulty === 'hard' ? 'selected' : ''].filter(Boolean).join(' ')}
+                          onClick={() => setPendingCpu2Difficulty('hard')}
+                          aria-pressed={pendingCpu2Difficulty === 'hard'}
+                        >
+                          Hard
+                        </button>
+                      </div>
+                    </div>
+                  </>
                 ) : null}
                 {pendingMode === 'online' ? (
                   <div className="mode-row">
@@ -2497,22 +2620,101 @@ export default function App() {
               </>
             ) : (
               <>
-                <h2>Color Setup</h2>
-                <p>Choose colors for Player 1 and Player 2.</p>
+                <h2>{pendingMode === 'online' ? 'Online Match Setup' : 'Match Setup'}</h2>
+                <p>
+                  {pendingMode === 'online'
+                    ? 'Choose turn order and colors, then create a room.'
+                    : pendingMode === 'cpu' && pendingCpuMatchType === 'cpu_vs_cpu'
+                      ? 'Choose colors for CPU 1 and CPU 2.'
+                      : 'Choose turn order and colors.'}
+                </p>
 
-                <ColorPickerRow
-                  label={pendingMode === 'cpu' ? 'Player 1 (You)' : 'Player 1'}
-                  selected={pendingColors.blue}
-                  blocked={pendingColors.yellow}
-                  onSelect={(id) => setPendingColors((prev) => ({ ...prev, blue: id }))}
-                />
-
-                <ColorPickerRow
-                  label={pendingMode === 'cpu' ? 'Player 2 (CPU)' : 'Player 2'}
-                  selected={pendingColors.yellow}
-                  blocked={pendingColors.blue}
-                  onSelect={(id) => setPendingColors((prev) => ({ ...prev, yellow: id }))}
-                />
+                <div className="setup-config-grid">
+                  <div className="setup-config-left">
+                    <div className="picker-label">Turn Order</div>
+                    {pendingMode === 'online' ? (
+                      <div className="mode-options" role="radiogroup" aria-label="host turn order">
+                        <button
+                          type="button"
+                          className={['mode-option', pendingHostTurnOrder === 'host_first' ? 'selected' : ''].filter(Boolean).join(' ')}
+                          onClick={() => setPendingHostTurnOrder('host_first')}
+                          aria-pressed={pendingHostTurnOrder === 'host_first'}
+                        >
+                          Host goes first
+                        </button>
+                        <button
+                          type="button"
+                          className={['mode-option', pendingHostTurnOrder === 'host_second' ? 'selected' : ''].filter(Boolean).join(' ')}
+                          onClick={() => setPendingHostTurnOrder('host_second')}
+                          aria-pressed={pendingHostTurnOrder === 'host_second'}
+                        >
+                          Host goes second
+                        </button>
+                      </div>
+                    ) : pendingMode === 'cpu' && pendingCpuMatchType === 'you_vs_cpu' ? (
+                      <div className="mode-options" role="radiogroup" aria-label="cpu turn order">
+                        <button
+                          type="button"
+                          className={['mode-option', pendingCpuTurnOrder === 'you_first' ? 'selected' : ''].filter(Boolean).join(' ')}
+                          onClick={() => setPendingCpuTurnOrder('you_first')}
+                          aria-pressed={pendingCpuTurnOrder === 'you_first'}
+                        >
+                          You go first
+                        </button>
+                        <button
+                          type="button"
+                          className={['mode-option', pendingCpuTurnOrder === 'you_second' ? 'selected' : ''].filter(Boolean).join(' ')}
+                          onClick={() => setPendingCpuTurnOrder('you_second')}
+                          aria-pressed={pendingCpuTurnOrder === 'you_second'}
+                        >
+                          You go second
+                        </button>
+                      </div>
+                    ) : pendingMode === 'cpu' && pendingCpuMatchType === 'cpu_vs_cpu' ? (
+                      <div className="mode-options" aria-label="cpu vs cpu turn order">
+                        <button type="button" className="mode-option selected" disabled>
+                          CPU 1 goes first
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="mode-options" aria-label="local turn order">
+                        <button type="button" className="mode-option selected" disabled>
+                          Player 1 goes first
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="setup-config-right">
+                    <ColorPickerRow
+                      label={
+                        pendingMode === 'online'
+                          ? 'Host Color'
+                          : pendingMode === 'cpu'
+                            ? pendingCpuMatchType === 'cpu_vs_cpu'
+                              ? 'CPU 1 Color'
+                              : 'Your Color'
+                            : 'Player 1 Color'
+                      }
+                      selected={pendingColors.blue}
+                      blocked={pendingColors.yellow}
+                      onSelect={(id) => setPendingColors((prev) => ({ ...prev, blue: id }))}
+                    />
+                    <ColorPickerRow
+                      label={
+                        pendingMode === 'online'
+                          ? 'Guest Color'
+                          : pendingMode === 'cpu'
+                            ? pendingCpuMatchType === 'cpu_vs_cpu'
+                              ? 'CPU 2 Color'
+                              : 'CPU Color'
+                            : 'Player 2 Color'
+                      }
+                      selected={pendingColors.yellow}
+                      blocked={pendingColors.blue}
+                      onSelect={(id) => setPendingColors((prev) => ({ ...prev, yellow: id }))}
+                    />
+                  </div>
+                </div>
 
                 <div className="setup-actions">
                   <button
@@ -2528,7 +2730,7 @@ export default function App() {
                     onClick={startWithColorSetup}
                     disabled={pendingColors.blue === pendingColors.yellow}
                   >
-                    Start Match
+                    {pendingMode === 'online' ? 'Create Room' : 'Start Match'}
                   </button>
                 </div>
               </>
@@ -2563,10 +2765,8 @@ interface OnlineMockPanelProps {
   connectionState: OnlineConnectionState
   syncState: OnlineSyncState
   onInputRoomCode: (value: string) => void
-  onSelectCreateColor: (player: PlayerColor, id: DisplayColorId) => void
-  onCreateRoom: () => void
   onConfirmJoin: () => void
-  onBackFromCreate: () => void
+  onBackToCreateSetup: () => void
   onBackFromJoinOrError: () => void
   onCancelWaiting: () => void
 }
@@ -2583,10 +2783,8 @@ function OnlineMockPanel({
   connectionState,
   syncState,
   onInputRoomCode,
-  onSelectCreateColor,
-  onCreateRoom,
   onConfirmJoin,
-  onBackFromCreate,
+  onBackToCreateSetup,
   onBackFromJoinOrError,
   onCancelWaiting,
 }: OnlineMockPanelProps) {
@@ -2621,8 +2819,8 @@ function OnlineMockPanel({
   }, [copyFeedback])
 
   return (
-    <section className="online-shell" aria-label="online mock">
-      <div className="online-card">
+    <section className="setup-overlay online-setup-overlay" aria-label="online setup">
+      <div className="setup-modal online-setup-modal">
         <div className="online-head">
           <h2>Online Match</h2>
           <p>Private room battle for two players.</p>
@@ -2638,38 +2836,6 @@ function OnlineMockPanel({
         <div className={['online-error-slot', errorMessage ? 'has-error' : ''].filter(Boolean).join(' ')} role="status" aria-live="polite">
           {errorMessage ? <span className="online-error-text">{errorMessage}</span> : null}
         </div>
-
-        {phase === 'create' ? (
-          <div className="online-section">
-            <h3>Create Room</h3>
-            <p className="online-waiting-copy">Choose colors, then create a room.</p>
-            <ColorPickerRow
-              label="Player 1 Color"
-              selected={createColors.blue}
-              blocked={createColors.yellow}
-              onSelect={(id) => onSelectCreateColor('blue', id)}
-            />
-            <ColorPickerRow
-              label="Player 2 Color"
-              selected={createColors.yellow}
-              blocked={createColors.blue}
-              onSelect={(id) => onSelectCreateColor('yellow', id)}
-            />
-            <div className="online-actions">
-              <button
-                type="button"
-                className="online-btn primary"
-                onClick={onCreateRoom}
-                disabled={createColors.blue === createColors.yellow || connectionState === 'connecting'}
-              >
-                Create Room
-              </button>
-              <button type="button" className="online-btn ghost" onClick={onBackFromCreate}>
-                Back
-              </button>
-            </div>
-          </div>
-        ) : null}
 
         {phase === 'join' ? (
           <div className="online-section">
@@ -2713,7 +2879,7 @@ function OnlineMockPanel({
             <p className="online-waiting-copy">Waiting for opponent to join and start the match.</p>
             <div className="online-status-list">
               <div className="online-status-item">
-                Colors: P1 {colorLabel(createColors.blue)} / P2 {colorLabel(createColors.yellow)}
+                Colors: Host {colorLabel(createColors.blue)} / Guest {colorLabel(createColors.yellow)}
               </div>
               <div className="online-status-item">{waitMessage}</div>
               <div className="online-status-item">Connection: {connectionState === 'connected' ? 'Connected' : connectionState === 'connecting' ? 'Connecting...' : connectionState === 'waiting' ? 'Waiting...' : 'Disconnected'}</div>
@@ -2743,7 +2909,7 @@ function OnlineMockPanel({
             <h3>Room Closed</h3>
             <p className="online-waiting-copy">{waitMessage || 'Host left the room.'}</p>
             <div className="online-actions">
-              <button type="button" className="online-btn primary" onClick={onBackFromCreate}>
+              <button type="button" className="online-btn primary" onClick={onBackToCreateSetup}>
                 Create Room Again
               </button>
               <button type="button" className="online-btn ghost" onClick={onBackFromJoinOrError}>
@@ -2963,8 +3129,16 @@ function hardEndgamePhaseLabel(phase: 'normal' | 'endgame' | 'late_endgame'): st
   return 'Normal'
 }
 
-function winnerHeadline(winner: PlayerColor, mode: MatchMode, onlineRole: PlayerColor | null): string {
+function winnerHeadline(
+  winner: PlayerColor,
+  mode: MatchMode,
+  onlineRole: PlayerColor | null,
+  cpuMatchType: CpuMatchType,
+): string {
   if (mode === 'cpu') {
+    if (cpuMatchType === 'cpu_vs_cpu') {
+      return winner === 'blue' ? 'CPU 1 WINS!' : 'CPU 2 WINS!'
+    }
     return winner === 'blue' ? 'YOU WIN!' : 'YOU LOSE'
   }
   if (mode === 'online') {

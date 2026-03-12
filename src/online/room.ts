@@ -60,6 +60,7 @@ export interface SerializedGameState {
 export interface RoomDoc {
   roomCode: string
   status: RoomStatus
+  hostStarts: boolean
   players: RoomPlayers
   playerColors: {
     blue: string
@@ -192,7 +193,10 @@ function extractBoardCells(data: SerializedGameState): SerializedBoardCell[] {
   return cells
 }
 
-export async function createRoom(playerColors: { blue: string; yellow: string }): Promise<{ roomCode: string }> {
+export async function createRoom(
+  playerColors: { blue: string; yellow: string },
+  hostStarts = true,
+): Promise<{ roomCode: string }> {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const roomCode = generateRoomCode()
     const roomRef = doc(db, ROOM_COLLECTION, roomCode)
@@ -202,9 +206,12 @@ export async function createRoom(playerColors: { blue: string; yellow: string })
     }
 
     const initial = createInitialGameState()
+    initial.currentTurn = hostStarts ? 'blue' : 'yellow'
+    initial.message = hostStarts ? "Player 1's turn" : "Player 2's turn"
     const payload: RoomDoc = {
       roomCode,
       status: 'waiting',
+      hostStarts,
       players: {
         player1: {
           role: 'blue',

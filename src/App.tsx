@@ -376,6 +376,20 @@ export default function App() {
     cpuMatchType === 'you_vs_cpu' &&
     cpuDifficulty === 'hard' &&
     !isPlayback
+  const suppressDeeperCpuLegalIndicators =
+    matchMode === 'cpu' &&
+    cpuMatchType === 'you_vs_cpu' &&
+    isCpuThinking &&
+    !setupOpen &&
+    !isAnimating &&
+    !isPlayback &&
+    !game.winner
+  const showCpuThinkingOverlay =
+    matchMode === 'cpu' &&
+    cpuMatchType === 'you_vs_cpu' &&
+    isCpuThinking &&
+    !setupOpen &&
+    !game.winner
 
   const legalSet = useMemo(() => {
     if (game.winner) {
@@ -1600,6 +1614,9 @@ export default function App() {
   } {
     const frames: PlaybackFrame[] = []
     let state = createInitialGameState()
+    const openingTurn: PlayerColor = baseRecord.moves[0]?.player ?? 'blue'
+    state.currentTurn = openingTurn
+    state.message = openingTurn === 'blue' ? "Player 1's turn" : "Player 2's turn"
 
     for (const record of baseRecord.moves) {
       const resolved = placeManualPiece(state, record.manual.level, record.manual.row, record.manual.col)
@@ -1736,6 +1753,9 @@ export default function App() {
     playbackFinalRemainingRef.current = finalRemaining
 
     const initial = createInitialGameState()
+    const openingTurn: PlayerColor = matchRecord.moves[0]?.player ?? 'blue'
+    initial.currentTurn = openingTurn
+    initial.message = openingTurn === 'blue' ? "Player 1's turn" : "Player 2's turn"
     setGame(initial)
     setDisplayRemaining({ ...initial.remaining })
     schedulePlaybackStep(90)
@@ -1967,7 +1987,9 @@ export default function App() {
             <div className="board-wrap" style={{ width: `${boardSize}px`, height: `${boardSize}px` }}>
               <div className="board">
                 {positions.map((cell) => {
-                  if (!cell.pieceColor && !cell.legal) {
+                  const visibleLegal = cell.legal && !(suppressDeeperCpuLegalIndicators && cell.level > 0)
+
+                  if (!cell.pieceColor && !visibleLegal) {
                     return null
                   }
 
@@ -1976,7 +1998,7 @@ export default function App() {
 
                   return (
                     <div key={cell.key}>
-                      {cell.legal &&
+                      {visibleLegal &&
                       !game.winner &&
                       !cell.pieceColor &&
                       !setupOpen &&
@@ -2038,7 +2060,7 @@ export default function App() {
                       <div
                         className={[
                           'token-visual',
-                          cell.pieceColor ? 'filled' : 'empty legal',
+                          cell.pieceColor ? 'filled' : visibleLegal ? 'empty legal' : 'empty',
                           cell.isLastMove ? 'last-move' : '',
                           cell.isAnimatingSpawn ? 'appear' : '',
                         ]
@@ -2046,7 +2068,7 @@ export default function App() {
                           .join(' ')}
                         style={{ left: `${cell.left}%`, top: `${cell.top}%`, zIndex: `${visualZ}` }}
                       >
-                        {cell.pieceColor ? <span className={`piece ${cell.pieceColor}`} /> : <span className="guide" />}
+                        {cell.pieceColor ? <span className={`piece ${cell.pieceColor}`} /> : visibleLegal ? <span className="guide" /> : null}
                       </div>
                     </div>
                   )
@@ -2054,6 +2076,11 @@ export default function App() {
               </div>
             </div>
           )}
+          {showCpuThinkingOverlay ? (
+            <div className="board-thinking-overlay" aria-live="polite">
+              <span className="board-thinking-chip">Thinking...</span>
+            </div>
+          ) : null}
           {mobilePanelMode === 'faceoff' ? (
             <div className="mobile-side-influence" style={{ height: `${boardSize}px` }} aria-label="mobile influence bar">
               <div className="mobile-side-meta top">{leftPercent}%</div>

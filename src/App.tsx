@@ -119,6 +119,15 @@ interface DebugScoreComponentDefinition {
 }
 
 type DebugOverlayMode = 'total' | HardScoreComponentKey
+type ChainTone = 'cool' | 'violet' | 'magenta' | 'orange' | 'hot'
+
+interface ChainBannerState {
+  id: number
+  count: number
+  tone: ChainTone
+  left: number
+  top: number
+}
 
 const DEBUG_SCORE_CATEGORIES: DebugScoreCategory[] = [
   { key: 'gain', label: 'Gain' },
@@ -255,6 +264,7 @@ export default function App() {
   const [playbackStatus, setPlaybackStatus] = useState<PlaybackStatus | null>(null)
   const [playbackRenderer, setPlaybackRenderer] = useState<BoardRendererMode | null>(null)
   const [winnerModalVisible, setWinnerModalVisible] = useState(false)
+  const [chainBanners, setChainBanners] = useState<ChainBannerState[]>([])
   const [boardRenderer, setBoardRenderer] = useState<BoardRendererMode>('2d')
   const [isCpuThinking, setIsCpuThinking] = useState(false)
   const [hardDebugAnalysis, setHardDebugAnalysis] = useState<HardMoveAnalysis | null>(null)
@@ -304,6 +314,8 @@ export default function App() {
   const playbackFinalRemainingRef = useRef<Record<PlayerColor, number> | null>(null)
   const playbackStatusRef = useRef<PlaybackStatus | null>(null)
   const cpuTimeoutRef = useRef<number | null>(null)
+  const chainBannerTimeoutIdsRef = useRef<number[]>([])
+  const chainBannerSeqRef = useRef(0)
   const pendingCpuMoveRef = useRef<Move | null>(null)
   const onlineRoomUnsubRef = useRef<(() => void) | null>(null)
   const onlineLastMoveSignatureRef = useRef<string | null>(null)
@@ -651,10 +663,19 @@ export default function App() {
       clearAnimationTimers()
       clearPlaybackTimer()
       clearCpuTimer()
+      clearChainBannerTimers()
       stopOnlineRoomSubscription()
       audioCtxRef.current?.close().catch(() => undefined)
     }
   }, [])
+
+  useEffect(() => {
+    if (!setupOpen) {
+      return
+    }
+    clearChainBannerTimers()
+    setChainBanners([])
+  }, [setupOpen])
 
   useEffect(() => {
     clearCpuTimer()
@@ -896,6 +917,30 @@ export default function App() {
     playMoveSequence(nextState, game.remaining)
   }
 
+  function showChainBanner(chainCount: number, anchorMoves: Move[]): void {
+    if (chainCount < 3 || isPlayback || game.winner) {
+      return
+    }
+    chainBannerSeqRef.current += 1
+    const bannerId = chainBannerSeqRef.current
+    const anchor = resolveChainAnchorPosition(anchorMoves)
+    setChainBanners((prev) => [
+      ...prev,
+      {
+        id: bannerId,
+        count: chainCount,
+        tone: resolveChainTone(chainCount),
+        left: anchor.left,
+        top: anchor.top,
+      },
+    ])
+    const timeoutId = window.setTimeout(() => {
+      setChainBanners((prev) => prev.filter((item) => item.id !== bannerId))
+      chainBannerTimeoutIdsRef.current = chainBannerTimeoutIdsRef.current.filter((id) => id !== timeoutId)
+    }, 640)
+    chainBannerTimeoutIdsRef.current.push(timeoutId)
+  }
+
   function handleLocalMoveCommit(level: number, row: number, col: number): void {
     const actor = game.currentTurn
     if (debugMode && matchMode === 'cpu' && actor === 'blue') {
@@ -1043,6 +1088,12 @@ export default function App() {
         const stepId = window.setTimeout(() => {
           setRevealedAutoCount(index + 1)
           setAnimatingKey(toMoveKey(move.level, move.row, move.col))
+          // Chain count is based on progression steps, not board level.
+          // manual move = chain 1, first auto placement = chain 2, ...
+          const stepChainCount = index + 2
+          if (!isPlayback && stepChainCount >= 3) {
+            showChainBanner(stepChainCount, [move])
+          }
           const autoSoundId = window.setTimeout(() => {
             setDisplayRemaining((prev) => ({
               ...prev,
@@ -1082,6 +1133,11 @@ export default function App() {
       window.clearTimeout(cpuTimeoutRef.current)
       cpuTimeoutRef.current = null
     }
+  }
+
+  function clearChainBannerTimers(): void {
+    chainBannerTimeoutIdsRef.current.forEach((id) => window.clearTimeout(id))
+    chainBannerTimeoutIdsRef.current = []
   }
 
   function stopOnlineRoomSubscription(): void {
@@ -2081,6 +2137,28 @@ export default function App() {
               <span className="board-thinking-chip">Thinking...</span>
             </div>
           ) : null}
+          {boardRenderer === '2d' ? chainBanners.map((banner, index) => {
+            const lane = (banner.id % 3) - 1
+            const offsetX = lane * 7
+            const offsetY = Math.min(index, 5) * 4
+            return (
+              <div
+                key={banner.id}
+                className="chain-banner"
+                aria-live="polite"
+                aria-label={`${banner.count} chain`}
+                style={{
+                  left: `${banner.left}%`,
+                  top: `${banner.top}%`,
+                  transform: `translate(calc(-50% + ${offsetX}px), calc(-100% - ${offsetY}px))`,
+                }}
+              >
+                <span className={['chain-banner-text', `tone-${banner.tone}`].join(' ')}>
+                  {banner.count} CHAIN!
+                </span>
+              </div>
+            )
+          }) : null}
           {mobilePanelMode === 'faceoff' ? (
             <div className="mobile-side-influence" style={{ height: `${boardSize}px` }} aria-label="mobile influence bar">
               <div className="mobile-side-meta top">{leftPercent}%</div>
@@ -3093,6 +3171,59 @@ function getDebugOverlayMetricValue(candidate: HardMoveCandidate, mode: DebugOve
     return -b.chainBackfirePenalty
   }
   return b.endgameAdjustment
+}
+
+function resolveChainTone(chainCount: number): ChainTone {
+  if (chainCount <= 3) {
+    return 'cool'
+  }
+  if (chainCount === 4) {
+    return 'violet'
+  }
+  if (chainCount === 5) {
+    return 'magenta'
+  }
+  if (chainCount === 6) {
+    return 'orange'
+  }
+  return 'hot'
+}
+
+function resolveChainAnchorPosition(moves: Move[]): { left: number; top: number } {
+  if (moves.length === 0) {
+    return { left: 50, top: 22 }
+  }
+
+  let sumLeft = 0
+  let sumTop = 0
+  for (const move of moves) {
+    const point = moveToBoardPercent(move.level, move.row, move.col)
+    sumLeft += point.left
+    sumTop += point.top
+  }
+
+  const avgLeft = sumLeft / moves.length
+  const avgTop = sumTop / moves.length
+
+  return {
+    left: clamp(avgLeft, 10, 90),
+    top: clamp(avgTop - 2.8, 12, 92),
+  }
+}
+
+function moveToBoardPercent(level: number, row: number, col: number): { left: number; top: number } {
+  const x = col * BASE_SPACING + level * (BASE_SPACING / 2)
+  const y = row * BASE_SPACING + level * (BASE_SPACING / 2)
+  const normalizedX = x / MAX_COORDINATE
+  const normalizedY = y / MAX_COORDINATE
+  return {
+    left: TOKEN_INSET_PERCENT + normalizedX * (100 - TOKEN_INSET_PERCENT * 2),
+    top: TOKEN_INSET_PERCENT + normalizedY * (100 - TOKEN_INSET_PERCENT * 2),
+  }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
 function hexToRgba(hex: string, alpha: number): string {

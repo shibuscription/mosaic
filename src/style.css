@@ -377,6 +377,51 @@ body {
   backdrop-filter: blur(2px);
 }
 
+.chain-banner {
+  position: absolute;
+  z-index: 315;
+  pointer-events: none;
+}
+
+.chain-banner-text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: #ffffffde;
+  border: 1px solid #c8d6ee;
+  box-shadow: 0 6px 16px #0f1b332e;
+  animation: chain-pop 520ms ease-out forwards;
+}
+
+.chain-banner-text.tone-cool {
+  color: #2c6ddf;
+}
+
+.chain-banner-text.tone-violet {
+  color: #6153d2;
+}
+
+.chain-banner-text.tone-magenta {
+  color: #a245b2;
+}
+
+.chain-banner-text.tone-orange {
+  color: #d36d2e;
+}
+
+.chain-banner-text.tone-hot {
+  color: #dc3942;
+}
+
 .token-visual,
 .token-hit {
   position: absolute;
@@ -497,6 +542,25 @@ body {
   100% {
     transform: scale(1);
     opacity: 1;
+  }
+}
+
+@keyframes chain-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.86);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(0) scale(1.05);
+  }
+  72% {
+    opacity: 0.96;
+    transform: translateY(-2px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.94);
   }
 }
 
@@ -1676,6 +1740,11 @@ body {
   .board-thinking-chip {
     font-size: 0.8rem;
     padding: 6px 12px;
+  }
+
+  .chain-banner-text {
+    font-size: 0.9rem;
+    padding: 6px 11px;
   }
 
   .sound-fixed {

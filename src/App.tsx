@@ -110,6 +110,17 @@ interface PlaybackFrame {
   delayMs: number
 }
 
+interface PlaybackBuildResult {
+  frames: PlaybackFrame[]
+  moveStartFrameIndices: number[]
+  moveEndFrameIndices: number[]
+  frameToMoveCursor: number[]
+  initialGame: GameState
+  initialRemaining: Record<PlayerColor, number>
+  finalGame: GameState
+  finalRemaining: Record<PlayerColor, number>
+}
+
 interface OnlineSessionState {
   phase: OnlinePhase
   roomCode: string
@@ -324,6 +335,8 @@ export default function App() {
   const [isPlayback, setIsPlayback] = useState(false)
   const [playbackStatus, setPlaybackStatus] = useState<PlaybackStatus | null>(null)
   const [playbackRenderer, setPlaybackRenderer] = useState<BoardRendererMode | null>(null)
+  const [playbackMoveCursor, setPlaybackMoveCursor] = useState(0)
+  const [playbackTotalMoves, setPlaybackTotalMoves] = useState(0)
   const [winnerModalVisible, setWinnerModalVisible] = useState(false)
   const [chainBanners, setChainBanners] = useState<ChainBannerState[]>([])
   const [boardRenderer, setBoardRenderer] = useState<BoardRendererMode>('2d')
@@ -372,7 +385,13 @@ export default function App() {
   const timeoutIdsRef = useRef<number[]>([])
   const playbackTimerRef = useRef<number | null>(null)
   const playbackFramesRef = useRef<PlaybackFrame[]>([])
+  const playbackMoveStartFrameIndicesRef = useRef<number[]>([])
+  const playbackMoveEndFrameIndicesRef = useRef<number[]>([])
+  const playbackFrameToMoveCursorRef = useRef<number[]>([])
   const playbackCursorRef = useRef(0)
+  const playbackMoveCursorRef = useRef(0)
+  const playbackInitialGameRef = useRef<GameState | null>(null)
+  const playbackInitialRemainingRef = useRef<Record<PlayerColor, number> | null>(null)
   const playbackFinalGameRef = useRef<GameState | null>(null)
   const playbackFinalRemainingRef = useRef<Record<PlayerColor, number> | null>(null)
   const playbackStatusRef = useRef<PlaybackStatus | null>(null)
@@ -467,6 +486,8 @@ export default function App() {
     isCpuThinking &&
     !setupOpen &&
     !game.winner
+  const playbackAtStart = playbackMoveCursor <= 0
+  const playbackAtEnd = playbackMoveCursor >= playbackTotalMoves
 
   const legalSet = useMemo(() => {
     if (game.winner) {
@@ -1741,18 +1762,21 @@ export default function App() {
     }
   }
 
-  function buildPlaybackFrames(baseRecord: MatchRecord): {
-    frames: PlaybackFrame[]
-    finalGame: GameState
-    finalRemaining: Record<PlayerColor, number>
-  } {
+  function buildPlaybackFrames(baseRecord: MatchRecord): PlaybackBuildResult {
     const frames: PlaybackFrame[] = []
+    const moveStartFrameIndices: number[] = []
+    const moveEndFrameIndices: number[] = []
+    const frameToMoveCursor: number[] = []
     let state = createInitialGameState()
     const openingTurn: PlayerColor = baseRecord.moves[0]?.player ?? 'blue'
     state.currentTurn = openingTurn
     state.message = openingTurn === 'blue' ? "Player 1's turn" : "Player 2's turn"
+    const initialGame = cloneGameState(state)
+    const initialRemaining = { ...state.remaining }
 
-    for (const record of baseRecord.moves) {
+    for (const [moveIndex, record] of baseRecord.moves.entries()) {
+      const moveStartFrameIndex = frames.length
+      moveStartFrameIndices.push(moveStartFrameIndex)
       const resolved = placeManualPiece(state, record.manual.level, record.manual.row, record.manual.col)
       const manualState = cloneGameState(resolved)
       for (const placement of record.autoPlacements) {
@@ -1771,6 +1795,7 @@ export default function App() {
         autoChainIndex: 0,
         delayMs: PLAYBACK_MANUAL_MS,
       })
+      frameToMoveCursor.push(record.autoPlacements.length === 0 ? moveIndex + 1 : moveIndex)
 
       let chainRemaining = { ...manualRemaining }
       const chainState = cloneGameState(manualState)
@@ -1789,12 +1814,19 @@ export default function App() {
           autoChainIndex: chainIndex,
           delayMs: PLAYBACK_AUTO_MS,
         })
+        frameToMoveCursor.push(chainIndex === record.autoPlacements.length - 1 ? moveIndex + 1 : moveIndex)
       })
+      moveEndFrameIndices.push(frames.length - 1)
       state = resolved
     }
 
     return {
       frames,
+      moveStartFrameIndices,
+      moveEndFrameIndices,
+      frameToMoveCursor,
+      initialGame,
+      initialRemaining,
       finalGame: cloneGameState(state),
       finalRemaining: { ...state.remaining },
     }
@@ -1811,6 +1843,56 @@ export default function App() {
     } else if (frame.sound === 'auto') {
       playAutoSound(frame.autoChainIndex)
     }
+  }
+
+  function applyPlaybackFrameSnapshot(frame: PlaybackFrame): void {
+    setIsAnimating(false)
+    setGame(cloneGameState(frame.game))
+    setDisplayRemaining({ ...frame.remaining })
+    setAnimatingKey(null)
+    setRevealedAutoCount(frame.revealedAutoCount)
+  }
+
+  function setPlaybackMovePosition(nextMoveCursor: number): void {
+    const totalMoves = playbackMoveEndFrameIndicesRef.current.length
+    const clamped = clamp(nextMoveCursor, 0, totalMoves)
+    const frames = playbackFramesRef.current
+
+    if (clamped <= 0) {
+      const initialGame = playbackInitialGameRef.current
+      const initialRemaining = playbackInitialRemainingRef.current
+      if (initialGame && initialRemaining) {
+        setIsAnimating(false)
+        setGame(cloneGameState(initialGame))
+        setDisplayRemaining({ ...initialRemaining })
+        setAnimatingKey(null)
+        setRevealedAutoCount(0)
+      }
+    } else {
+      const frameIndex = playbackMoveEndFrameIndicesRef.current[clamped - 1]
+      const frame = frames[frameIndex]
+      if (frame) {
+        applyPlaybackFrameSnapshot(frame)
+      }
+    }
+
+    playbackMoveCursorRef.current = clamped
+    setPlaybackMoveCursor(clamped)
+    if (clamped >= totalMoves) {
+      playbackCursorRef.current = frames.length
+      return
+    }
+    const nextFrameIndex = playbackMoveStartFrameIndicesRef.current[clamped] ?? frames.length
+    playbackCursorRef.current = nextFrameIndex
+  }
+
+  function stopPlaybackAutoplayForManualStep(): void {
+    if (playbackStatusRef.current !== 'playing') {
+      return
+    }
+    clearPlaybackTimer()
+    setPlaybackStatus('paused')
+    playbackStatusRef.current = 'paused'
   }
 
   function finalizePlayback(showWinnerModal: boolean): void {
@@ -1830,6 +1912,10 @@ export default function App() {
     setAnimatingKey(null)
     const finalAutoCount = finalGame ? finalGame.lastAutoPlacements.length : 0
     setRevealedAutoCount(finalAutoCount)
+    const totalMoves = playbackMoveEndFrameIndicesRef.current.length
+    playbackMoveCursorRef.current = totalMoves
+    setPlaybackMoveCursor(totalMoves)
+    setPlaybackTotalMoves(totalMoves)
   }
 
   function schedulePlaybackStep(delayMs: number): void {
@@ -1850,6 +1936,11 @@ export default function App() {
 
       const frame = frames[cursor]
       applyPlaybackFrame(frame)
+      const moveCursor = playbackFrameToMoveCursorRef.current[cursor] ?? playbackMoveCursorRef.current
+      if (moveCursor !== playbackMoveCursorRef.current) {
+        playbackMoveCursorRef.current = moveCursor
+        setPlaybackMoveCursor(moveCursor)
+      }
       playbackCursorRef.current = cursor + 1
       schedulePlaybackStep(frame.delayMs)
     }, delayMs)
@@ -1860,7 +1951,16 @@ export default function App() {
       return
     }
 
-    const { frames, finalGame, finalRemaining } = buildPlaybackFrames(baseRecord)
+    const {
+      frames,
+      moveStartFrameIndices,
+      moveEndFrameIndices,
+      frameToMoveCursor,
+      initialGame,
+      initialRemaining,
+      finalGame,
+      finalRemaining,
+    } = buildPlaybackFrames(baseRecord)
     if (frames.length === 0) {
       return
     }
@@ -1882,16 +1982,20 @@ export default function App() {
     lastWinnerRef.current = null
 
     playbackFramesRef.current = frames
+    playbackMoveStartFrameIndicesRef.current = moveStartFrameIndices
+    playbackMoveEndFrameIndicesRef.current = moveEndFrameIndices
+    playbackFrameToMoveCursorRef.current = frameToMoveCursor
     playbackCursorRef.current = 0
+    playbackMoveCursorRef.current = 0
+    playbackInitialGameRef.current = initialGame
+    playbackInitialRemainingRef.current = initialRemaining
     playbackFinalGameRef.current = finalGame
     playbackFinalRemainingRef.current = finalRemaining
+    setPlaybackMoveCursor(0)
+    setPlaybackTotalMoves(baseRecord.moves.length)
 
-    const initial = createInitialGameState()
-    const openingTurn: PlayerColor = baseRecord.moves[0]?.player ?? 'blue'
-    initial.currentTurn = openingTurn
-    initial.message = openingTurn === 'blue' ? "Player 1's turn" : "Player 2's turn"
-    setGame(initial)
-    setDisplayRemaining({ ...initial.remaining })
+    setGame(cloneGameState(initialGame))
+    setDisplayRemaining({ ...initialRemaining })
     schedulePlaybackStep(90)
   }
 
@@ -2052,9 +2156,44 @@ export default function App() {
       playbackStatusRef.current = 'paused'
       return
     }
+    if (playbackMoveCursorRef.current >= playbackMoveEndFrameIndicesRef.current.length) {
+      return
+    }
     setPlaybackStatus('playing')
     playbackStatusRef.current = 'playing'
     schedulePlaybackStep(70)
+  }
+
+  function handlePlaybackJumpToStart(): void {
+    if (!isPlayback) {
+      return
+    }
+    stopPlaybackAutoplayForManualStep()
+    setPlaybackMovePosition(0)
+  }
+
+  function handlePlaybackPreviousMove(): void {
+    if (!isPlayback) {
+      return
+    }
+    stopPlaybackAutoplayForManualStep()
+    setPlaybackMovePosition(playbackMoveCursorRef.current - 1)
+  }
+
+  function handlePlaybackNextMove(): void {
+    if (!isPlayback) {
+      return
+    }
+    stopPlaybackAutoplayForManualStep()
+    setPlaybackMovePosition(playbackMoveCursorRef.current + 1)
+  }
+
+  function handlePlaybackJumpToEnd(): void {
+    if (!isPlayback) {
+      return
+    }
+    stopPlaybackAutoplayForManualStep()
+    setPlaybackMovePosition(playbackMoveEndFrameIndicesRef.current.length)
   }
 
   function handleStopPlayback(): void {
@@ -2780,11 +2919,58 @@ export default function App() {
       {isPlayback ? (
         <div className="playback-chip playback-controls">
           <span className="playback-label">{playbackRenderer === '3d' ? t('playback.playback3d') : t('playback.playback')}</span>
-          <button type="button" className="playback-control-btn" onClick={handlePauseResumePlayback}>
+          <div className="playback-step-group">
+            <button
+              type="button"
+              className="playback-control-btn step"
+              onClick={handlePlaybackJumpToStart}
+              disabled={playbackAtStart}
+              aria-label={t('playback.jumpToStart')}
+              title={t('playback.jumpToStart')}
+            >
+              ⏮
+            </button>
+            <button
+              type="button"
+              className="playback-control-btn step"
+              onClick={handlePlaybackPreviousMove}
+              disabled={playbackAtStart}
+              aria-label={t('playback.previousMove')}
+              title={t('playback.previousMove')}
+            >
+              ◀
+            </button>
+            <button
+              type="button"
+              className="playback-control-btn step"
+              onClick={handlePlaybackNextMove}
+              disabled={playbackAtEnd}
+              aria-label={t('playback.nextMove')}
+              title={t('playback.nextMove')}
+            >
+              ▶
+            </button>
+            <button
+              type="button"
+              className="playback-control-btn step"
+              onClick={handlePlaybackJumpToEnd}
+              disabled={playbackAtEnd}
+              aria-label={t('playback.jumpToEnd')}
+              title={t('playback.jumpToEnd')}
+            >
+              ⏭
+            </button>
+          </div>
+          <button
+            type="button"
+            className="playback-control-btn"
+            onClick={handlePauseResumePlayback}
+            disabled={playbackAtEnd && playbackStatus === 'paused'}
+          >
             {playbackStatus === 'paused' ? t('action.resume') : t('action.pause')}
           </button>
           <button type="button" className="playback-control-btn stop" onClick={handleStopPlayback}>
-            {t('action.stop')}
+            {t('action.exit')}
           </button>
         </div>
       ) : null}

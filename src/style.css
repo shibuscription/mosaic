@@ -995,6 +995,8 @@ body {
 .playback-controls {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
   padding: 6px 8px;
 }
@@ -1003,6 +1005,14 @@ body {
   font-size: 0.78rem;
   font-weight: 800;
   color: #f6f9ff;
+  padding: 0 2px 0 1px;
+  white-space: nowrap;
+}
+
+.playback-step-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .playback-control-btn {
@@ -1018,6 +1028,18 @@ body {
 
 .playback-control-btn:hover {
   background: #2d4a7a;
+}
+
+.playback-control-btn.step {
+  min-width: 32px;
+  padding: 5px 8px;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.playback-control-btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
 }
 
 .playback-control-btn.stop {
@@ -1907,6 +1929,20 @@ body {
   .chain-banner-text {
     font-size: 0.9rem;
     padding: 6px 11px;
+  }
+
+  .playback-controls {
+    gap: 6px;
+    padding: 6px 7px;
+  }
+
+  .playback-step-group {
+    gap: 4px;
+  }
+
+  .playback-control-btn.step {
+    min-width: 30px;
+    padding: 5px 7px;
   }
 
   .sound-fixed {

@@ -68,6 +68,7 @@ const en: Messages = {
   'action.resume': 'Resume',
   'action.pause': 'Pause',
   'action.stop': 'Stop',
+  'action.exit': 'Exit',
   'action.restart': 'Restart',
   'action.cancel': 'Cancel',
   'action.copy': 'Copy',
@@ -155,6 +156,10 @@ const en: Messages = {
 
   'playback.playback3d': '3D Playback',
   'playback.playback': 'Playback',
+  'playback.jumpToStart': 'Jump to Start',
+  'playback.previousMove': 'Previous Move',
+  'playback.nextMove': 'Next Move',
+  'playback.jumpToEnd': 'Jump to End',
 }
 
 const ja: Messages = {
@@ -221,8 +226,9 @@ const ja: Messages = {
   'action.soundOn': 'サウンド: ON',
   'action.soundOff': 'サウンド: OFF',
   'action.resume': '再開',
-  'action.pause': '停止',
+  'action.pause': '一時停止',
   'action.stop': '終了',
+  'action.exit': '終了',
   'action.restart': '再戦',
   'action.cancel': 'キャンセル',
   'action.copy': 'コピー',
@@ -310,6 +316,10 @@ const ja: Messages = {
 
   'playback.playback3d': '3D再生',
   'playback.playback': '再生',
+  'playback.jumpToStart': '最初へ',
+  'playback.previousMove': '1手戻る',
+  'playback.nextMove': '1手進む',
+  'playback.jumpToEnd': '最後へ',
 }
 
 const MESSAGES: Record<AppLanguage, Messages> = { en, ja }

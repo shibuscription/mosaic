@@ -54,6 +54,7 @@ interface ColorOption {
 
 interface ColorPairTheme {
   key: string
+  label: string
   colors: [DisplayColorId, DisplayColorId]
 }
 
@@ -212,14 +213,14 @@ const COLOR_OPTIONS: ColorOption[] = [
 ]
 
 const COLOR_PAIR_THEMES: ColorPairTheme[] = [
-  { key: 'classic', colors: ['classic_brown', 'classic_blue'] },
-  { key: 'milkyway', colors: ['milkyway_blue', 'milkyway_white'] },
-  { key: 'pastel', colors: ['pastel_pink', 'pastel_green'] },
-  { key: 'halfblue', colors: ['halfblue_sky', 'halfblue_white'] },
-  { key: 'trad', colors: ['trad_black', 'trad_white'] },
-  { key: 'miyabi', colors: ['miyabi_teal', 'miyabi_vermilion'] },
-  { key: 'iki', colors: ['iki_blue', 'iki_white'] },
-  { key: 'oribe', colors: ['oribe_green', 'oribe_deepbrown'] },
+  { key: 'classic', label: 'Classic', colors: ['classic_brown', 'classic_blue'] },
+  { key: 'milkyway', label: 'Milky Way', colors: ['milkyway_blue', 'milkyway_white'] },
+  { key: 'pastel', label: 'Pastel', colors: ['pastel_pink', 'pastel_green'] },
+  { key: 'halfblue', label: 'Half Blue', colors: ['halfblue_sky', 'halfblue_white'] },
+  { key: 'trad', label: 'Trad', colors: ['trad_black', 'trad_white'] },
+  { key: 'miyabi', label: 'Miyabi', colors: ['miyabi_teal', 'miyabi_vermilion'] },
+  { key: 'iki', label: 'Iki', colors: ['iki_blue', 'iki_white'] },
+  { key: 'oribe', label: 'Oribe', colors: ['oribe_green', 'oribe_deepbrown'] },
 ]
 
 const COLOR_OPTION_BY_ID = new Map<DisplayColorId, ColorOption>(COLOR_OPTIONS.map((option) => [option.id, option]))
@@ -405,6 +406,7 @@ export default function App() {
   const totalRemaining = leftRemaining + rightRemaining
   const leftPercent = totalRemaining > 0 ? Math.round((rightRemaining / totalRemaining) * 100) : 50
   const rightPercent = 100 - leftPercent
+  const selectedColorTheme = useMemo(() => getThemeByAssignedColors(pendingColors), [pendingColors])
   const debugMode = useMemo(() => {
     if (typeof window === 'undefined') {
       return false
@@ -2824,34 +2826,75 @@ export default function App() {
                     )}
                   </div>
                   <div className="setup-config-right">
-                    <ColorPickerRow
-                      label={
-                        pendingMode === 'online'
-                          ? 'Host Color'
-                          : pendingMode === 'cpu'
-                            ? pendingCpuMatchType === 'cpu_vs_cpu'
-                              ? 'CPU 1 Color'
-                              : 'Your Color'
-                            : 'Player 1 Color'
-                      }
-                      selected={pendingColors.blue}
-                      blocked={pendingColors.yellow}
-                      onSelect={(id) => setPendingColors((prev) => ({ ...prev, blue: id }))}
-                    />
-                    <ColorPickerRow
-                      label={
-                        pendingMode === 'online'
-                          ? 'Guest Color'
-                          : pendingMode === 'cpu'
-                            ? pendingCpuMatchType === 'cpu_vs_cpu'
-                              ? 'CPU 2 Color'
-                              : 'CPU Color'
-                            : 'Player 2 Color'
-                      }
-                      selected={pendingColors.yellow}
-                      blocked={pendingColors.blue}
-                      onSelect={(id) => setPendingColors((prev) => ({ ...prev, yellow: id }))}
-                    />
+                    <div className="picker-row">
+                      <div className="picker-label">Color Theme</div>
+                      <div className="theme-grid" role="radiogroup" aria-label="color theme">
+                        {COLOR_PAIR_THEMES.map((theme) => {
+                          const isSelected = selectedColorTheme?.key === theme.key
+                          return (
+                            <button
+                              key={theme.key}
+                              type="button"
+                              className={['theme-option', isSelected ? 'selected' : ''].filter(Boolean).join(' ')}
+                              aria-pressed={isSelected}
+                              onClick={() =>
+                                setPendingColors({
+                                  blue: theme.colors[0],
+                                  yellow: theme.colors[1],
+                                })
+                              }
+                            >
+                              <span className="theme-option-label">{theme.label}</span>
+                              <span className="theme-option-chips" aria-hidden="true">
+                                {theme.colors.map((id) => {
+                                  const option = COLOR_OPTION_BY_ID.get(id)
+                                  if (!option) {
+                                    return null
+                                  }
+                                  return (
+                                    <span
+                                      key={option.id}
+                                      className="theme-preview-chip"
+                                      style={{ background: option.hex }}
+                                    />
+                                  )
+                                })}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="theme-assignment">
+                      <div className="theme-assignment-item">
+                        <span className="theme-assignment-label">Player 1 Color</span>
+                        <span
+                          className="theme-assignment-chip"
+                          style={{ background: (COLOR_OPTION_BY_ID.get(pendingColors.blue)?.hex ?? '#000000') }}
+                          aria-hidden="true"
+                        />
+                        <span className="theme-assignment-name">{colorLabel(pendingColors.blue)}</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="theme-swap-button"
+                        onClick={() => setPendingColors((prev) => ({ blue: prev.yellow, yellow: prev.blue }))}
+                        aria-label="Swap player colors"
+                        title="Swap"
+                      >
+                        ⇄
+                      </button>
+                      <div className="theme-assignment-item">
+                        <span className="theme-assignment-label">Player 2 Color</span>
+                        <span
+                          className="theme-assignment-chip"
+                          style={{ background: (COLOR_OPTION_BY_ID.get(pendingColors.yellow)?.hex ?? '#000000') }}
+                          aria-hidden="true"
+                        />
+                        <span className="theme-assignment-name">{colorLabel(pendingColors.yellow)}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -3136,46 +3179,6 @@ function PlayerPanel({
   )
 }
 
-interface ColorPickerRowProps {
-  label: string
-  selected: DisplayColorId
-  blocked: DisplayColorId
-  onSelect: (id: DisplayColorId) => void
-}
-
-function ColorPickerRow({ label, selected, blocked, onSelect }: ColorPickerRowProps) {
-  return (
-    <div className="picker-row">
-      <div className="picker-label">{label}</div>
-      <div className="chip-list">
-        {COLOR_PAIR_THEMES.map((theme) => (
-          <div key={theme.key} className="chip-pair">
-            {theme.colors.map((id) => {
-              const option = COLOR_OPTION_BY_ID.get(id)
-              if (!option) {
-                return null
-              }
-              const disabled = option.id === blocked && option.id !== selected
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  className={['color-chip', selected === option.id ? 'selected' : ''].filter(Boolean).join(' ')}
-                  style={{ background: option.hex }}
-                  onClick={() => onSelect(option.id)}
-                  disabled={disabled}
-                  aria-label={`${label} color ${option.label}`}
-                  title={option.label}
-                />
-              )
-            })}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 function isDisplayColorId(value: unknown): value is DisplayColorId {
   return typeof value === 'string' && COLOR_OPTIONS.some((option) => option.id === value)
 }
@@ -3183,6 +3186,16 @@ function isDisplayColorId(value: unknown): value is DisplayColorId {
 function colorLabel(id: DisplayColorId): string {
   const found = COLOR_OPTIONS.find((option) => option.id === id)
   return found ? found.label : id
+}
+
+function getThemeByAssignedColors(colors: PlayerColorConfig): ColorPairTheme | null {
+  return (
+    COLOR_PAIR_THEMES.find(
+      (theme) =>
+        (theme.colors[0] === colors.blue && theme.colors[1] === colors.yellow) ||
+        (theme.colors[0] === colors.yellow && theme.colors[1] === colors.blue),
+    ) ?? null
+  )
 }
 
 function toMoveKey(level: number, row: number, col: number): string {

@@ -23,21 +23,27 @@ https://mosaic-game-bef28.web.app
 - ローカル2人対戦
 - CPU対戦（2P側をCPUが担当）
 - CPU難易度（Easy / Normal / Hard）
+- CPU vs CPU 対戦（CPU 1 / CPU 2 の難易度個別設定）
+- オンライン対戦（private room: 作成 / 参加 / 同期）
 - 開始モーダル設定
-  - Game Mode（Local 2 Players / vs CPU）
-  - 色選択
-  - CPU Difficulty（vs CPU時）
+  - Game Mode（Local / CPU / Online）
+  - CPU Match Type（You vs CPU / CPU vs CPU）
+  - テーマ制カラーUI（8テーマ） + Swap
+  - Turn Order（モードに応じた先攻/後攻設定）
 - Undo
   - 2 Player: 1手戻し
   - vs CPU: 人間手番まで戻す（CPU着手後は2手戻し）
 - 終局後の Winner モーダル
 - 棋譜の内部記録（手置き + 自動積み上がり）
+- 棋譜ファイル export / import（`.mosaic` JSON）
 - 2D Playback（終局後に初手から再生）
 - 3D View（終局後の中央盤面を3D静止表示）
 - 3D Playback（3D View内の `Playback` から開始）
 - サウンド ON/OFF、連鎖音程変化、勝利音
 - 駒配置アニメーション / 連鎖の時間差表示
+- CHAIN 演出（段階表示）
 - 残数表示の段階更新（着地タイミングに同期）
+- 最後の一手マーカー強調（リング + 控えめグロー）
 - レスポンシブ UI
   - PC: 左右プレイヤーパネル + 上部勢力バー（横）
   - モバイル/タブレット: 情報パネル2モード切替
@@ -51,16 +57,20 @@ https://mosaic-game-bef28.web.app
     - Sound（トグル時はメニューを閉じない）
     - Undo / Reset（実行時に閉じる）
   - 情報パネルモードは localStorage で保存
+- 軽量 i18n（英語 / 日本語切替）
+  - `src/i18n.ts` で辞書管理
+  - 言語保存キー: `mosaic.language`
+  - 初期言語: localStorage 優先、未保存時は `navigator.language` で判定（`ja*` は日本語）
 
 ## 対戦モード
 
 - ローカル2人対戦
   - 同一端末で2人が交互にプレイ
 - CPU対戦
-  - 2P側をCPUが担当（Easy / Normal / Hard）
-- オンライン対戦（開発予定）
-  - ルーム作成 / 参加による遠隔2人対戦を予定
-  - 本アプリ内の次フェーズとして開発する計画（未実装）
+  - You vs CPU（2P側をCPUが担当: Easy / Normal / Hard）
+  - CPU vs CPU（CPU 1 / CPU 2 の難易度を個別設定）
+- オンライン対戦
+  - ルーム作成 / 参加による遠隔2人対戦（private room）
 
 ## ルール（本実装）
 
@@ -144,16 +154,25 @@ https://mosaic-game-bef28.web.app
 6. Playback中は 2D / 3D 共通で
    - `Pause` / `Resume`
    - `Stop`（その表示モードの終局静止状態へ戻る）
+7. 棋譜ファイル
+   - `Save Record` で `.mosaic` を保存
+   - `Load Record` で `.mosaic` を読み込み、Playback として再生
 
 ## 演出・UI仕様
 
 - 手置き: 短いポップイン
 - 自動積み上がり: 1つずつ時間差表示
+- CHAIN演出: 3 CHAIN 以上で段階表示
 - サウンド:
   - 手置き音
   - 自動積み上がり音（連鎖で高音化）
   - 勝利音
   - ON/OFF切替
+- ターンカード強調:
+  - 現在手番カードの枠/ハロー強調（脈動なし）
+- Thinking表示:
+  - You vs CPU の待機中に中央 `Thinking` + アニメーションドット表示
+  - CPU vs CPU ではノイズ低減のため中央 Thinking 表示を抑制
 - 残りコマ表示:
   - PC: コイン状可視化（10x7）
   - モバイル/タブレット: 簡略表示（数値 + バー）
@@ -162,10 +181,19 @@ https://mosaic-game-bef28.web.app
   - PC: 上部横バー
   - モバイル標準: 上部横バー
   - モバイル向かい合い: 盤面右横の縦バー（盤面高）
+- 2D / 3D polish:
+  - 2D / 3D の盤面配色と質感を調整
+  - 3D ボードサイズ最適化（余白縮小）と角丸化
+  - 3D View のズーム操作（PC: ホイール / モバイル: ピンチ）を有効化
 
 ## 棋譜・Playback・3D
 
 - 棋譜を内部保持（手置き・自動積み上がり・勝者）
+- 棋譜ファイル export / import（`.mosaic`）
+  - 形式: JSON
+  - 識別子: `format: "mosaic-record"`, `version: 1`
+  - import は「対局再開」ではなく Playback 用データとして扱う
+  - Local / CPU / Online を可能な限り共通形式で扱う
 - 2D Playback: 終局後に初手から再生
 - 3D View: 中央盤面を3D表示モードへ切り替え、終局静止状態から開始
 - 3D Playback: 3D View内の `Playback` から開始
@@ -381,11 +409,11 @@ src/
 - 同時0勝利時は着手側勝利
 - CPU Hard は軽い応手評価まで（深い探索は未実装）
 - オンライン対戦は Firestore private room の最小構成を実装中（認証・本格運用機能は未対応）
-- 棋譜はメモリ保持（永続保存なし）
+- `.mosaic` import は Playback 用（対局再開は未対応）
 
 ## 今後の拡張案
 
-- 棋譜保存（localStorage/JSON）
+- 棋譜管理の拡張（履歴一覧、タグ付け、ローカル保存連携）
 - 棋譜共有URL
 - CPUアルゴリズム強化
 - ルールバリアント切替

@@ -81,6 +81,7 @@ const en: Messages = {
 
   'status.thinking': 'Thinking',
   'status.turn': 'TURN',
+  'status.moveSuffix': '',
   'status.winner': 'WINNER',
   'status.connected': 'Connected',
   'status.connecting': 'Connecting...',
@@ -241,6 +242,7 @@ const ja: Messages = {
 
   'status.thinking': '考え中',
   'status.turn': 'ターン',
+  'status.moveSuffix': '手目',
   'status.winner': '勝者',
   'status.connected': '接続済み',
   'status.connecting': '接続中...',

@@ -1009,6 +1009,22 @@ body {
   white-space: nowrap;
 }
 
+.playback-progress {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #eaf0ff;
+  background: #30466ea8;
+  border: 1px solid #89a2cf66;
+  border-radius: 999px;
+  padding: 3px 7px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .playback-step-group {
   display: inline-flex;
   align-items: center;
@@ -1934,6 +1950,12 @@ body {
   .playback-controls {
     gap: 6px;
     padding: 6px 7px;
+  }
+
+  .playback-progress {
+    min-width: 46px;
+    font-size: 0.67rem;
+    padding: 3px 6px;
   }
 
   .playback-step-group {

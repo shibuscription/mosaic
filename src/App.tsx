@@ -390,6 +390,7 @@ export default function App() {
   const playbackFrameToMoveCursorRef = useRef<number[]>([])
   const playbackCursorRef = useRef(0)
   const playbackMoveCursorRef = useRef(0)
+  const playbackOpeningTurnRef = useRef<PlayerColor>('blue')
   const playbackInitialGameRef = useRef<GameState | null>(null)
   const playbackInitialRemainingRef = useRef<Record<PlayerColor, number> | null>(null)
   const playbackFinalGameRef = useRef<GameState | null>(null)
@@ -459,6 +460,10 @@ export default function App() {
     return new URLSearchParams(window.location.search).get('debug') === '1'
   }, [])
   const t = (key: string): string => translate(language, key)
+  const nextTurnNumber = getNextTurnNumber(isPlayback, playbackMoveCursor, playbackTotalMoves, matchRecord.moves.length)
+  const turnBadgeLabel = language === 'ja' ? `${nextTurnNumber}${t('status.moveSuffix')}` : `${t('status.turn')} ${nextTurnNumber}`
+  const playbackTurnPlayer = getPlaybackTurnPlayer(playbackOpeningTurnRef.current, playbackMoveCursor)
+  const displayTurnPlayer: PlayerColor = isPlayback ? playbackTurnPlayer : game.currentTurn
   const isOnlineMode = matchMode === 'online'
   const isOnlineMyTurn = isOnlineMode && onlineSession.role === game.currentTurn
   const shouldWarnOnlineLeave =
@@ -1961,6 +1966,7 @@ export default function App() {
       finalGame,
       finalRemaining,
     } = buildPlaybackFrames(baseRecord)
+    const openingTurn: PlayerColor = baseRecord.moves[0]?.player ?? 'blue'
     if (frames.length === 0) {
       return
     }
@@ -1980,6 +1986,7 @@ export default function App() {
     setRevealedAutoCount(0)
     setBoardRenderer(renderer)
     lastWinnerRef.current = null
+    playbackOpeningTurnRef.current = openingTurn
 
     playbackFramesRef.current = frames
     playbackMoveStartFrameIndicesRef.current = moveStartFrameIndices
@@ -2370,12 +2377,12 @@ export default function App() {
           colorHex={yellowTheme.hex}
           colorSoft={hexToRgba(yellowTheme.hex, 0.28)}
           remaining={displayRemaining.yellow}
-          isTurn={!game.winner && game.currentTurn === 'yellow'}
+          isTurn={!game.winner && displayTurnPlayer === 'yellow'}
           isWinner={game.winner === 'yellow'}
           isThinking={matchMode === 'cpu' && !game.winner && game.currentTurn === 'yellow' && isCpuThinking}
           thinkingLabel={t('status.thinking')}
           winnerLabel={t('status.winner')}
-          turnLabel={t('status.turn')}
+          turnLabel={turnBadgeLabel}
         />
 
         <section className="board-stage" aria-label="mosaic board" ref={boardStageRef}>
@@ -2556,12 +2563,12 @@ export default function App() {
           colorHex={blueTheme.hex}
           colorSoft={hexToRgba(blueTheme.hex, 0.28)}
           remaining={displayRemaining.blue}
-          isTurn={!game.winner && game.currentTurn === 'blue'}
+          isTurn={!game.winner && displayTurnPlayer === 'blue'}
           isWinner={game.winner === 'blue'}
           isThinking={matchMode === 'cpu' && cpuMatchType === 'cpu_vs_cpu' && !game.winner && game.currentTurn === 'blue' && isCpuThinking}
           thinkingLabel={t('status.thinking')}
           winnerLabel={t('status.winner')}
-          turnLabel={t('status.turn')}
+          turnLabel={turnBadgeLabel}
         />
       </section>
       )}
@@ -2919,6 +2926,9 @@ export default function App() {
       {isPlayback ? (
         <div className="playback-chip playback-controls">
           <span className="playback-label">{playbackRenderer === '3d' ? t('playback.playback3d') : t('playback.playback')}</span>
+          <span className="playback-progress" aria-label="playback progress">
+            {playbackMoveCursor} / {playbackTotalMoves}
+          </span>
           <div className="playback-step-group">
             <button
               type="button"
@@ -3688,6 +3698,27 @@ function getThemeByAssignedColors(colors: PlayerColorConfig): ColorPairTheme | n
 
 function toMoveKey(level: number, row: number, col: number): string {
   return `${level}-${row}-${col}`
+}
+
+function getNextTurnNumber(
+  isPlayback: boolean,
+  playbackMoveCursor: number,
+  playbackTotalMoves: number,
+  completedMoves: number,
+): number {
+  if (isPlayback) {
+    const maxTurn = Math.max(1, playbackTotalMoves + 1)
+    return clamp(playbackMoveCursor + 1, 1, maxTurn)
+  }
+  return Math.max(1, completedMoves + 1)
+}
+
+function getPlaybackTurnPlayer(openingTurn: PlayerColor, completedMoves: number): PlayerColor {
+  const normalizedMoves = Math.max(0, completedMoves)
+  if (normalizedMoves % 2 === 0) {
+    return openingTurn
+  }
+  return openingTurn === 'blue' ? 'yellow' : 'blue'
 }
 
 function getDebugOverlayMetricValue(candidate: HardMoveCandidate, mode: DebugOverlayMode): number {

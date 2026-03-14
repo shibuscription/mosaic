@@ -117,7 +117,19 @@ body {
 .player-panel.is-turn {
   border-color: var(--accent);
   background: linear-gradient(180deg, #ffffff 0%, var(--accent-soft) 100%);
-  box-shadow: 0 5px 13px #1f2c4b2b;
+  box-shadow: 0 5px 13px #1f2c4b2b, 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
+  animation: none;
+}
+
+.player-panel.is-turn::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 13px;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent), 0 0 16px color-mix(in srgb, var(--accent) 22%, transparent);
+  opacity: 0.55;
+  animation: turn-focus-halo 2.3s ease-in-out infinite;
 }
 
 .player-panel.is-winner {
@@ -366,6 +378,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 7px;
   border-radius: 999px;
   padding: 7px 14px;
   font-size: 0.86rem;
@@ -376,6 +389,34 @@ body {
   box-shadow: 0 4px 14px #0f1b3340;
   border: 1px solid #a7bedf66;
   backdrop-filter: blur(2px);
+  animation: board-thinking-glow 1.75s ease-in-out infinite;
+}
+
+.thinking-text {
+  white-space: nowrap;
+}
+
+.thinking-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.thinking-dots span {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: #f7fbff;
+  opacity: 0.35;
+  animation: thinking-dot-bounce 1s ease-in-out infinite;
+}
+
+.thinking-dots span:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.thinking-dots span:nth-child(3) {
+  animation-delay: 0.28s;
 }
 
 .chain-banner {
@@ -523,7 +564,11 @@ body {
 
 .token-visual.last-move .piece,
 .token-visual.last-move .guide {
-  box-shadow: 0 0 0 3px #ff755f;
+  box-shadow:
+    0 0 0 3px #ff755f,
+    0 0 0 1px #fff6,
+    0 0 10px #ff7a4f55,
+    0 0 16px #ff9b5a33;
 }
 
 .token-visual.appear .piece,
@@ -583,10 +628,11 @@ body {
 }
 
 .sound-fixed,
+.language-fixed,
 .undo-fixed,
 .reset-fixed {
   position: fixed;
-  z-index: 560;
+  z-index: 980;
   border: none;
   border-radius: 999px;
   padding: 10px 14px;
@@ -608,6 +654,16 @@ body {
 
 .sound-fixed:hover {
   background: #484a5d;
+}
+
+.language-fixed {
+  left: 12px;
+  bottom: 12px;
+  background: #667194;
+}
+
+.language-fixed:hover {
+  background: #505b7c;
 }
 
 .undo-fixed {
@@ -1571,6 +1627,7 @@ body {
   }
 
   .sound-fixed,
+  .language-fixed,
   .undo-fixed,
   .reset-fixed {
     display: none;
@@ -1580,7 +1637,7 @@ body {
     position: fixed;
     right: 10px;
     bottom: 10px;
-    z-index: 575;
+    z-index: 980;
     display: block;
   }
 
@@ -1841,6 +1898,12 @@ body {
   }
 
   .sound-fixed {
+    right: 320px;
+    bottom: 10px;
+    padding: 9px 11px;
+  }
+
+  .language-fixed {
     right: 246px;
     bottom: 10px;
     padding: 9px 11px;
@@ -2022,5 +2085,51 @@ body {
   100% {
     transform: scale(1);
     opacity: 0.82;
+  }
+}
+
+@keyframes turn-focus-halo {
+  0% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.72;
+  }
+  100% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes board-thinking-glow {
+  0% {
+    box-shadow: 0 4px 14px #0f1b3340;
+    opacity: 0.9;
+  }
+  50% {
+    box-shadow: 0 6px 18px #0f1b3352;
+    opacity: 1;
+  }
+  100% {
+    box-shadow: 0 4px 14px #0f1b3340;
+    opacity: 0.9;
+  }
+}
+
+@keyframes thinking-dot-bounce {
+  0% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  35% {
+    transform: translateY(-1.5px);
+    opacity: 0.95;
+  }
+  70% {
+    transform: translateY(0);
+    opacity: 0.55;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
   }
 }

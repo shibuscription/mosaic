@@ -14,6 +14,7 @@ import {
 } from './game/cpu'
 import { Board3DViewport } from './components/Board3DViewport'
 import { isFirebaseConfigured } from './firebase'
+import { resolveLanguage, translate, type AppLanguage } from './i18n'
 import {
   RoomError,
   createRoom,
@@ -250,6 +251,7 @@ const PLAYBACK_MANUAL_MS = 170
 const PLAYBACK_AUTO_MS = 120
 const PLAYBACK_GAP_MS = 70
 const MOBILE_PANEL_MODE_KEY = 'mosaic.mobilePanelMode'
+const APP_LANGUAGE_KEY = 'mosaic.language'
 const ONLINE_HEARTBEAT_INTERVAL_MS = 5000
 const ONLINE_HEARTBEAT_TIMEOUT_MS = 15000
 const INITIAL_ONLINE_SESSION: OnlineSessionState = {
@@ -261,12 +263,28 @@ const INITIAL_ONLINE_SESSION: OnlineSessionState = {
   connectionState: 'idle',
   syncState: 'idle',
   errorMessage: '',
-  waitMessage: 'Waiting for opponent...',
+  waitMessage: '',
   createColors: { ...DEFAULT_PLAYER_COLORS },
 }
 
 export default function App() {
   const initialGame = useMemo(() => createInitialGameState(), [])
+  const [language, setLanguage] = useState<AppLanguage>(() => {
+    if (typeof window === 'undefined') {
+      return 'en'
+    }
+    const saved = window.localStorage.getItem(APP_LANGUAGE_KEY)
+    if (saved !== null) {
+      return resolveLanguage(saved)
+    }
+    if (typeof navigator !== 'undefined' && typeof navigator.language === 'string') {
+      const browserLanguage = navigator.language.toLowerCase()
+      if (browserLanguage.startsWith('ja')) {
+        return 'ja'
+      }
+    }
+    return 'en'
+  })
   const [game, setGame] = useState(initialGame)
   const [displayRemaining, setDisplayRemaining] = useState(() => ({ ...initialGame.remaining }))
   const [boardSize, setBoardSize] = useState(() => {
@@ -413,6 +431,7 @@ export default function App() {
     }
     return new URLSearchParams(window.location.search).get('debug') === '1'
   }, [])
+  const t = (key: string): string => translate(language, key)
   const isOnlineMode = matchMode === 'online'
   const isOnlineMyTurn = isOnlineMode && onlineSession.role === game.currentTurn
   const shouldWarnOnlineLeave =
@@ -863,6 +882,13 @@ export default function App() {
   }, [mobilePanelMode])
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    window.localStorage.setItem(APP_LANGUAGE_KEY, language)
+  }, [language])
+
+  useEffect(() => {
     if (!isMobileMenuOpen) {
       return
     }
@@ -1020,7 +1046,7 @@ export default function App() {
       setOnlineSession((prev) => ({
         ...prev,
         syncState: 'idle',
-        errorMessage: mapRoomErrorMessage(error, 'Failed to submit move.'),
+        errorMessage: mapRoomErrorMessage(error, t('online.failedSubmitMove')),
       }))
     }
   }
@@ -1254,9 +1280,7 @@ export default function App() {
     if (!shouldWarnOnlineLeave) {
       return true
     }
-    return window.confirm(
-      'Leave the online match?\nIf you leave now, the room will be closed or the match may be interrupted.',
-    )
+    return window.confirm(`${t('confirm.leaveOnlineTitle')}\n${t('confirm.leaveOnlineBody')}`)
   }
 
   function hasBoardChanged(prev: GameState, next: GameState): boolean {
@@ -1352,10 +1376,10 @@ export default function App() {
       let nextPhase: OnlinePhase = prev.phase
       let nextWaitMessage =
         room.status === 'waiting'
-          ? 'Waiting for opponent...'
+          ? t('online.waitingForOpponent')
           : room.status === 'playing'
-            ? 'Match is in progress.'
-            : 'Match finished.'
+            ? t('online.matchInProgress')
+            : t('online.matchFinished')
       let nextConnectionState: OnlineConnectionState = room.status === 'waiting' ? 'waiting' : 'connected'
 
       const myRole = prev.role
@@ -1368,16 +1392,16 @@ export default function App() {
         if (room.status === 'playing' && (opponentLeft || opponentTimeout)) {
           nextPhase = 'interrupted'
           nextConnectionState = 'disconnected'
-          nextWaitMessage = opponentLeft ? 'Opponent left the match.' : 'Opponent disconnected.'
+          nextWaitMessage = opponentLeft ? t('online.opponentLeftMatch') : t('online.opponentDisconnected')
         } else if (room.status === 'waiting' && (opponentLeft || opponentTimeout)) {
           if (myRole === 'yellow') {
             nextPhase = 'closed'
             nextConnectionState = 'disconnected'
-            nextWaitMessage = opponentLeft ? 'Host left the room.' : 'Host disconnected.'
+            nextWaitMessage = opponentLeft ? t('online.hostLeftRoom') : t('online.hostDisconnected')
           } else {
             nextPhase = 'waiting'
             nextConnectionState = 'waiting'
-            nextWaitMessage = opponentLeft ? 'Opponent left. Waiting for another player.' : 'Opponent disconnected. Waiting...'
+            nextWaitMessage = opponentLeft ? t('online.opponentLeftWaiting') : t('online.opponentDisconnectedWaiting')
           }
         }
       }
@@ -1385,7 +1409,7 @@ export default function App() {
       if (room.status === 'finished') {
         nextPhase = 'finished'
         nextConnectionState = 'connected'
-        nextWaitMessage = 'Match finished.'
+        nextWaitMessage = t('online.matchFinished')
       } else if (room.status === 'playing') {
         if (nextPhase !== 'interrupted') {
           nextPhase = 'playing'
@@ -1419,7 +1443,7 @@ export default function App() {
             ...prev,
             phase: 'error',
             connectionState: 'disconnected',
-            errorMessage: 'Room no longer exists.',
+            errorMessage: t('online.roomNoLongerExists'),
             syncState: 'idle',
           }))
           return
@@ -1431,7 +1455,7 @@ export default function App() {
           ...prev,
           phase: 'error',
           connectionState: 'disconnected',
-          errorMessage: mapRoomErrorMessage(error, 'Failed to subscribe room updates.'),
+          errorMessage: mapRoomErrorMessage(error, t('online.failedSubscribeRoom')),
           syncState: 'idle',
         }))
       },
@@ -1444,7 +1468,7 @@ export default function App() {
         ...prev,
         phase: 'error',
         connectionState: 'disconnected',
-        errorMessage: 'Firebase config is missing. Set VITE_FIREBASE_* variables.',
+        errorMessage: t('online.firebaseConfigMissing'),
       }))
       return
     }
@@ -1469,7 +1493,7 @@ export default function App() {
       connectionState: 'connecting',
       syncState: 'idle',
       errorMessage: '',
-      waitMessage: 'Creating room...',
+      waitMessage: t('online.creatingRoom'),
       createColors: { ...pendingColors },
     }))
 
@@ -1486,7 +1510,7 @@ export default function App() {
         role: 'blue',
         isHost: true,
         connectionState: 'waiting',
-        waitMessage: 'Waiting for opponent...',
+        waitMessage: t('online.waitingForOpponent'),
         errorMessage: '',
       }))
     } catch (error) {
@@ -1494,7 +1518,7 @@ export default function App() {
         ...prev,
         phase: 'error',
         connectionState: 'disconnected',
-        errorMessage: mapRoomErrorMessage(error, 'Failed to create room.'),
+        errorMessage: mapRoomErrorMessage(error, t('online.failedCreateRoom')),
       }))
     }
   }
@@ -1510,7 +1534,7 @@ export default function App() {
       connectionState: 'idle',
       syncState: 'idle',
       errorMessage: '',
-      waitMessage: 'Joined. Waiting for host to start...',
+      waitMessage: t('online.joinedWaitingForHost'),
     }))
   }
 
@@ -1520,7 +1544,7 @@ export default function App() {
         ...prev,
         phase: 'error',
         connectionState: 'disconnected',
-        errorMessage: 'Firebase config is missing. Set VITE_FIREBASE_* variables.',
+        errorMessage: t('online.firebaseConfigMissing'),
       }))
       return
     }
@@ -1545,14 +1569,14 @@ export default function App() {
         isHost: false,
         connectionState: 'waiting',
         errorMessage: '',
-        waitMessage: 'Joined. Waiting for match start...',
+        waitMessage: t('online.joinedWaitingForMatch'),
       }))
     } catch (error) {
       setOnlineSession((prev) => ({
         ...prev,
         phase: 'error',
         connectionState: 'disconnected',
-        errorMessage: mapRoomErrorMessage(error, 'Failed to join room.'),
+        errorMessage: mapRoomErrorMessage(error, t('online.failedJoinRoom')),
       }))
     }
   }
@@ -1997,6 +2021,7 @@ export default function App() {
 
       {isOnlineMockView ? (
         <OnlineMockPanel
+          t={t}
           phase={onlineSession.phase}
           roomCode={onlineSession.roomCode}
           roomInput={onlineSession.roomInput}
@@ -2040,8 +2065,8 @@ export default function App() {
           playerLabel={
             matchMode === 'cpu'
               ? cpuMatchType === 'cpu_vs_cpu'
-                ? `CPU 2 (${cpuDifficultyLabel(cpu2Difficulty)})`
-                : `CPU (${cpuDifficultyLabel(cpuDifficulty)})`
+                ? `CPU 2 (${cpuDifficultyLabel(cpu2Difficulty, language)})`
+                : `CPU (${cpuDifficultyLabel(cpuDifficulty, language)})`
               : matchMode === 'online'
                 ? onlineSession.role === 'yellow'
                   ? 'Player 2 (You)'
@@ -2054,6 +2079,9 @@ export default function App() {
           isTurn={!game.winner && game.currentTurn === 'yellow'}
           isWinner={game.winner === 'yellow'}
           isThinking={matchMode === 'cpu' && !game.winner && game.currentTurn === 'yellow' && isCpuThinking}
+          thinkingLabel={t('status.thinking')}
+          winnerLabel={t('status.winner')}
+          turnLabel={t('status.turn')}
         />
 
         <section className="board-stage" aria-label="mosaic board" ref={boardStageRef}>
@@ -2063,6 +2091,10 @@ export default function App() {
                 board={game.board}
                 colors={pieceColorMap}
                 onStartPlayback={game.winner && !isPlayback ? handlePlayback3D : undefined}
+                playbackLabel={t('action.playback')}
+                rotateOnLabel={t('action.rotateOn')}
+                rotateOffLabel={t('action.rotateOff')}
+                view2dLabel={t('action.view2d')}
                 onSwitchTo2D={
                   !isPlayback
                     ? () => {
@@ -2170,7 +2202,14 @@ export default function App() {
           )}
           {showCpuThinkingOverlay ? (
             <div className="board-thinking-overlay" aria-live="polite">
-              <span className="board-thinking-chip">Thinking...</span>
+              <span className="board-thinking-chip">
+                <span className="thinking-text">{t('status.thinking').replace(/(\.{1,3}|…)+$/u, '')}</span>
+                <span className="thinking-dots" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              </span>
             </div>
           ) : null}
           {boardRenderer === '2d' ? chainBanners.map((banner, index) => {
@@ -2212,7 +2251,7 @@ export default function App() {
           playerLabel={
             matchMode === 'cpu'
               ? cpuMatchType === 'cpu_vs_cpu'
-                ? `CPU 1 (${cpuDifficultyLabel(cpu1Difficulty)})`
+                ? `CPU 1 (${cpuDifficultyLabel(cpu1Difficulty, language)})`
                 : INTERNAL_LABEL.blue
               : matchMode === 'online'
               ? onlineSession.role === 'blue'
@@ -2226,6 +2265,9 @@ export default function App() {
           isTurn={!game.winner && game.currentTurn === 'blue'}
           isWinner={game.winner === 'blue'}
           isThinking={matchMode === 'cpu' && cpuMatchType === 'cpu_vs_cpu' && !game.winner && game.currentTurn === 'blue' && isCpuThinking}
+          thinkingLabel={t('status.thinking')}
+          winnerLabel={t('status.winner')}
+          turnLabel={t('status.turn')}
         />
       </section>
       )}
@@ -2235,7 +2277,7 @@ export default function App() {
         <button
           type="button"
           className="mobile-menu-toggle"
-          aria-label="Open menu"
+          aria-label={t('menu.gameSetup')}
           aria-expanded={isMobileMenuOpen}
           onClick={() => setIsMobileMenuOpen((prev) => !prev)}
         >
@@ -2244,9 +2286,30 @@ export default function App() {
           <span className="hamburger-line" />
         </button>
         {isMobileMenuOpen ? (
-          <div className="mobile-menu-panel" role="menu" aria-label="Quick actions">
+          <div className="mobile-menu-panel" role="menu" aria-label={t('menu.gameSetup')}>
             <div className="mobile-menu-group">
-              <div className="mobile-menu-group-title">Info Panel</div>
+              <div className="mobile-menu-group-title">{t('menu.language')}</div>
+              <div className="mobile-menu-segment" role="radiogroup" aria-label="language">
+                <button
+                  type="button"
+                  className={['mobile-segment-btn', language === 'en' ? 'selected' : ''].filter(Boolean).join(' ')}
+                  aria-pressed={language === 'en'}
+                  onClick={() => setLanguage('en')}
+                >
+                  {t('menu.english')}
+                </button>
+                <button
+                  type="button"
+                  className={['mobile-segment-btn', language === 'ja' ? 'selected' : ''].filter(Boolean).join(' ')}
+                  aria-pressed={language === 'ja'}
+                  onClick={() => setLanguage('ja')}
+                >
+                  {t('menu.japanese')}
+                </button>
+              </div>
+            </div>
+            <div className="mobile-menu-group">
+              <div className="mobile-menu-group-title">{t('menu.infoPanel')}</div>
               <div className="mobile-menu-segment" role="radiogroup" aria-label="info panel mode">
                 <button
                   type="button"
@@ -2254,7 +2317,7 @@ export default function App() {
                   aria-pressed={mobilePanelMode === 'standard'}
                   onClick={() => setMobilePanelMode('standard')}
                 >
-                  Standard
+                  {t('menu.standard')}
                 </button>
                 <button
                   type="button"
@@ -2262,7 +2325,7 @@ export default function App() {
                   aria-pressed={mobilePanelMode === 'faceoff'}
                   onClick={() => setMobilePanelMode('faceoff')}
                 >
-                  Face-off
+                  {t('menu.faceoff')}
                 </button>
               </div>
             </div>
@@ -2274,7 +2337,7 @@ export default function App() {
                 setSoundOn((prev) => !prev)
               }}
             >
-              Sound: {soundOn ? 'On' : 'Off'}
+              {soundOn ? t('action.soundOn') : t('action.soundOff')}
             </button>
             <button
               type="button"
@@ -2283,7 +2346,7 @@ export default function App() {
               onClick={handleUndo}
               disabled={matchMode === 'online' || history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
             >
-              Undo
+              {t('action.undo')}
             </button>
             <button
               type="button"
@@ -2291,7 +2354,7 @@ export default function App() {
               className="mobile-menu-item danger"
               onClick={openSetup}
             >
-              Reset
+              {t('action.reset')}
             </button>
           </div>
         ) : null}
@@ -2300,7 +2363,17 @@ export default function App() {
 
       {!isOnlineMockView ? (
       <button type="button" className="sound-fixed" onClick={() => setSoundOn((prev) => !prev)}>
-        Sound: {soundOn ? 'On' : 'Off'}
+        {soundOn ? t('action.soundOn') : t('action.soundOff')}
+      </button>
+      ) : null}
+      {!isOnlineMockView ? (
+      <button
+        type="button"
+        className="language-fixed"
+        onClick={() => setLanguage((prev) => (prev === 'en' ? 'ja' : 'en'))}
+        aria-label={t('menu.language')}
+      >
+        {t('menu.language')}: {language === 'en' ? t('menu.english') : t('menu.japanese')}
       </button>
       ) : null}
       {!isOnlineMockView ? (
@@ -2310,12 +2383,12 @@ export default function App() {
         onClick={handleUndo}
         disabled={matchMode === 'online' || history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
       >
-        Undo
+        {t('action.undo')}
       </button>
       ) : null}
       {!isOnlineMockView ? (
       <button type="button" className="reset-fixed" onClick={openSetup}>
-        Reset
+        {t('action.reset')}
       </button>
       ) : null}
       {showHardDebugOverlay ? (
@@ -2522,12 +2595,12 @@ export default function App() {
       ) : null}
       {isPlayback ? (
         <div className="playback-chip playback-controls">
-          <span className="playback-label">{playbackRenderer === '3d' ? '3D Playback' : 'Playback'}</span>
+          <span className="playback-label">{playbackRenderer === '3d' ? t('playback.playback3d') : t('playback.playback')}</span>
           <button type="button" className="playback-control-btn" onClick={handlePauseResumePlayback}>
-            {playbackStatus === 'paused' ? 'Resume' : 'Pause'}
+            {playbackStatus === 'paused' ? t('action.resume') : t('action.pause')}
           </button>
           <button type="button" className="playback-control-btn stop" onClick={handleStopPlayback}>
-            Stop
+            {t('action.stop')}
           </button>
         </div>
       ) : null}
@@ -2535,11 +2608,11 @@ export default function App() {
       {game.winner && winnerModalVisible ? (
         <div className="winner-overlay" aria-live="polite">
           <div className="winner-card">
-            <div className="winner-title">{winnerHeadline(game.winner, matchMode, onlineSession.role, cpuMatchType)}</div>
+            <div className="winner-title">{winnerHeadline(game.winner, matchMode, onlineSession.role, cpuMatchType, language)}</div>
             <div
               className="winner-color-dot"
               style={{ background: colorById.get(playerColors[game.winner])?.hex ?? '#8f9aae' }}
-              aria-label="winner color"
+              aria-label={t('status.winner')}
             />
             <div className="winner-actions">
               <button
@@ -2550,13 +2623,13 @@ export default function App() {
                   setWinnerModalVisible(false)
                 }}
               >
-                3D View
+                {t('action.view3d')}
               </button>
               <button type="button" className="winner-btn playback" onClick={handlePlayback2D}>
-                Playback
+                {t('action.playback')}
               </button>
               <button type="button" className="winner-btn restart" onClick={openSetup}>
-                Restart
+                {t('action.restart')}
               </button>
             </div>
             <div className="winner-sparkles" aria-hidden="true">
@@ -2573,10 +2646,10 @@ export default function App() {
           <div className="setup-modal">
             {setupStep === 'mode' ? (
               <>
-                <h2>Game Setup</h2>
-                <p>Choose how you want to play.</p>
+                <h2>{t('menu.gameSetup')}</h2>
+                <p>{t('menu.choosePlayStyle')}</p>
                 <div className="mode-row">
-                  <div className="picker-label">Game Mode</div>
+                  <div className="picker-label">{t('mode.gameMode')}</div>
                   <div className="mode-options" role="radiogroup" aria-label="game mode">
                     <button
                       type="button"
@@ -2587,7 +2660,7 @@ export default function App() {
                       }}
                       aria-pressed={pendingMode === 'pvp'}
                     >
-                      Local Match
+                      {t('mode.localMatch')}
                     </button>
                     <button
                       type="button"
@@ -2598,7 +2671,7 @@ export default function App() {
                       }}
                       aria-pressed={pendingMode === 'cpu'}
                     >
-                      CPU Match
+                      {t('mode.cpuMatch')}
                     </button>
                     <button
                       type="button"
@@ -2606,13 +2679,13 @@ export default function App() {
                       onClick={() => setPendingMode('online')}
                       aria-pressed={pendingMode === 'online'}
                     >
-                      Online Match
+                      {t('mode.onlineMatch')}
                     </button>
                   </div>
                 </div>
                 {pendingMode === 'cpu' ? (
                   <div className="mode-row">
-                    <div className="picker-label">Match Type</div>
+                    <div className="picker-label">{t('mode.matchType')}</div>
                     <div className="mode-options" role="radiogroup" aria-label="cpu match type">
                       <button
                         type="button"
@@ -2620,7 +2693,7 @@ export default function App() {
                         onClick={() => setPendingCpuMatchType('you_vs_cpu')}
                         aria-pressed={pendingCpuMatchType === 'you_vs_cpu'}
                       >
-                        You vs CPU
+                        {t('mode.youVsCpu')}
                       </button>
                       <button
                         type="button"
@@ -2628,14 +2701,14 @@ export default function App() {
                         onClick={() => setPendingCpuMatchType('cpu_vs_cpu')}
                         aria-pressed={pendingCpuMatchType === 'cpu_vs_cpu'}
                       >
-                        CPU vs CPU
+                        {t('mode.cpuVsCpu')}
                       </button>
                     </div>
                   </div>
                 ) : null}
                 {pendingMode === 'cpu' && pendingCpuMatchType === 'you_vs_cpu' ? (
                   <div className="mode-row">
-                    <div className="picker-label">CPU Difficulty</div>
+                    <div className="picker-label">{t('mode.cpuDifficulty')}</div>
                     <div className="mode-options difficulty-options" role="radiogroup" aria-label="cpu difficulty">
                       <button
                         type="button"
@@ -2643,7 +2716,7 @@ export default function App() {
                         onClick={() => setPendingCpuDifficulty('easy')}
                         aria-pressed={pendingCpuDifficulty === 'easy'}
                       >
-                        Easy
+                        {t('mode.easy')}
                       </button>
                       <button
                         type="button"
@@ -2651,7 +2724,7 @@ export default function App() {
                         onClick={() => setPendingCpuDifficulty('normal')}
                         aria-pressed={pendingCpuDifficulty === 'normal'}
                       >
-                        Normal
+                        {t('mode.normal')}
                       </button>
                       <button
                         type="button"
@@ -2659,7 +2732,7 @@ export default function App() {
                         onClick={() => setPendingCpuDifficulty('hard')}
                         aria-pressed={pendingCpuDifficulty === 'hard'}
                       >
-                        Hard
+                        {t('mode.hard')}
                       </button>
                     </div>
                   </div>
@@ -2667,7 +2740,7 @@ export default function App() {
                 {pendingMode === 'cpu' && pendingCpuMatchType === 'cpu_vs_cpu' ? (
                   <>
                     <div className="mode-row">
-                      <div className="picker-label">CPU 1 Difficulty</div>
+                      <div className="picker-label">{t('mode.cpu1Difficulty')}</div>
                       <div className="mode-options difficulty-options" role="radiogroup" aria-label="cpu 1 difficulty">
                         <button
                           type="button"
@@ -2675,7 +2748,7 @@ export default function App() {
                           onClick={() => setPendingCpu1Difficulty('easy')}
                           aria-pressed={pendingCpu1Difficulty === 'easy'}
                         >
-                          Easy
+                          {t('mode.easy')}
                         </button>
                         <button
                           type="button"
@@ -2683,7 +2756,7 @@ export default function App() {
                           onClick={() => setPendingCpu1Difficulty('normal')}
                           aria-pressed={pendingCpu1Difficulty === 'normal'}
                         >
-                          Normal
+                          {t('mode.normal')}
                         </button>
                         <button
                           type="button"
@@ -2691,12 +2764,12 @@ export default function App() {
                           onClick={() => setPendingCpu1Difficulty('hard')}
                           aria-pressed={pendingCpu1Difficulty === 'hard'}
                         >
-                          Hard
+                          {t('mode.hard')}
                         </button>
                       </div>
                     </div>
                     <div className="mode-row">
-                      <div className="picker-label">CPU 2 Difficulty</div>
+                      <div className="picker-label">{t('mode.cpu2Difficulty')}</div>
                       <div className="mode-options difficulty-options" role="radiogroup" aria-label="cpu 2 difficulty">
                         <button
                           type="button"
@@ -2704,7 +2777,7 @@ export default function App() {
                           onClick={() => setPendingCpu2Difficulty('easy')}
                           aria-pressed={pendingCpu2Difficulty === 'easy'}
                         >
-                          Easy
+                          {t('mode.easy')}
                         </button>
                         <button
                           type="button"
@@ -2712,7 +2785,7 @@ export default function App() {
                           onClick={() => setPendingCpu2Difficulty('normal')}
                           aria-pressed={pendingCpu2Difficulty === 'normal'}
                         >
-                          Normal
+                          {t('mode.normal')}
                         </button>
                         <button
                           type="button"
@@ -2720,7 +2793,7 @@ export default function App() {
                           onClick={() => setPendingCpu2Difficulty('hard')}
                           aria-pressed={pendingCpu2Difficulty === 'hard'}
                         >
-                          Hard
+                          {t('mode.hard')}
                         </button>
                       </div>
                     </div>
@@ -2728,7 +2801,7 @@ export default function App() {
                 ) : null}
                 {pendingMode === 'online' ? (
                   <div className="mode-row">
-                    <div className="picker-label">Online Action</div>
+                    <div className="picker-label">{t('mode.onlineAction')}</div>
                     <div className="mode-options" role="radiogroup" aria-label="online action">
                       <button
                         type="button"
@@ -2736,7 +2809,7 @@ export default function App() {
                         onClick={() => setPendingOnlineAction('create')}
                         aria-pressed={pendingOnlineAction === 'create'}
                       >
-                        Create Room
+                        {t('mode.createRoom')}
                       </button>
                       <button
                         type="button"
@@ -2744,7 +2817,7 @@ export default function App() {
                         onClick={() => setPendingOnlineAction('join')}
                         aria-pressed={pendingOnlineAction === 'join'}
                       >
-                        Join Room
+                        {t('mode.joinRoom')}
                       </button>
                     </div>
                   </div>
@@ -2756,23 +2829,23 @@ export default function App() {
                   onClick={proceedFromGameSetup}
                   disabled={pendingMode === 'online' && !pendingOnlineAction}
                 >
-                  Continue
+                  {t('action.continue')}
                 </button>
               </>
             ) : (
               <>
-                <h2>{pendingMode === 'online' ? 'Online Match Setup' : 'Match Setup'}</h2>
+                <h2>{pendingMode === 'online' ? t('setup.onlineMatchSetup') : t('setup.matchSetup')}</h2>
                 <p>
                   {pendingMode === 'online'
-                    ? 'Choose turn order and colors, then create a room.'
+                    ? t('setup.chooseOnlineTurnAndColors')
                     : pendingMode === 'cpu' && pendingCpuMatchType === 'cpu_vs_cpu'
-                      ? 'Choose colors for CPU 1 and CPU 2.'
-                      : 'Choose turn order and colors.'}
+                      ? t('setup.chooseCpuVsCpuColors')
+                      : t('setup.chooseTurnAndColors')}
                 </p>
 
                 <div className="setup-config-grid">
                   <div className="setup-config-left">
-                    <div className="picker-label">Turn Order</div>
+                    <div className="picker-label">{t('setup.turnOrder')}</div>
                     {pendingMode === 'online' ? (
                       <div className="mode-options" role="radiogroup" aria-label="host turn order">
                         <button
@@ -2781,7 +2854,7 @@ export default function App() {
                           onClick={() => setPendingHostTurnOrder('host_first')}
                           aria-pressed={pendingHostTurnOrder === 'host_first'}
                         >
-                          Host goes first
+                          {t('setup.hostGoesFirst')}
                         </button>
                         <button
                           type="button"
@@ -2789,7 +2862,7 @@ export default function App() {
                           onClick={() => setPendingHostTurnOrder('host_second')}
                           aria-pressed={pendingHostTurnOrder === 'host_second'}
                         >
-                          Host goes second
+                          {t('setup.hostGoesSecond')}
                         </button>
                       </div>
                     ) : pendingMode === 'cpu' && pendingCpuMatchType === 'you_vs_cpu' ? (
@@ -2800,7 +2873,7 @@ export default function App() {
                           onClick={() => setPendingCpuTurnOrder('you_first')}
                           aria-pressed={pendingCpuTurnOrder === 'you_first'}
                         >
-                          You go first
+                          {t('setup.youGoFirst')}
                         </button>
                         <button
                           type="button"
@@ -2808,26 +2881,26 @@ export default function App() {
                           onClick={() => setPendingCpuTurnOrder('you_second')}
                           aria-pressed={pendingCpuTurnOrder === 'you_second'}
                         >
-                          You go second
+                          {t('setup.youGoSecond')}
                         </button>
                       </div>
                     ) : pendingMode === 'cpu' && pendingCpuMatchType === 'cpu_vs_cpu' ? (
                       <div className="mode-options" aria-label="cpu vs cpu turn order">
                         <button type="button" className="mode-option selected" disabled>
-                          CPU 1 goes first
+                          {t('setup.cpu1GoesFirst')}
                         </button>
                       </div>
                     ) : (
                       <div className="mode-options" aria-label="local turn order">
                         <button type="button" className="mode-option selected" disabled>
-                          Player 1 goes first
+                          {t('setup.player1GoesFirst')}
                         </button>
                       </div>
                     )}
                   </div>
                   <div className="setup-config-right">
                     <div className="picker-row">
-                      <div className="picker-label">Color Theme</div>
+                      <div className="picker-label">{t('setup.colorTheme')}</div>
                       <div className="theme-grid" role="radiogroup" aria-label="color theme">
                         {COLOR_PAIR_THEMES.map((theme) => {
                           const isSelected = selectedColorTheme?.key === theme.key
@@ -2844,7 +2917,7 @@ export default function App() {
                                 })
                               }
                             >
-                              <span className="theme-option-label">{theme.label}</span>
+                              <span className="theme-option-label">{t(`theme.${theme.key}`)}</span>
                               <span className="theme-option-chips" aria-hidden="true">
                                 {theme.colors.map((id) => {
                                   const option = COLOR_OPTION_BY_ID.get(id)
@@ -2870,12 +2943,12 @@ export default function App() {
                       <div className="theme-assignment-item">
                         <span className="theme-assignment-label">
                           {pendingMode === 'online'
-                            ? 'Host Color'
+                            ? t('setup.hostColor')
                             : pendingMode === 'cpu'
                               ? pendingCpuMatchType === 'cpu_vs_cpu'
-                                ? 'CPU 1 Color'
-                                : 'Your Color'
-                              : 'Player 1 Color'}
+                                ? t('setup.cpu1Color')
+                                : t('setup.yourColor')
+                              : t('setup.player1Color')}
                         </span>
                         <span
                           className="theme-assignment-chip"
@@ -2888,20 +2961,20 @@ export default function App() {
                         type="button"
                         className="theme-swap-button"
                         onClick={() => setPendingColors((prev) => ({ blue: prev.yellow, yellow: prev.blue }))}
-                        aria-label="Swap player colors"
-                        title="Swap"
+                        aria-label={t('setup.swap')}
+                        title={t('setup.swap')}
                       >
                         ⇄
                       </button>
                       <div className="theme-assignment-item">
                         <span className="theme-assignment-label">
                           {pendingMode === 'online'
-                            ? 'Guest Color'
+                            ? t('setup.guestColor')
                             : pendingMode === 'cpu'
                               ? pendingCpuMatchType === 'cpu_vs_cpu'
-                                ? 'CPU 2 Color'
-                                : 'CPU Color'
-                              : 'Player 2 Color'}
+                                ? t('setup.cpu2Color')
+                                : t('setup.cpuColor')
+                              : t('setup.player2Color')}
                         </span>
                         <span
                           className="theme-assignment-chip"
@@ -2920,7 +2993,7 @@ export default function App() {
                     className="mode-option"
                     onClick={() => setSetupStep('mode')}
                   >
-                    Back
+                    {t('action.back')}
                   </button>
                   <button
                     type="button"
@@ -2928,7 +3001,7 @@ export default function App() {
                     onClick={startWithColorSetup}
                     disabled={pendingColors.blue === pendingColors.yellow}
                   >
-                    {pendingMode === 'online' ? 'Create Room' : 'Start Match'}
+                    {pendingMode === 'online' ? t('action.createRoom') : t('action.startMatch')}
                   </button>
                 </div>
               </>
@@ -2949,9 +3022,13 @@ interface PlayerPanelProps {
   isTurn: boolean
   isWinner: boolean
   isThinking: boolean
+  thinkingLabel: string
+  winnerLabel: string
+  turnLabel: string
 }
 
 interface OnlineMockPanelProps {
+  t: (key: string) => string
   phase: OnlinePhase
   roomCode: string
   roomInput: string
@@ -2970,6 +3047,7 @@ interface OnlineMockPanelProps {
 }
 
 function OnlineMockPanel({
+  t,
   phase,
   roomCode,
   roomInput,
@@ -2994,17 +3072,17 @@ function OnlineMockPanel({
     }
 
     if (!navigator.clipboard?.writeText) {
-      setCopyFeedback('Clipboard unavailable.')
+      setCopyFeedback(t('online.copyFeedbackUnavailable'))
       return
     }
 
     navigator.clipboard
       .writeText(roomCode)
       .then(() => {
-        setCopyFeedback('Copied!')
+        setCopyFeedback(t('online.copyFeedbackCopied'))
       })
       .catch(() => {
-        setCopyFeedback('Copy failed.')
+        setCopyFeedback(t('online.copyFeedbackFailed'))
       })
   }
 
@@ -3020,15 +3098,24 @@ function OnlineMockPanel({
     <section className="setup-overlay online-setup-overlay" aria-label="online setup">
       <div className="setup-modal online-setup-modal">
         <div className="online-head">
-          <h2>Online Match</h2>
-          <p>Private room battle for two players.</p>
+          <h2>{t('online.title')}</h2>
+          <p>{t('online.subtitle')}</p>
         </div>
 
         <div className="online-session-meta" aria-live="polite">
-          <span>You: {role === 'blue' ? 'Player 1' : role === 'yellow' ? 'Player 2' : 'Not assigned'}</span>
-          <span>{isHost ? 'Host' : 'Guest'}</span>
-          <span>Status: {connectionState === 'connected' ? 'Connected' : connectionState === 'connecting' ? 'Connecting...' : connectionState === 'waiting' ? 'Waiting...' : 'Disconnected'}</span>
-          {syncState === 'submitting' ? <span>Sending move...</span> : null}
+          <span>{t('online.you')}: {role === 'blue' ? 'Player 1' : role === 'yellow' ? 'Player 2' : t('status.notAssigned')}</span>
+          <span>{isHost ? t('online.host') : t('online.guest')}</span>
+          <span>
+            {t('online.status')}:{' '}
+            {connectionState === 'connected'
+              ? t('status.connected')
+              : connectionState === 'connecting'
+                ? t('status.connecting')
+                : connectionState === 'waiting'
+                  ? t('status.waiting')
+                  : t('status.disconnected')}
+          </span>
+          {syncState === 'submitting' ? <span>{t('status.sendingMove')}</span> : null}
         </div>
 
         <div className={['online-error-slot', errorMessage ? 'has-error' : ''].filter(Boolean).join(' ')} role="status" aria-live="polite">
@@ -3037,24 +3124,24 @@ function OnlineMockPanel({
 
         {phase === 'join' ? (
           <div className="online-section">
-            <h3>Join Room</h3>
-            <p className="online-waiting-copy">Enter a room code to join an existing match.</p>
+            <h3>{t('online.joinTitle')}</h3>
+            <p className="online-waiting-copy">{t('online.joinDescription')}</p>
             <label className="online-input-wrap">
-              <span>Room Code</span>
+              <span>{t('online.roomCode')}</span>
               <input
                 type="text"
                 value={roomInput}
                 onChange={(event) => onInputRoomCode(event.target.value)}
-                placeholder="e.g. AB12CD"
+                placeholder={t('online.roomCodePlaceholder')}
                 maxLength={12}
               />
             </label>
             <div className="online-actions">
               <button type="button" className="online-btn primary" onClick={onConfirmJoin}>
-                Join
+                {t('action.join')}
               </button>
               <button type="button" className="online-btn ghost" onClick={onBackFromJoinOrError}>
-                Back
+                {t('action.back')}
               </button>
             </div>
           </div>
@@ -3062,29 +3149,38 @@ function OnlineMockPanel({
 
         {phase === 'waiting' ? (
           <div className="online-section">
-            <h3>Waiting Room</h3>
+            <h3>{t('online.waitingTitle')}</h3>
             <div className="waiting-room-code">
-              <div className="waiting-room-code-head">Room Code</div>
+              <div className="waiting-room-code-head">{t('online.roomCode')}</div>
               <div className="waiting-room-code-main">
-                <span className="waiting-room-code-value">{roomCode || 'N/A'}</span>
+                <span className="waiting-room-code-value">{roomCode || t('online.roomCodeUnavailable')}</span>
                 <button type="button" className="online-btn ghost copy" onClick={handleCopyRoomCode} disabled={!roomCode}>
-                  Copy
+                  {t('action.copy')}
                 </button>
               </div>
-              <div className="waiting-room-code-sub">Share this code with your opponent.</div>
+              <div className="waiting-room-code-sub">{t('online.shareCode')}</div>
               {copyFeedback ? <div className="waiting-room-copy-feedback">{copyFeedback}</div> : null}
             </div>
-            <p className="online-waiting-copy">Waiting for opponent to join and start the match.</p>
+            <p className="online-waiting-copy">{t('online.waitingDescription')}</p>
             <div className="online-status-list">
               <div className="online-status-item">
-                Colors: Host {colorLabel(createColors.blue)} / Guest {colorLabel(createColors.yellow)}
+                {t('online.colors')}: {t('online.host')} {colorLabel(createColors.blue)} / {t('online.guest')} {colorLabel(createColors.yellow)}
               </div>
               <div className="online-status-item">{waitMessage}</div>
-              <div className="online-status-item">Connection: {connectionState === 'connected' ? 'Connected' : connectionState === 'connecting' ? 'Connecting...' : connectionState === 'waiting' ? 'Waiting...' : 'Disconnected'}</div>
+              <div className="online-status-item">
+                {t('online.connection')}:{' '}
+                {connectionState === 'connected'
+                  ? t('status.connected')
+                  : connectionState === 'connecting'
+                    ? t('status.connecting')
+                    : connectionState === 'waiting'
+                      ? t('status.waiting')
+                      : t('status.disconnected')}
+              </div>
             </div>
             <div className="online-actions">
               <button type="button" className="online-btn ghost" onClick={onCancelWaiting}>
-                Cancel
+                {t('action.cancel')}
               </button>
             </div>
           </div>
@@ -3092,11 +3188,11 @@ function OnlineMockPanel({
 
         {phase === 'error' ? (
           <div className="online-section">
-            <h3>Error</h3>
-            <p className="online-waiting-copy">Unable to continue this online match. Please try again.</p>
+            <h3>{t('online.errorTitle')}</h3>
+            <p className="online-waiting-copy">{t('online.errorDescription')}</p>
             <div className="online-actions">
               <button type="button" className="online-btn primary" onClick={onBackFromJoinOrError}>
-                Back
+                {t('action.back')}
               </button>
             </div>
           </div>
@@ -3104,14 +3200,14 @@ function OnlineMockPanel({
 
         {phase === 'closed' ? (
           <div className="online-section">
-            <h3>Room Closed</h3>
-            <p className="online-waiting-copy">{waitMessage || 'Host left the room.'}</p>
+            <h3>{t('online.roomClosedTitle')}</h3>
+            <p className="online-waiting-copy">{waitMessage || t('online.hostLeftRoom')}</p>
             <div className="online-actions">
               <button type="button" className="online-btn primary" onClick={onBackToCreateSetup}>
-                Create Room Again
+                {t('action.createRoomAgain')}
               </button>
               <button type="button" className="online-btn ghost" onClick={onBackFromJoinOrError}>
-                Join Another Room
+                {t('action.joinAnotherRoom')}
               </button>
             </div>
           </div>
@@ -3119,11 +3215,11 @@ function OnlineMockPanel({
 
         {phase === 'interrupted' ? (
           <div className="online-section">
-            <h3>Match Interrupted</h3>
-            <p className="online-waiting-copy">{waitMessage || 'Opponent disconnected.'}</p>
+            <h3>{t('online.matchInterruptedTitle')}</h3>
+            <p className="online-waiting-copy">{waitMessage || t('online.opponentDisconnected')}</p>
             <div className="online-actions">
               <button type="button" className="online-btn primary" onClick={onBackFromJoinOrError}>
-                Back to Menu
+                {t('action.backToMenu')}
               </button>
             </div>
           </div>
@@ -3142,6 +3238,9 @@ function PlayerPanel({
   isTurn,
   isWinner,
   isThinking,
+  thinkingLabel,
+  winnerLabel,
+  turnLabel,
 }: PlayerPanelProps) {
   const percentage = Math.max(0, Math.min(100, (remaining / TOTAL_PIECES) * 100))
   const columns = Array.from({ length: 7 }, (_, col) => {
@@ -3159,11 +3258,11 @@ function PlayerPanel({
       style={{ '--accent': colorHex, '--accent-soft': colorSoft } as CSSProperties}
     >
       <div className="panel-badges left">
-        {isThinking ? <span className="state-badge thinking">THINKING</span> : null}
+        {isThinking ? <span className="state-badge thinking">{thinkingLabel}</span> : null}
       </div>
       <div className="panel-badges right">
-        {isWinner ? <span className="state-badge winner">WINNER</span> : null}
-        {!isWinner && isTurn ? <span className="state-badge turn">TURN</span> : null}
+        {isWinner ? <span className="state-badge winner">{winnerLabel}</span> : null}
+        {!isWinner && isTurn ? <span className="state-badge turn">{turnLabel}</span> : null}
       </div>
 
       <div className="panel-head">
@@ -3338,14 +3437,14 @@ function cloneMatchRecord(record: MatchRecord): MatchRecord {
   }
 }
 
-function cpuDifficultyLabel(difficulty: CpuDifficulty): string {
+function cpuDifficultyLabel(difficulty: CpuDifficulty, language: AppLanguage): string {
   if (difficulty === 'hard') {
-    return 'Hard'
+    return translate(language, 'mode.hard')
   }
   if (difficulty === 'normal') {
-    return 'Normal'
+    return translate(language, 'mode.normal')
   }
-  return 'Easy'
+  return translate(language, 'mode.easy')
 }
 
 function hardEndgamePhaseLabel(phase: 'normal' | 'endgame' | 'late_endgame'): string {
@@ -3363,15 +3462,16 @@ function winnerHeadline(
   mode: MatchMode,
   onlineRole: PlayerColor | null,
   cpuMatchType: CpuMatchType,
+  language: AppLanguage,
 ): string {
   if (mode === 'cpu') {
     if (cpuMatchType === 'cpu_vs_cpu') {
-      return winner === 'blue' ? 'CPU 1 WINS!' : 'CPU 2 WINS!'
+      return winner === 'blue' ? translate(language, 'winner.cpu1Wins') : translate(language, 'winner.cpu2Wins')
     }
-    return winner === 'blue' ? 'YOU WIN!' : 'YOU LOSE'
+    return winner === 'blue' ? translate(language, 'winner.youWin') : translate(language, 'winner.youLose')
   }
   if (mode === 'online') {
-    return winner === onlineRole ? 'YOU WIN!' : 'YOU LOSE'
+    return winner === onlineRole ? translate(language, 'winner.youWin') : translate(language, 'winner.youLose')
   }
-  return winner === 'blue' ? 'PLAYER 1 WINS!' : 'PLAYER 2 WINS!'
+  return winner === 'blue' ? translate(language, 'winner.player1Wins') : translate(language, 'winner.player2Wins')
 }

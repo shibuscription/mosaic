@@ -8,9 +8,22 @@ interface Board3DViewportProps {
   colors: Record<PieceColor, string>
   onStartPlayback?: () => void
   onSwitchTo2D?: () => void
+  playbackLabel?: string
+  rotateOnLabel?: string
+  rotateOffLabel?: string
+  view2dLabel?: string
 }
 
-export function Board3DViewport({ board, colors, onStartPlayback, onSwitchTo2D }: Board3DViewportProps) {
+export function Board3DViewport({
+  board,
+  colors,
+  onStartPlayback,
+  onSwitchTo2D,
+  playbackLabel = 'Playback',
+  rotateOnLabel = 'Rotate: On',
+  rotateOffLabel = 'Rotate: Off',
+  view2dLabel = '2D View',
+}: Board3DViewportProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
   const [autoRotate, setAutoRotate] = useState(true)
   const autoRotateRef = useRef(true)
@@ -213,15 +226,15 @@ export function Board3DViewport({ board, colors, onStartPlayback, onSwitchTo2D }
       <div className="inline-3d-controls">
         {onStartPlayback ? (
           <button type="button" className="inline-3d-playback" onClick={onStartPlayback}>
-            Playback
+            {playbackLabel}
           </button>
         ) : null}
         <button type="button" className="inline-3d-rotate" onClick={() => setAutoRotate((prev) => !prev)}>
-          Rotate: {autoRotate ? 'On' : 'Off'}
+          {autoRotate ? rotateOnLabel : rotateOffLabel}
         </button>
         {onSwitchTo2D ? (
           <button type="button" className="inline-3d-back" onClick={onSwitchTo2D}>
-            2D View
+            {view2dLabel}
           </button>
         ) : null}
       </div>

@@ -29,21 +29,32 @@ import {
 import './style.css'
 
 type DisplayColorId =
-  | 'blue'
-  | 'yellow'
-  | 'red'
-  | 'green'
-  | 'orange'
-  | 'purple'
-  | 'pink'
-  | 'brown'
-  | 'cyan'
-  | 'lime'
+  | 'classic_brown'
+  | 'classic_blue'
+  | 'milkyway_blue'
+  | 'milkyway_white'
+  | 'pastel_pink'
+  | 'pastel_green'
+  | 'halfblue_sky'
+  | 'halfblue_white'
+  | 'trad_black'
+  | 'trad_white'
+  | 'miyabi_teal'
+  | 'miyabi_vermilion'
+  | 'iki_blue'
+  | 'iki_white'
+  | 'oribe_green'
+  | 'oribe_deepbrown'
 
 interface ColorOption {
   id: DisplayColorId
   label: string
   hex: string
+}
+
+interface ColorPairTheme {
+  key: string
+  colors: [DisplayColorId, DisplayColorId]
 }
 
 interface PlayerColorConfig {
@@ -182,17 +193,42 @@ const DEBUG_SCORE_COMPONENTS: DebugScoreComponentDefinition[] = [
 ]
 
 const COLOR_OPTIONS: ColorOption[] = [
-  { id: 'blue', label: 'Royal Blue', hex: '#2563eb' },
-  { id: 'cyan', label: 'Pastel Sky', hex: '#8ecae6' },
-  { id: 'yellow', label: 'Cream Yellow', hex: '#ffe08a' },
-  { id: 'red', label: 'Coral', hex: '#ff6f61' },
-  { id: 'pink', label: 'Pastel Pink', hex: '#f4a8c8' },
-  { id: 'green', label: 'Mint', hex: '#7bdcb5' },
-  { id: 'lime', label: 'Olive', hex: '#7a8f3a' },
-  { id: 'purple', label: 'Lavender', hex: '#b39ddb' },
-  { id: 'orange', label: 'Deep Violet', hex: '#5b2a86' },
-  { id: 'brown', label: 'Walnut', hex: '#7b5e57' },
+  { id: 'classic_brown', label: 'Classic Brown', hex: '#7b5a3b' },
+  { id: 'classic_blue', label: 'Classic Blue', hex: '#2f5f9d' },
+  { id: 'milkyway_blue', label: 'Milky Way Blue', hex: '#1f3f86' },
+  { id: 'milkyway_white', label: 'Milky Way White', hex: '#f4f5f2' },
+  { id: 'pastel_pink', label: 'Pastel Pink', hex: '#f2b8cf' },
+  { id: 'pastel_green', label: 'Pastel Green', hex: '#b9dfc7' },
+  { id: 'halfblue_sky', label: 'Half Blue Sky', hex: '#a8d8f2' },
+  { id: 'halfblue_white', label: 'Half Blue White', hex: '#fbfbf8' },
+  { id: 'trad_black', label: 'Trad Black', hex: '#1f2328' },
+  { id: 'trad_white', label: 'Trad White', hex: '#ffffff' },
+  { id: 'miyabi_teal', label: 'Miyabi Teal', hex: '#0d5a59' },
+  { id: 'miyabi_vermilion', label: 'Miyabi Vermilion', hex: '#bf4a2d' },
+  { id: 'iki_blue', label: 'Iki Blue', hex: '#3e6fb3' },
+  { id: 'iki_white', label: 'Iki White', hex: '#f7f7f3' },
+  { id: 'oribe_green', label: 'Oribe Green', hex: '#5b7d48' },
+  { id: 'oribe_deepbrown', label: 'Oribe Deep Brown', hex: '#4f3b2d' },
 ]
+
+const COLOR_PAIR_THEMES: ColorPairTheme[] = [
+  { key: 'classic', colors: ['classic_brown', 'classic_blue'] },
+  { key: 'milkyway', colors: ['milkyway_blue', 'milkyway_white'] },
+  { key: 'pastel', colors: ['pastel_pink', 'pastel_green'] },
+  { key: 'halfblue', colors: ['halfblue_sky', 'halfblue_white'] },
+  { key: 'trad', colors: ['trad_black', 'trad_white'] },
+  { key: 'miyabi', colors: ['miyabi_teal', 'miyabi_vermilion'] },
+  { key: 'iki', colors: ['iki_blue', 'iki_white'] },
+  { key: 'oribe', colors: ['oribe_green', 'oribe_deepbrown'] },
+]
+
+const COLOR_OPTION_BY_ID = new Map<DisplayColorId, ColorOption>(COLOR_OPTIONS.map((option) => [option.id, option]))
+
+// Default palette: Trad (black/white) for maximum contrast and readability.
+const DEFAULT_PLAYER_COLORS: PlayerColorConfig = {
+  blue: 'trad_black',
+  yellow: 'trad_white',
+}
 
 const INTERNAL_LABEL: Record<PlayerColor, string> = {
   blue: 'Player 1',
@@ -225,7 +261,7 @@ const INITIAL_ONLINE_SESSION: OnlineSessionState = {
   syncState: 'idle',
   errorMessage: '',
   waitMessage: 'Waiting for opponent...',
-  createColors: { blue: 'blue', yellow: 'yellow' },
+  createColors: { ...DEFAULT_PLAYER_COLORS },
 }
 
 export default function App() {
@@ -241,8 +277,8 @@ export default function App() {
 
   const [setupOpen, setSetupOpen] = useState(true)
   const [setupStep, setSetupStep] = useState<SetupStep>('mode')
-  const [playerColors, setPlayerColors] = useState<PlayerColorConfig>({ blue: 'blue', yellow: 'yellow' })
-  const [pendingColors, setPendingColors] = useState<PlayerColorConfig>({ blue: 'blue', yellow: 'yellow' })
+  const [playerColors, setPlayerColors] = useState<PlayerColorConfig>({ ...DEFAULT_PLAYER_COLORS })
+  const [pendingColors, setPendingColors] = useState<PlayerColorConfig>({ ...DEFAULT_PLAYER_COLORS })
   const [matchMode, setMatchMode] = useState<MatchMode>('pvp')
   const [pendingMode, setPendingMode] = useState<MatchMode>('pvp')
   const [pendingOnlineAction, setPendingOnlineAction] = useState<OnlineEntryAction>(null)
@@ -289,7 +325,7 @@ export default function App() {
   const [revealedAutoCount, setRevealedAutoCount] = useState(0)
   const [animatingKey, setAnimatingKey] = useState<string | null>(null)
   const [matchRecord, setMatchRecord] = useState<MatchRecord>({
-    players: { blue: 'blue', yellow: 'yellow' },
+    players: { ...DEFAULT_PLAYER_COLORS },
     moves: [],
     winner: null,
   })
@@ -297,7 +333,7 @@ export default function App() {
     {
       game: cloneGameState(initialGame),
       matchRecord: cloneMatchRecord({
-        players: { blue: 'blue', yellow: 'yellow' },
+        players: { ...DEFAULT_PLAYER_COLORS },
         moves: [],
         winner: null,
       }),
@@ -322,7 +358,7 @@ export default function App() {
   const onlineLeaveInFlightRef = useRef(false)
   const gameRef = useRef<GameState>(initialGame)
   const matchRecordRef = useRef<MatchRecord>({
-    players: { blue: 'blue', yellow: 'yellow' },
+    players: { ...DEFAULT_PLAYER_COLORS },
     moves: [],
     winner: null,
   })
@@ -330,7 +366,7 @@ export default function App() {
     {
       game: cloneGameState(initialGame),
       matchRecord: cloneMatchRecord({
-        players: { blue: 'blue', yellow: 'yellow' },
+        players: { ...DEFAULT_PLAYER_COLORS },
         moves: [],
         winner: null,
       }),
@@ -1298,8 +1334,8 @@ export default function App() {
     const prevGame = gameRef.current
     const boardChanged = hasBoardChanged(prevGame, nextGame)
     const nextRoomColors: PlayerColorConfig = {
-      blue: isDisplayColorId(room.playerColors?.blue) ? room.playerColors.blue : 'blue',
-      yellow: isDisplayColorId(room.playerColors?.yellow) ? room.playerColors.yellow : 'yellow',
+      blue: isDisplayColorId(room.playerColors?.blue) ? room.playerColors.blue : DEFAULT_PLAYER_COLORS.blue,
+      yellow: isDisplayColorId(room.playerColors?.yellow) ? room.playerColors.yellow : DEFAULT_PLAYER_COLORS.yellow,
     }
 
     setPlayerColors(nextRoomColors)
@@ -1956,8 +1992,6 @@ export default function App() {
           </div>
         </section>
       ) : null}
-
-      <div className="mini-title">Mosaic</div>
 
       {isOnlineMockView ? (
         <OnlineMockPanel
@@ -3114,21 +3148,29 @@ function ColorPickerRow({ label, selected, blocked, onSelect }: ColorPickerRowPr
     <div className="picker-row">
       <div className="picker-label">{label}</div>
       <div className="chip-list">
-        {COLOR_OPTIONS.map((option) => {
-          const disabled = option.id === blocked && option.id !== selected
-          return (
-            <button
-              key={option.id}
-              type="button"
-              className={['color-chip', selected === option.id ? 'selected' : ''].filter(Boolean).join(' ')}
-              style={{ background: option.hex }}
-              onClick={() => onSelect(option.id)}
-              disabled={disabled}
-              aria-label={`${label} color ${option.label}`}
-              title={option.label}
-            />
-          )
-        })}
+        {COLOR_PAIR_THEMES.map((theme) => (
+          <div key={theme.key} className="chip-pair">
+            {theme.colors.map((id) => {
+              const option = COLOR_OPTION_BY_ID.get(id)
+              if (!option) {
+                return null
+              }
+              const disabled = option.id === blocked && option.id !== selected
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={['color-chip', selected === option.id ? 'selected' : ''].filter(Boolean).join(' ')}
+                  style={{ background: option.hex }}
+                  onClick={() => onSelect(option.id)}
+                  disabled={disabled}
+                  aria-label={`${label} color ${option.label}`}
+                  title={option.label}
+                />
+              )
+            })}
+          </div>
+        ))}
       </div>
     </div>
   )

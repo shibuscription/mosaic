@@ -33,7 +33,7 @@ export function Board3DViewport({ board, colors, onStartPlayback, onSwitchTo2D }
     }
 
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color('#edf2ff')
+    scene.background = new THREE.Color('#efe1c8')
 
     const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100)
     camera.position.set(5.35, 6.0, 6.65)
@@ -49,14 +49,16 @@ export function Board3DViewport({ board, colors, onStartPlayback, onSwitchTo2D }
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enablePan = false
     controls.enableRotate = true
-    controls.enableZoom = false
+    controls.enableZoom = true
     controls.enableDamping = true
     controls.dampingFactor = 0.075
+    controls.minDistance = 5.2
+    controls.maxDistance = 12
     controls.target.set(0, 0.58, 0)
     controls.update()
 
     const ambientLight = new THREE.AmbientLight('#ffffff', 0.45)
-    const hemi = new THREE.HemisphereLight('#ffffff', '#cad7ef', 0.32)
+    const hemi = new THREE.HemisphereLight('#fff8ea', '#c4a072', 0.32)
     const keyLight = new THREE.DirectionalLight('#ffffff', 1.05)
     keyLight.position.set(8, 12, 5)
     keyLight.castShadow = true
@@ -82,6 +84,10 @@ export function Board3DViewport({ board, colors, onStartPlayback, onSwitchTo2D }
     const gridSpacing = 0.7
     const levelHeight = 0.19
     const boardSpan = (BASE_SIZE - 1) * gridSpacing + diskRadius * 2
+    const boardPadding = 0.22
+    const boardPlateSize = boardSpan + boardPadding
+    const boardPlateThickness = 0.12
+    const boardCornerRadius = 0.13
     const centerOffset = ((BASE_SIZE - 1) * gridSpacing) / 2
     const diskGeometry = new THREE.CylinderGeometry(diskRadius, diskRadius, diskHeight, 40)
     const pieceMeshes = new Map<string, THREE.Mesh>()
@@ -136,11 +142,20 @@ export function Board3DViewport({ board, colors, onStartPlayback, onSwitchTo2D }
     }
     renderBoardRef.current = renderBoard
 
+    const roundedShape = createRoundedSquareShape(boardPlateSize, boardCornerRadius)
+    const basePlateGeometry = new THREE.ExtrudeGeometry(roundedShape, {
+      depth: boardPlateThickness,
+      bevelEnabled: false,
+      curveSegments: 10,
+    })
+    // Convert XY + depth geometry into a thin plate on XZ plane.
+    basePlateGeometry.rotateX(-Math.PI / 2)
+    const topSurfaceY = -0.05
+    basePlateGeometry.translate(0, topSurfaceY - boardPlateThickness, 0)
     const basePlate = new THREE.Mesh(
-      new THREE.BoxGeometry(boardSpan + 0.9, 0.12, boardSpan + 0.9),
-      new THREE.MeshStandardMaterial({ color: '#d9e3f5', roughness: 0.7, metalness: 0.02 }),
+      basePlateGeometry,
+      new THREE.MeshStandardMaterial({ color: '#d9b98b', roughness: 0.76, metalness: 0.02 }),
     )
-    basePlate.position.set(0, -0.11, 0)
     basePlate.receiveShadow = true
     boardGroup.add(basePlate)
     renderBoard(boardRef.current)
@@ -186,7 +201,7 @@ export function Board3DViewport({ board, colors, onStartPlayback, onSwitchTo2D }
       controls.dispose()
       mount.removeChild(renderer.domElement)
       diskGeometry.dispose()
-      basePlate.geometry.dispose()
+      basePlateGeometry.dispose()
       ;(basePlate.material as THREE.Material).dispose()
       disposePieceMeshes()
       renderer.dispose()
@@ -213,4 +228,22 @@ export function Board3DViewport({ board, colors, onStartPlayback, onSwitchTo2D }
       <div className="inline-3d-canvas" ref={mountRef} />
     </div>
   )
+}
+
+function createRoundedSquareShape(size: number, radius: number): THREE.Shape {
+  const half = size / 2
+  const r = Math.min(radius, half * 0.3)
+  const shape = new THREE.Shape()
+
+  shape.moveTo(-half + r, -half)
+  shape.lineTo(half - r, -half)
+  shape.quadraticCurveTo(half, -half, half, -half + r)
+  shape.lineTo(half, half - r)
+  shape.quadraticCurveTo(half, half, half - r, half)
+  shape.lineTo(-half + r, half)
+  shape.quadraticCurveTo(-half, half, -half, half - r)
+  shape.lineTo(-half, -half + r)
+  shape.quadraticCurveTo(-half, -half, -half + r, -half)
+
+  return shape
 }

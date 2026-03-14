@@ -275,9 +275,9 @@ body {
 
 .board-wrap-3d {
   border-radius: 18px;
-  border: 1px solid #94a8cb;
+  border: 1px solid #b89b73;
   overflow: hidden;
-  box-shadow: inset 0 16px 22px #ffffffa6;
+  box-shadow: inset 0 14px 20px #fff7e7a6, 0 4px 10px #5f4a3024;
   max-width: 100%;
   min-width: 0;
 }
@@ -289,7 +289,7 @@ body {
   min-width: 0;
   display: grid;
   grid-template-rows: auto 1fr;
-  background: radial-gradient(circle at 50% 45%, #fdfefe 0%, #dde7f7 65%, #c7d8ef 100%);
+  background: radial-gradient(circle at 50% 45%, #f6ecd7 0%, #e4cfa8 65%, #d2b48a 100%);
 }
 
 .inline-3d-controls {
@@ -335,6 +335,7 @@ body {
   height: 100%;
   max-width: 100%;
   min-width: 0;
+  touch-action: none;
 }
 
 .mobile-side-influence {
@@ -346,9 +347,9 @@ body {
   width: 100%;
   height: 100%;
   border-radius: 18px;
-  background: radial-gradient(circle at 50% 45%, #fdfefe 0%, #dde7f7 65%, #c7d8ef 100%);
-  border: 1px solid #94a8cb;
-  box-shadow: inset 0 16px 22px #ffffffa6;
+  background: radial-gradient(circle at 50% 45%, #f7ecd7 0%, #e5cfaa 63%, #d4b48a 100%);
+  border: 1px solid #b99867;
+  box-shadow: inset 0 14px 20px #fff6e2a8, inset 0 -8px 14px #8a6e4626;
   overflow: hidden;
 }
 
@@ -968,10 +969,12 @@ body {
   display: grid;
   place-items: center;
   padding: 16px;
+  overflow-y: auto;
 }
 
 .setup-modal {
   width: min(760px, 100%);
+  max-height: 90vh;
   border-radius: 14px;
   border: 1px solid #9db2d4;
   background: #f7faff;
@@ -979,6 +982,8 @@ body {
   padding: 16px;
   display: grid;
   gap: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .setup-config-grid {
@@ -1055,7 +1060,13 @@ body {
 
 .chip-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.chip-pair {
+  display: grid;
+  grid-template-rows: repeat(2, minmax(0, auto));
   gap: 8px;
 }
 
@@ -1093,6 +1104,20 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  position: sticky;
+  bottom: 0;
+  padding-top: 8px;
+  background: linear-gradient(180deg, #f7faff00 0%, #f7fafff2 34%, #f7faff 100%);
+  z-index: 1;
+}
+
+.setup-modal > .start-button {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-top: 6px;
+  background: #223a65;
+  box-shadow: 0 -6px 10px #f7faff;
 }
 
 .online-setup-overlay {
@@ -1773,6 +1798,15 @@ body {
   .setup-modal {
     padding: 12px;
     gap: 10px;
+    max-height: calc(100vh - 12px);
+  }
+
+  .setup-config-right {
+    gap: 8px;
+  }
+
+  .picker-row {
+    gap: 6px;
   }
 
   .setup-config-grid {
@@ -1792,6 +1826,31 @@ body {
   .mode-options.difficulty-options .mode-option {
     padding: 7px 6px;
     font-size: 0.82rem;
+  }
+
+  .chip-list {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 4px;
+    padding-inline: 2px;
+  }
+
+  .chip-pair {
+    gap: 4px;
+  }
+
+  .color-chip {
+    min-width: 0;
+    border-width: 1px;
+  }
+
+  .color-chip.selected {
+    outline-width: 2px;
+    outline-offset: 0;
+  }
+
+  .setup-actions {
+    gap: 6px;
+    padding-top: 7px;
   }
 
   .winner-card {

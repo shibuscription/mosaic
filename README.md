@@ -39,6 +39,8 @@ https://mosaic-game-bef28.web.app
 - 2D Playback（終局後に初手から再生）
 - 3D View（終局後の中央盤面を3D静止表示）
 - 3D Playback（3D View内の `Playback` から開始）
+- Playback 手動ステップ操作（最初へ / 1手戻る / 1手進む / 最後へ）
+  - 1手は `manual move + その手に紐づく auto placements` をまとめた単位
 - サウンド ON/OFF、連鎖音程変化、勝利音
 - 駒配置アニメーション / 連鎖の時間差表示
 - CHAIN 演出（段階表示）
@@ -152,8 +154,12 @@ https://mosaic-game-bef28.web.app
    - `Playback`（3D Playbackを開始）
    - `2D View`（終局後の2D result viewへ戻る）
 6. Playback中は 2D / 3D 共通で
-   - `Pause` / `Resume`
-   - `Stop`（その表示モードの終局静止状態へ戻る）
+   - 左端ラベル: `Playback` / `3D Playback`（操作ボタンではなく表示ラベル）
+   - 手動ステップ: `最初へ` / `1手戻る` / `1手進む` / `最後へ`
+     - 1手は `manual + auto placements` をまとめて進む/戻る
+   - 全体制御: `Pause` / `Resume` / `Exit`
+   - 手動ステップ操作時は自動再生を停止し、`Resume` で再開
+   - 先頭局面では `最初へ / 1手戻る` が disabled、最終局面では `1手進む / 最後へ` が disabled
 7. 棋譜ファイル
    - `Save Record` で `.mosaic` を保存
    - `Load Record` で `.mosaic` を読み込み、Playback として再生
@@ -198,8 +204,11 @@ https://mosaic-game-bef28.web.app
 - 3D View: 中央盤面を3D表示モードへ切り替え、終局静止状態から開始
 - 3D Playback: 3D View内の `Playback` から開始
 - Playback操作（2D / 3D共通）
-  - `Pause` / `Resume` / `Stop`
-  - `Stop` 時は現在の表示モード（2Dまたは3D）の終局静止状態へ戻る
+  - 手動ステップ: `最初へ` / `1手戻る` / `1手進む` / `最後へ`
+  - 1手単位は `manual move + auto placements` のまとまり
+  - 全体制御: `Pause` / `Resume` / `Exit`
+  - `Exit` 時は現在の表示モード（2Dまたは3D）の終局静止状態へ戻る
+  - 手動ステップを押すと自動再生は停止し、感想戦・検討用の手動確認に切り替え可能
 - 2D / 3D result view 往復
   - `2D View` で戻っても終局モーダルが再表示され、`3D View / Playback / Restart` 導線を維持
 

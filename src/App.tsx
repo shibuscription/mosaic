@@ -2868,7 +2868,15 @@ export default function App() {
 
                     <div className="theme-assignment">
                       <div className="theme-assignment-item">
-                        <span className="theme-assignment-label">Player 1 Color</span>
+                        <span className="theme-assignment-label">
+                          {pendingMode === 'online'
+                            ? 'Host Color'
+                            : pendingMode === 'cpu'
+                              ? pendingCpuMatchType === 'cpu_vs_cpu'
+                                ? 'CPU 1 Color'
+                                : 'Your Color'
+                              : 'Player 1 Color'}
+                        </span>
                         <span
                           className="theme-assignment-chip"
                           style={{ background: (COLOR_OPTION_BY_ID.get(pendingColors.blue)?.hex ?? '#000000') }}
@@ -2886,7 +2894,15 @@ export default function App() {
                         ⇄
                       </button>
                       <div className="theme-assignment-item">
-                        <span className="theme-assignment-label">Player 2 Color</span>
+                        <span className="theme-assignment-label">
+                          {pendingMode === 'online'
+                            ? 'Guest Color'
+                            : pendingMode === 'cpu'
+                              ? pendingCpuMatchType === 'cpu_vs_cpu'
+                                ? 'CPU 2 Color'
+                                : 'CPU Color'
+                              : 'Player 2 Color'}
+                        </span>
                         <span
                           className="theme-assignment-chip"
                           style={{ background: (COLOR_OPTION_BY_ID.get(pendingColors.yellow)?.hex ?? '#000000') }}

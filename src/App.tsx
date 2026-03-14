@@ -16,6 +16,12 @@ import { Board3DViewport } from './components/Board3DViewport'
 import { isFirebaseConfigured } from './firebase'
 import { resolveLanguage, translate, type AppLanguage } from './i18n'
 import {
+  createMosaicRecordFileName,
+  downloadMosaicRecord,
+  parseMosaicRecord,
+  type MosaicRecordV1,
+} from './record/file'
+import {
   RoomError,
   createRoom,
   joinRoom,
@@ -331,6 +337,7 @@ export default function App() {
   const [selectedDebugMoveKey, setSelectedDebugMoveKey] = useState<string | null>(null)
   const [hoveredDebugMoveKey, setHoveredDebugMoveKey] = useState<string | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [recordNotice, setRecordNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null)
   const [mobilePanelMode, setMobilePanelMode] = useState<MobilePanelMode>(() => {
     if (typeof window === 'undefined') {
       return 'standard'
@@ -361,6 +368,7 @@ export default function App() {
 
   const boardStageRef = useRef<HTMLElement | null>(null)
   const mobileMenuRef = useRef<HTMLDivElement | null>(null)
+  const recordFileInputRef = useRef<HTMLInputElement | null>(null)
   const timeoutIdsRef = useRef<number[]>([])
   const playbackTimerRef = useRef<number | null>(null)
   const playbackFramesRef = useRef<PlaybackFrame[]>([])
@@ -908,6 +916,14 @@ export default function App() {
       document.removeEventListener('pointerdown', onPointerDown)
     }
   }, [isMobileMenuOpen])
+
+  useEffect(() => {
+    if (!recordNotice) {
+      return
+    }
+    const timeoutId = window.setTimeout(() => setRecordNotice(null), 2200)
+    return () => window.clearTimeout(timeoutId)
+  }, [recordNotice])
 
   const positions = useMemo(() => {
     const cells: Array<{
@@ -1839,12 +1855,12 @@ export default function App() {
     }, delayMs)
   }
 
-  function runPlayback(renderer: BoardRendererMode): void {
-    if (matchRecord.moves.length === 0 || isPlayback) {
+  function runPlaybackFromRecord(baseRecord: MatchRecord, renderer: BoardRendererMode): void {
+    if (baseRecord.moves.length === 0 || isPlayback) {
       return
     }
 
-    const { frames, finalGame, finalRemaining } = buildPlaybackFrames(matchRecord)
+    const { frames, finalGame, finalRemaining } = buildPlaybackFrames(baseRecord)
     if (frames.length === 0) {
       return
     }
@@ -1871,12 +1887,151 @@ export default function App() {
     playbackFinalRemainingRef.current = finalRemaining
 
     const initial = createInitialGameState()
-    const openingTurn: PlayerColor = matchRecord.moves[0]?.player ?? 'blue'
+    const openingTurn: PlayerColor = baseRecord.moves[0]?.player ?? 'blue'
     initial.currentTurn = openingTurn
     initial.message = openingTurn === 'blue' ? "Player 1's turn" : "Player 2's turn"
     setGame(initial)
     setDisplayRemaining({ ...initial.remaining })
     schedulePlaybackStep(90)
+  }
+
+  function runPlayback(renderer: BoardRendererMode): void {
+    runPlaybackFromRecord(matchRecord, renderer)
+  }
+
+  function createExportRecord(): MosaicRecordV1 {
+    return {
+      format: 'mosaic-record',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      mode: matchMode,
+      themeId: getThemeByAssignedColors(playerColors)?.key ?? null,
+      playerColors: { ...matchRecord.players },
+      openingTurn: matchRecord.moves[0]?.player ?? 'blue',
+      moves: matchRecord.moves.map((move) => ({
+        turn: move.turn,
+        player: move.player,
+        manual: { ...move.manual },
+        autoPlacements: move.autoPlacements.map((item) => ({ ...item })),
+      })),
+      winner: matchRecord.winner,
+      cpuSettings:
+        matchMode === 'cpu'
+          ? {
+              matchType: cpuMatchType,
+              cpuDifficulty,
+              cpu1Difficulty,
+              cpu2Difficulty,
+            }
+          : undefined,
+      onlinePlayers:
+        matchMode === 'online'
+          ? {
+              role: onlineSession.role,
+              isHost: onlineSession.isHost,
+            }
+          : undefined,
+    }
+  }
+
+  function handleSaveRecord(): void {
+    if (matchRecord.moves.length === 0) {
+      setRecordNotice({ kind: 'error', message: t('record.noMoves') })
+      return
+    }
+    const record = createExportRecord()
+    const fileName = createMosaicRecordFileName(record.mode)
+    downloadMosaicRecord(record, fileName)
+    setRecordNotice({ kind: 'success', message: t('record.saved') })
+  }
+
+  function handleLoadRecordClick(): void {
+    recordFileInputRef.current?.click()
+  }
+
+  function applyImportedRecord(record: MosaicRecordV1): void {
+    const importedColors: PlayerColorConfig = {
+      blue: isDisplayColorId(record.playerColors.blue) ? record.playerColors.blue : DEFAULT_PLAYER_COLORS.blue,
+      yellow: isDisplayColorId(record.playerColors.yellow) ? record.playerColors.yellow : DEFAULT_PLAYER_COLORS.yellow,
+    }
+    const importedMatchRecord: MatchRecord = {
+      players: importedColors,
+      moves: record.moves.map((move) => ({
+        turn: move.turn,
+        player: move.player,
+        manual: { ...move.manual },
+        autoPlacements: move.autoPlacements.map((item) => ({ ...item })),
+      })),
+      winner: record.winner,
+    }
+
+    stopOnlineRoomSubscription()
+    clearAnimationTimers()
+    clearPlaybackTimer()
+    clearCpuTimer()
+    setIsAnimating(false)
+    setIsPlayback(false)
+    setPlaybackStatus(null)
+    setPlaybackRenderer(null)
+    setIsCpuThinking(false)
+    setHardDebugAnalysis(null)
+    setDebugOverlayMode('total')
+    setIsMobileMenuOpen(false)
+    setAnimatingKey(null)
+    setRevealedAutoCount(0)
+    setBoardRenderer('2d')
+    setWinnerModalVisible(false)
+    setSetupOpen(false)
+    setSetupStep('mode')
+    setMatchMode(record.mode)
+    if (record.mode === 'cpu') {
+      if (record.cpuSettings?.matchType === 'you_vs_cpu' || record.cpuSettings?.matchType === 'cpu_vs_cpu') {
+        setCpuMatchType(record.cpuSettings.matchType)
+      }
+      if (record.cpuSettings?.cpuDifficulty === 'easy' || record.cpuSettings?.cpuDifficulty === 'normal' || record.cpuSettings?.cpuDifficulty === 'hard') {
+        setCpuDifficulty(record.cpuSettings.cpuDifficulty)
+      }
+      if (record.cpuSettings?.cpu1Difficulty === 'easy' || record.cpuSettings?.cpu1Difficulty === 'normal' || record.cpuSettings?.cpu1Difficulty === 'hard') {
+        setCpu1Difficulty(record.cpuSettings.cpu1Difficulty)
+      }
+      if (record.cpuSettings?.cpu2Difficulty === 'easy' || record.cpuSettings?.cpu2Difficulty === 'normal' || record.cpuSettings?.cpu2Difficulty === 'hard') {
+        setCpu2Difficulty(record.cpuSettings.cpu2Difficulty)
+      }
+    }
+    setOnlineSession({
+      ...INITIAL_ONLINE_SESSION,
+      role: record.mode === 'online' ? (record.onlinePlayers?.role ?? null) : null,
+      isHost: record.mode === 'online' ? Boolean(record.onlinePlayers?.isHost) : false,
+      createColors: importedColors,
+    })
+    setPlayerColors(importedColors)
+    setPendingColors(importedColors)
+    setMatchRecord(importedMatchRecord)
+    setHistory([
+      {
+        game: cloneGameState(createInitialGameState()),
+        matchRecord: cloneMatchRecord(importedMatchRecord),
+      },
+    ])
+    runPlaybackFromRecord(importedMatchRecord, '2d')
+    setRecordNotice({ kind: 'success', message: t('record.import') })
+  }
+
+  async function handleImportRecordFile(file: File | null): Promise<void> {
+    if (!file) {
+      return
+    }
+    try {
+      const text = await file.text()
+      const parsed = parseMosaicRecord(text)
+      if (!parsed.ok || !parsed.record) {
+        setRecordNotice({ kind: 'error', message: t('record.invalidFile') })
+        return
+      }
+      applyImportedRecord(parsed.record)
+    } catch {
+      setRecordNotice({ kind: 'error', message: t('record.failedLoad') })
+    }
   }
 
   function handlePlayback2D(): void {
@@ -2343,6 +2498,14 @@ export default function App() {
               type="button"
               role="menuitem"
               className="mobile-menu-item"
+              onClick={handleLoadRecordClick}
+            >
+              {t('action.loadRecord')}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="mobile-menu-item"
               onClick={handleUndo}
               disabled={matchMode === 'online' || history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
             >
@@ -2377,6 +2540,11 @@ export default function App() {
       </button>
       ) : null}
       {!isOnlineMockView ? (
+      <button type="button" className="load-fixed" onClick={handleLoadRecordClick}>
+        {t('action.loadRecord')}
+      </button>
+      ) : null}
+      {!isOnlineMockView ? (
       <button
         type="button"
         className="undo-fixed"
@@ -2390,6 +2558,22 @@ export default function App() {
       <button type="button" className="reset-fixed" onClick={openSetup}>
         {t('action.reset')}
       </button>
+      ) : null}
+      <input
+        ref={recordFileInputRef}
+        type="file"
+        accept=".mosaic,application/json"
+        style={{ display: 'none' }}
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null
+          void handleImportRecordFile(file)
+          event.currentTarget.value = ''
+        }}
+      />
+      {recordNotice ? (
+        <div className={['record-notice', recordNotice.kind].join(' ')} role="status" aria-live="polite">
+          {recordNotice.message}
+        </div>
       ) : null}
       {showHardDebugOverlay ? (
         <aside className={['cpu-debug-hud', isDebugHudCollapsed ? 'collapsed' : ''].filter(Boolean).join(' ')} aria-live="polite">
@@ -2627,6 +2811,9 @@ export default function App() {
               </button>
               <button type="button" className="winner-btn playback" onClick={handlePlayback2D}>
                 {t('action.playback')}
+              </button>
+              <button type="button" className="winner-btn playback" onClick={handleSaveRecord}>
+                {t('action.saveRecord')}
               </button>
               <button type="button" className="winner-btn restart" onClick={openSetup}>
                 {t('action.restart')}

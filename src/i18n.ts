@@ -75,6 +75,8 @@ const en: Messages = {
   'action.createRoomAgain': 'Create Room Again',
   'action.joinAnotherRoom': 'Join Another Room',
   'action.backToMenu': 'Back to Menu',
+  'action.saveRecord': 'Save Record',
+  'action.loadRecord': 'Load Record',
 
   'status.thinking': 'Thinking',
   'status.turn': 'TURN',
@@ -145,6 +147,11 @@ const en: Messages = {
   'online.copyFeedbackUnavailable': 'Clipboard unavailable.',
   'online.copyFeedbackFailed': 'Copy failed.',
   'online.roomCodeUnavailable': 'N/A',
+  'record.saved': 'Record saved.',
+  'record.failedLoad': 'Failed to load record.',
+  'record.invalidFile': 'Invalid record file.',
+  'record.import': 'Record Import',
+  'record.noMoves': 'This record has no moves.',
 
   'playback.playback3d': '3D Playback',
   'playback.playback': 'Playback',
@@ -223,6 +230,8 @@ const ja: Messages = {
   'action.createRoomAgain': '再度ルーム作成',
   'action.joinAnotherRoom': '別のルームに参加',
   'action.backToMenu': 'メニューへ戻る',
+  'action.saveRecord': '棋譜を保存',
+  'action.loadRecord': '棋譜を読み込む',
 
   'status.thinking': '考え中',
   'status.turn': 'ターン',
@@ -293,6 +302,11 @@ const ja: Messages = {
   'online.copyFeedbackUnavailable': 'クリップボードが使えません',
   'online.copyFeedbackFailed': 'コピーに失敗しました',
   'online.roomCodeUnavailable': 'なし',
+  'record.saved': '棋譜を保存しました。',
+  'record.failedLoad': '棋譜を読み込めませんでした。',
+  'record.invalidFile': '不正な棋譜ファイルです。',
+  'record.import': '棋譜インポート',
+  'record.noMoves': 'この棋譜には着手がありません。',
 
   'playback.playback3d': '3D再生',
   'playback.playback': '再生',

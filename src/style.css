@@ -629,6 +629,7 @@ body {
 
 .sound-fixed,
 .language-fixed,
+.load-fixed,
 .undo-fixed,
 .reset-fixed {
   position: fixed;
@@ -664,6 +665,16 @@ body {
 
 .language-fixed:hover {
   background: #505b7c;
+}
+
+.load-fixed {
+  left: 170px;
+  bottom: 12px;
+  background: #4f6f99;
+}
+
+.load-fixed:hover {
+  background: #3f5f89;
 }
 
 .undo-fixed {
@@ -1628,6 +1639,7 @@ body {
 
   .sound-fixed,
   .language-fixed,
+  .load-fixed,
   .undo-fixed,
   .reset-fixed {
     display: none;
@@ -1909,6 +1921,12 @@ body {
     padding: 9px 11px;
   }
 
+  .load-fixed {
+    left: 120px;
+    bottom: 10px;
+    padding: 9px 11px;
+  }
+
   .undo-fixed {
     right: 92px;
     bottom: 10px;
@@ -2132,4 +2150,32 @@ body {
     transform: translateY(0);
     opacity: 0.35;
   }
+}
+
+.record-notice {
+  position: fixed;
+  top: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 990;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1px solid #c8d6ec;
+  box-shadow: 0 6px 14px #17274124;
+  background: #f7fbffed;
+  color: #233b65;
+}
+
+.record-notice.success {
+  border-color: #9ec2a7;
+  background: #eefaf1f0;
+  color: #1f6137;
+}
+
+.record-notice.error {
+  border-color: #d8a7a7;
+  background: #fff4f4f0;
+  color: #8c2d2d;
 }

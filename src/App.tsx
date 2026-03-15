@@ -248,10 +248,10 @@ const COLOR_PAIR_THEMES: ColorPairTheme[] = [
 
 const COLOR_OPTION_BY_ID = new Map<DisplayColorId, ColorOption>(COLOR_OPTIONS.map((option) => [option.id, option]))
 
-// Default palette: Trad (black/white) for maximum contrast and readability.
+// Default palette: Classic.
 const DEFAULT_PLAYER_COLORS: PlayerColorConfig = {
-  blue: 'trad_black',
-  yellow: 'trad_white',
+  blue: 'classic_brown',
+  yellow: 'classic_blue',
 }
 
 const INTERNAL_LABEL: Record<PlayerColor, string> = {

@@ -980,11 +980,12 @@ body {
 
 .playback-chip {
   position: fixed;
-  top: 10px;
-  right: 10px;
+  top: auto;
+  right: 12px;
+  bottom: 60px;
   z-index: 620;
-  border-radius: 999px;
-  padding: 5px 10px;
+  border-radius: 14px;
+  padding: 6px 9px;
   font-size: 0.78rem;
   font-weight: 800;
   color: #fff;
@@ -993,12 +994,21 @@ body {
 }
 
 .playback-controls {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto;
   align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: end;
+  gap: 6px 10px;
+}
+
+.playback-row {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
-  padding: 6px 8px;
+}
+
+.playback-row-actions {
+  justify-content: flex-end;
 }
 
 .playback-label {
@@ -1029,6 +1039,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  flex-wrap: nowrap;
 }
 
 .playback-control-btn {
@@ -1566,9 +1577,25 @@ body {
 
 .winner-actions {
   margin-top: 12px;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+
+.winner-actions-row {
   display: flex;
   justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.winner-actions-row-primary {
+  width: 100%;
+}
+
+.winner-actions-row-secondary {
+  width: 100%;
 }
 
 .winner-btn {
@@ -1948,8 +1975,38 @@ body {
   }
 
   .playback-controls {
+    grid-template-columns: 1fr;
+    justify-content: stretch;
     gap: 6px;
-    padding: 6px 7px;
+  }
+
+  .playback-chip {
+    left: 50%;
+    right: auto;
+    top: auto;
+    bottom: calc(68px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    width: min(420px, calc(100vw - 24px));
+    border-radius: 12px;
+    padding: 6px 8px;
+  }
+
+  .playback-row-meta {
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .playback-row-actions {
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .playback-row-actions .playback-control-btn {
+    flex: 0 0 auto;
+  }
+
+  .playback-step-group {
+    gap: 4px;
   }
 
   .playback-progress {
@@ -2093,6 +2150,19 @@ body {
 
   .winner-title {
     font-size: 1.2rem;
+  }
+
+  .winner-actions {
+    gap: 7px;
+  }
+
+  .winner-actions-row {
+    gap: 6px;
+  }
+
+  .winner-btn {
+    padding: 8px 10px;
+    font-size: 0.84rem;
   }
 
   .cpu-debug-hud {

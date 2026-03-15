@@ -22,6 +22,11 @@ import {
   type MosaicRecordV1,
 } from './record/file'
 import {
+  createMosaicScoreSheetFileName,
+  exportMosaicScoreSheetPng,
+  type ScoreSheetRenderLabels,
+} from './record/sheet'
+import {
   RoomError,
   createRoom,
   joinRoom,
@@ -920,6 +925,7 @@ export default function App() {
       return
     }
     window.localStorage.setItem(APP_LANGUAGE_KEY, language)
+    document.title = t('app.title')
   }, [language])
 
   useEffect(() => {
@@ -2045,6 +2051,35 @@ export default function App() {
     }
   }
 
+  function scoreSheetModeLabel(mode: MosaicRecordV1['mode']): string {
+    if (mode === 'online') {
+      return t('mode.onlineMatch')
+    }
+    if (mode === 'cpu') {
+      return t('mode.cpuMatch')
+    }
+    return t('mode.localMatch')
+  }
+
+  function scoreSheetWinnerLabel(record: MosaicRecordV1): string {
+    if (!record.winner) {
+      return t('sheet.winnerDraw')
+    }
+    return record.winner === record.openingTurn ? t('sheet.winnerFirst') : t('sheet.winnerSecond')
+  }
+
+  function buildScoreSheetRenderLabels(record: MosaicRecordV1): ScoreSheetRenderLabels {
+    return {
+      title: t('sheet.title'),
+      modeLabel: t('sheet.metaMode'),
+      modeValue: scoreSheetModeLabel(record.mode),
+      winnerLabel: t('sheet.metaWinner'),
+      winnerValue: scoreSheetWinnerLabel(record),
+      movesLabel: t('sheet.metaMoves'),
+      exportedAtLabel: t('sheet.metaExportedAt'),
+    }
+  }
+
   function handleSaveRecord(): void {
     if (matchRecord.moves.length === 0) {
       setRecordNotice({ kind: 'error', message: t('record.noMoves') })
@@ -2054,6 +2089,22 @@ export default function App() {
     const fileName = createMosaicRecordFileName(record.mode)
     downloadMosaicRecord(record, fileName)
     setRecordNotice({ kind: 'success', message: t('record.saved') })
+  }
+
+  async function handleExportScoreSheet(): Promise<void> {
+    if (matchRecord.moves.length === 0) {
+      setRecordNotice({ kind: 'error', message: t('record.noMoves') })
+      return
+    }
+
+    try {
+      const record = createExportRecord()
+      const fileName = createMosaicScoreSheetFileName(record.mode)
+      await exportMosaicScoreSheetPng(record, buildScoreSheetRenderLabels(record), fileName)
+      setRecordNotice({ kind: 'success', message: t('sheet.exported') })
+    } catch {
+      setRecordNotice({ kind: 'error', message: t('sheet.failedExport') })
+    }
   }
 
   function handleLoadRecordClick(): void {
@@ -2925,63 +2976,67 @@ export default function App() {
       ) : null}
       {isPlayback ? (
         <div className="playback-chip playback-controls">
-          <span className="playback-label">{playbackRenderer === '3d' ? t('playback.playback3d') : t('playback.playback')}</span>
-          <span className="playback-progress" aria-label="playback progress">
-            {playbackMoveCursor} / {playbackTotalMoves}
-          </span>
-          <div className="playback-step-group">
+          <div className="playback-row playback-row-meta">
+            <span className="playback-label">{playbackRenderer === '3d' ? t('playback.playback3d') : t('playback.playback')}</span>
+            <span className="playback-progress" aria-label="playback progress">
+              {playbackMoveCursor} / {playbackTotalMoves}
+            </span>
+          </div>
+          <div className="playback-row playback-row-actions">
+            <div className="playback-step-group">
+              <button
+                type="button"
+                className="playback-control-btn step"
+                onClick={handlePlaybackJumpToStart}
+                disabled={playbackAtStart}
+                aria-label={t('playback.jumpToStart')}
+                title={t('playback.jumpToStart')}
+              >
+                ⏮
+              </button>
+              <button
+                type="button"
+                className="playback-control-btn step"
+                onClick={handlePlaybackPreviousMove}
+                disabled={playbackAtStart}
+                aria-label={t('playback.previousMove')}
+                title={t('playback.previousMove')}
+              >
+                ◀
+              </button>
+              <button
+                type="button"
+                className="playback-control-btn step"
+                onClick={handlePlaybackNextMove}
+                disabled={playbackAtEnd}
+                aria-label={t('playback.nextMove')}
+                title={t('playback.nextMove')}
+              >
+                ▶
+              </button>
+              <button
+                type="button"
+                className="playback-control-btn step"
+                onClick={handlePlaybackJumpToEnd}
+                disabled={playbackAtEnd}
+                aria-label={t('playback.jumpToEnd')}
+                title={t('playback.jumpToEnd')}
+              >
+                ⏭
+              </button>
+            </div>
             <button
               type="button"
-              className="playback-control-btn step"
-              onClick={handlePlaybackJumpToStart}
-              disabled={playbackAtStart}
-              aria-label={t('playback.jumpToStart')}
-              title={t('playback.jumpToStart')}
+              className="playback-control-btn"
+              onClick={handlePauseResumePlayback}
+              disabled={playbackAtEnd && playbackStatus === 'paused'}
             >
-              ⏮
+              {playbackStatus === 'paused' ? t('action.resume') : t('action.pause')}
             </button>
-            <button
-              type="button"
-              className="playback-control-btn step"
-              onClick={handlePlaybackPreviousMove}
-              disabled={playbackAtStart}
-              aria-label={t('playback.previousMove')}
-              title={t('playback.previousMove')}
-            >
-              ◀
-            </button>
-            <button
-              type="button"
-              className="playback-control-btn step"
-              onClick={handlePlaybackNextMove}
-              disabled={playbackAtEnd}
-              aria-label={t('playback.nextMove')}
-              title={t('playback.nextMove')}
-            >
-              ▶
-            </button>
-            <button
-              type="button"
-              className="playback-control-btn step"
-              onClick={handlePlaybackJumpToEnd}
-              disabled={playbackAtEnd}
-              aria-label={t('playback.jumpToEnd')}
-              title={t('playback.jumpToEnd')}
-            >
-              ⏭
+            <button type="button" className="playback-control-btn stop" onClick={handleStopPlayback}>
+              {t('action.exit')}
             </button>
           </div>
-          <button
-            type="button"
-            className="playback-control-btn"
-            onClick={handlePauseResumePlayback}
-            disabled={playbackAtEnd && playbackStatus === 'paused'}
-          >
-            {playbackStatus === 'paused' ? t('action.resume') : t('action.pause')}
-          </button>
-          <button type="button" className="playback-control-btn stop" onClick={handleStopPlayback}>
-            {t('action.exit')}
-          </button>
         </div>
       ) : null}
 
@@ -2995,25 +3050,32 @@ export default function App() {
               aria-label={t('status.winner')}
             />
             <div className="winner-actions">
-              <button
-                type="button"
-                className="winner-btn view3d"
-                onClick={() => {
-                  setBoardRenderer('3d')
-                  setWinnerModalVisible(false)
-                }}
-              >
-                {t('action.view3d')}
-              </button>
-              <button type="button" className="winner-btn playback" onClick={handlePlayback2D}>
-                {t('action.playback')}
-              </button>
-              <button type="button" className="winner-btn playback" onClick={handleSaveRecord}>
-                {t('action.saveRecord')}
-              </button>
-              <button type="button" className="winner-btn restart" onClick={openSetup}>
-                {t('action.restart')}
-              </button>
+              <div className="winner-actions-row winner-actions-row-primary">
+                <button
+                  type="button"
+                  className="winner-btn view3d"
+                  onClick={() => {
+                    setBoardRenderer('3d')
+                    setWinnerModalVisible(false)
+                  }}
+                >
+                  {t('action.view3d')}
+                </button>
+                <button type="button" className="winner-btn playback" onClick={handlePlayback2D}>
+                  {t('action.playback')}
+                </button>
+                <button type="button" className="winner-btn restart" onClick={openSetup}>
+                  {t('action.restart')}
+                </button>
+              </div>
+              <div className="winner-actions-row winner-actions-row-secondary">
+                <button type="button" className="winner-btn playback" onClick={handleSaveRecord}>
+                  {t('action.saveRecord')}
+                </button>
+                <button type="button" className="winner-btn playback" onClick={() => void handleExportScoreSheet()}>
+                  {t('action.exportScoreSheet')}
+                </button>
+              </div>
             </div>
             <div className="winner-sparkles" aria-hidden="true">
               {Array.from({ length: 14 }, (_, i) => (

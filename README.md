@@ -41,6 +41,10 @@ https://mosaic-game-bef28.web.app
 - 3D Playback（3D View内の `Playback` から開始）
 - Playback 手動ステップ操作（最初へ / 1手戻る / 1手進む / 最後へ）
   - 1手は `manual move + その手に紐づく auto placements` をまとめた単位
+- 手数表示
+  - 通常対局中: TURN / ターン バッジに「次に打つ手順番号」を表示（例: `TURN 24`, `24手目`）
+  - Playback中: `現在 / 総手数` を表示（例: `24 / 81`）
+- 棋譜シート PNG 出力（人間向け閲覧・共有用）
 - サウンド ON/OFF、連鎖音程変化、勝利音
 - 駒配置アニメーション / 連鎖の時間差表示
 - CHAIN 演出（段階表示）
@@ -145,9 +149,13 @@ https://mosaic-game-bef28.web.app
 2. 合法手をクリック/タップして着手
 3. 必要に応じて Undo / Sound / Reset を使用
 4. 終局後は Winner モーダルで
-   - `3D View`（中央盤面を3D終局表示へ切替）
-   - `Playback`（2D Playbackを開始）
-   - `Restart`（設定モーダルへ）
+   - 上段（その場で見る / 続ける）:
+     - `3D View`（中央盤面を3D終局表示へ切替）
+     - `Playback`（2D Playbackを開始）
+     - `Restart`（設定モーダルへ）
+   - 下段（保存 / 出力）:
+     - `Save Record`（`.mosaic`）
+     - `Export Score Sheet`（棋譜シート PNG）
 5. 3D View中は
    - `Rotate: On/Off`（自動回転の切替）
    - ドラッグ / スワイプ（手動回転、手動操作時は auto-rotate OFF）
@@ -160,9 +168,16 @@ https://mosaic-game-bef28.web.app
    - 全体制御: `Pause` / `Resume` / `Exit`
    - 手動ステップ操作時は自動再生を停止し、`Resume` で再開
    - 先頭局面では `最初へ / 1手戻る` が disabled、最終局面では `1手進む / 最後へ` が disabled
+   - 手数表示:
+     - `現在 / 総手数`（反映済み手数 / 棋譜総手数）
+   - レスポンシブ配置:
+     - PC: 既存UIと干渉しにくい右下エリアに配置
+     - スマホ: 下部中央寄せの2段構成（上段: ラベル/手数、下段: 操作ボタン）
 7. 棋譜ファイル
    - `Save Record` で `.mosaic` を保存
    - `Load Record` で `.mosaic` を読み込み、Playback として再生
+8. 棋譜シート
+   - `Export Score Sheet` で棋譜シート PNG を保存
 
 ## 演出・UI仕様
 
@@ -200,6 +215,14 @@ https://mosaic-game-bef28.web.app
   - 識別子: `format: "mosaic-record"`, `version: 1`
   - import は「対局再開」ではなく Playback 用データとして扱う
   - Local / CPU / Online を可能な限り共通形式で扱う
+- 棋譜シート PNG 出力（`.mosaic` とは別用途）
+  - 人間向けの閲覧・共有用フォーマット
+  - レイアウト: 最下段 7x7 から上に向かって 6x6 ... 1x1 の縦積み
+  - 表示ルール:
+    - 通常着手セル: 手番番号（例: `23`）
+    - ボーナスセル: 括弧付き（例: `(23)`）
+    - 先手: 黒 / 後手: 赤
+  - 第1版は PNG 出力を優先（PDF は将来拡張）
 - 2D Playback: 終局後に初手から再生
 - 3D View: 中央盤面を3D表示モードへ切り替え、終局静止状態から開始
 - 3D Playback: 3D View内の `Playback` から開始
@@ -209,6 +232,9 @@ https://mosaic-game-bef28.web.app
   - 全体制御: `Pause` / `Resume` / `Exit`
   - `Exit` 時は現在の表示モード（2Dまたは3D）の終局静止状態へ戻る
   - 手動ステップを押すと自動再生は停止し、感想戦・検討用の手動確認に切り替え可能
+  - 通常対局中の TURN バッジとは手数表示の意味が異なる
+    - 通常対局: 次に打つ手順番号
+    - Playback: 反映済み手数 / 総手数
 - 2D / 3D result view 往復
   - `2D View` で戻っても終局モーダルが再表示され、`3D View / Playback / Restart` 導線を維持
 

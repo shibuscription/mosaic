@@ -3,6 +3,7 @@
 type Messages = Record<string, string>
 
 const en: Messages = {
+  'app.title': 'MOSAIC (Unofficial)',
   'menu.language': 'Language',
   'menu.english': 'English',
   'menu.japanese': '日本語',
@@ -78,6 +79,7 @@ const en: Messages = {
   'action.backToMenu': 'Back to Menu',
   'action.saveRecord': 'Save Record',
   'action.loadRecord': 'Load Record',
+  'action.exportScoreSheet': 'Export Score Sheet',
 
   'status.thinking': 'Thinking',
   'status.turn': 'TURN',
@@ -154,6 +156,16 @@ const en: Messages = {
   'record.invalidFile': 'Invalid record file.',
   'record.import': 'Record Import',
   'record.noMoves': 'This record has no moves.',
+  'sheet.title': 'MOSAIC Score Sheet',
+  'sheet.metaMode': 'Mode',
+  'sheet.metaWinner': 'Winner',
+  'sheet.metaMoves': 'Moves',
+  'sheet.metaExportedAt': 'Exported',
+  'sheet.winnerFirst': 'First Player',
+  'sheet.winnerSecond': 'Second Player',
+  'sheet.winnerDraw': 'Draw',
+  'sheet.exported': 'Score sheet exported.',
+  'sheet.failedExport': 'Failed to export score sheet.',
 
   'playback.playback3d': '3D Playback',
   'playback.playback': 'Playback',
@@ -164,6 +176,7 @@ const en: Messages = {
 }
 
 const ja: Messages = {
+  'app.title': 'MOSAIC（非公式）',
   'menu.language': '言語',
   'menu.english': 'English',
   'menu.japanese': '日本語',
@@ -239,6 +252,7 @@ const ja: Messages = {
   'action.backToMenu': 'メニューへ戻る',
   'action.saveRecord': '棋譜を保存',
   'action.loadRecord': '棋譜を読み込む',
+  'action.exportScoreSheet': '棋譜シートを保存',
 
   'status.thinking': '考え中',
   'status.turn': 'ターン',
@@ -315,6 +329,16 @@ const ja: Messages = {
   'record.invalidFile': '不正な棋譜ファイルです。',
   'record.import': '棋譜インポート',
   'record.noMoves': 'この棋譜には着手がありません。',
+  'sheet.title': 'MOSAIC 棋譜シート',
+  'sheet.metaMode': 'モード',
+  'sheet.metaWinner': '勝者',
+  'sheet.metaMoves': '手数',
+  'sheet.metaExportedAt': '出力日時',
+  'sheet.winnerFirst': '先手',
+  'sheet.winnerSecond': '後手',
+  'sheet.winnerDraw': '引き分け',
+  'sheet.exported': '棋譜シートを保存しました。',
+  'sheet.failedExport': '棋譜シートを保存できませんでした。',
 
   'playback.playback3d': '3D再生',
   'playback.playback': '再生',

@@ -215,6 +215,8 @@ https://mosaic-game-bef28.web.app
   - 識別子: `format: "mosaic-record"`, `version: 1`
   - import は「対局再開」ではなく Playback 用データとして扱う
   - Local / CPU / Online を可能な限り共通形式で扱う
+  - import 判定は拡張子/MIME固定ではなく、JSON内容（`format` / `version` など）を基準に実施
+  - iPhone / Safari の file picker で独自拡張子が無効扱いになる場合に備え、選択は広めに許可し、中身で妥当性を判定
 - 棋譜シート PNG 出力（`.mosaic` とは別用途）
   - 人間向けの閲覧・共有用フォーマット
   - レイアウト: 最下段 7x7 から上に向かって 6x6 ... 1x1 の縦積み

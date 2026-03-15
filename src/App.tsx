@@ -2759,7 +2759,6 @@ export default function App() {
       <input
         ref={recordFileInputRef}
         type="file"
-        accept=".mosaic,application/json"
         style={{ display: 'none' }}
         onChange={(event) => {
           const file = event.target.files?.[0] ?? null

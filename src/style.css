@@ -1713,7 +1713,7 @@ body {
   .mobile-menu {
     position: fixed;
     right: 10px;
-    bottom: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
     z-index: 980;
     display: block;
   }
@@ -1743,7 +1743,7 @@ body {
   .mobile-menu-panel {
     position: absolute;
     right: 0;
-    bottom: 44px;
+    bottom: calc(44px + env(safe-area-inset-bottom));
     min-width: 152px;
     display: grid;
     gap: 5px;
@@ -1981,12 +1981,13 @@ body {
   }
 
   .playback-chip {
-    left: 50%;
-    right: auto;
+    left: 10px;
+    right: calc(58px + env(safe-area-inset-right));
     top: auto;
-    bottom: calc(68px + env(safe-area-inset-bottom));
-    transform: translateX(-50%);
-    width: min(420px, calc(100vw - 24px));
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    transform: none;
+    width: auto;
+    max-width: min(420px, calc(100vw - 68px - env(safe-area-inset-right)));
     border-radius: 12px;
     padding: 6px 8px;
   }

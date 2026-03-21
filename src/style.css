@@ -630,6 +630,7 @@ body {
 .sound-fixed,
 .language-fixed,
 .load-fixed,
+.licenses-fixed,
 .undo-fixed,
 .reset-fixed {
   position: fixed;
@@ -675,6 +676,16 @@ body {
 
 .load-fixed:hover {
   background: #3f5f89;
+}
+
+.licenses-fixed {
+  left: 312px;
+  bottom: 12px;
+  background: #6b5f8f;
+}
+
+.licenses-fixed:hover {
+  background: #594d79;
 }
 
 .undo-fixed {
@@ -1150,6 +1161,22 @@ body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.cpu-select {
+  width: 100%;
+  border: 1px solid #9fb3d4;
+  border-radius: 10px;
+  background: #f3f7ff;
+  color: #1a2d52;
+  font-weight: 700;
+  padding: 10px 12px;
+}
+
+.cpu-description-text {
+  color: #445a84;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
 .mode-option {
   border: 1px solid #9fb3d4;
   border-radius: 10px;
@@ -1302,6 +1329,24 @@ body {
   margin-top: 6px;
   background: #223a65;
   box-shadow: 0 -6px 10px #f7faff;
+}
+
+.license-modal {
+  width: min(860px, 100%);
+}
+
+.license-pre {
+  margin: 0;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #d4dfef;
+  background: #eef4ff;
+  color: #213454;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow: auto;
 }
 
 .online-setup-overlay {
@@ -1705,6 +1750,7 @@ body {
   .sound-fixed,
   .language-fixed,
   .load-fixed,
+  .licenses-fixed,
   .undo-fixed,
   .reset-fixed {
     display: none;
@@ -2039,6 +2085,12 @@ body {
 
   .load-fixed {
     left: 120px;
+    bottom: 10px;
+    padding: 9px 11px;
+  }
+
+  .licenses-fixed {
+    left: 244px;
     bottom: 10px;
     padding: 9px 11px;
   }

@@ -457,3 +457,16 @@ src/
 - UIテーマ追加、実機風デザイン強化
 - 効果音/アニメーション追加調整
 - オンライン対戦の高度化（再戦、切断復帰、戦績）
+## CPU Lineup and Licenses
+
+- CPU lineup in Game Setup: `Easy`, `Normal`, `SOPHIA`, `kobalab CPU`
+- `SOPHIA` is the existing MOSAIC `hard` CPU. The internal identifier remains `hard` for backward compatibility.
+- `kobalab CPU` is a new TypeScript port based on the reference code under `reference/upperhand/src/js/game.js` and `reference/upperhand/src/js/player.js`.
+- Existing Easy / Normal / Hard-family logic remains in place. The new CPU is added as a separate strategy and can be compared in `CPU vs CPU`.
+- CPU choices are now managed from a definition list in `src/game/cpu.ts`, so future CPUs can be added with minimal UI changes.
+
+### Open Source License Note
+
+- `kobalab CPU` includes logic derived from UpperHand by Satoshi Kobayashi and is covered by the MIT License.
+- Full third-party license text is available in `THIRD_PARTY_LICENSES.md`.
+- In the app, open the licenses view from `Open Source Licenses` in the menu or the fixed desktop button.

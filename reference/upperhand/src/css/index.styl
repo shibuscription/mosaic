@@ -1,0 +1,151 @@
+@charset "UTF-8"
+
+html
+    margin: 0 15px
+    font-size: 14px
+    font-family: "Hiragino Maru Gothic Pro", Verdana, sans-serif
+    -webkit-text-size-adjust: 100%
+body
+    margin: auto
+    margin-bottom: 40px
+    max-width: 900px
+
+h1
+    img
+        width: 32px
+        vertical-align: text-bottom
+    font-size: 28px
+    font-family: Optima, sans-serif
+    border-bottom: solid 2px #ccc
+    position: relative
+    margin-bottom: 0
+
+    .version
+        position: absolute
+        bottom: 0
+        right: 0
+        font-size: 16px
+        font-family: Georgia, serif
+        font-weight: normal
+
+h2
+    margin-bottom: 10px
+
+ol li
+    margin: 0.5em 0
+    img
+        vertical-align: text-bottom
+
+@media screen and (max-width: 450px)
+    ol
+        padding-left: 2em
+
+#pref
+    display: none
+
+form
+    margin-left: 2em
+
+dt
+    font-weight: bold
+
+input
+select
+    font-size: 100%
+
+select
+input[type="submit"]
+input[type="reset"]
+    color: #000
+    background: #ddd
+    border: solid 1px
+    border-radius: 4px
+    padding: 1px 0.5em
+
+input[type="submit"]
+input[type="reset"]
+    -webkit-appearance: none
+
+select
+    width: 8em
+
+#navi
+    margin-top: 10px
+    padding-left: 0
+    text-align: right
+    li
+        display: inline-block
+        a
+            color: inherit
+            text-decoration: none
+    li + li:before
+        content: ' | '
+
+#rule
+    display: none
+
+.ball
+    display: inline-block
+    box-sizing: border-box
+    background-repeat: no-repeat
+    background-size: contain
+    &[data-status=""]
+        display: none
+    &[data-status="-1"]
+        cursor: pointer
+    &[data-status="0"]
+        background-image: url('ball0.png')
+    &[data-status="1"]
+        background-image: url('ball1.png')
+    &[data-status="2"]
+        background-image: url('ball2.png')
+
+#board
+    margin-left: 40px
+    display: table
+    background: #ccc
+    border: outset 8px #ccc
+    padding: 4px
+    > .board
+        line-height: 0
+        position: relative
+        > .ball
+            position: absolute
+    > .score
+        margin-top: 4px
+        > span
+            display: inline-block
+            box-sizing: border-box
+            width: 50%
+            padding: 2px
+            text-align: center
+            font-size: 16px
+            font-family: Verdana, sans-serif
+            border: inset 1px
+            background-repeat: no-repeat
+            background-size: contain
+            &[data-status="1"]
+                background-image: url(ball1.png)
+                background-position: left
+                padding-left: 1em
+            &[data-status="2"]
+                background-image: url(ball2.png)
+                background-position: right
+                padding-right: 1em
+            &.active
+                font-weight: bold
+                border-style: outset
+
+.panel
+    display: inline-block
+    box-sizing: border-box
+    background: #ccc
+    border: solid 1px
+    border-color: #999 #eee #eee #999
+
+@media screen and (max-width: 450px)
+    html
+        margin: 0 5px
+    #board
+        margin-left:  auto
+        margin-right: auto

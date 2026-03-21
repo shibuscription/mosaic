@@ -11,6 +11,7 @@ const en: Messages = {
   'menu.standard': 'Standard',
   'menu.faceoff': 'Face-off',
   'menu.gameSetup': 'Game Setup',
+  'menu.licenses': 'Open Source Licenses',
   'menu.choosePlayStyle': 'Choose how you want to play.',
 
   'mode.localMatch': 'Local Match',
@@ -28,7 +29,12 @@ const en: Messages = {
   'mode.gameMode': 'Game Mode',
   'mode.easy': 'Easy',
   'mode.normal': 'Normal',
-  'mode.hard': 'Hard',
+  'mode.hard': 'SOPHIA',
+  'mode.kobalab': 'kobalab CPU',
+  'cpu.description.easy': 'A gentle CPU that is easy for beginners to play against.',
+  'cpu.description.normal': 'A standard CPU for balanced and enjoyable matches.',
+  'cpu.description.hard': 'An original research-focused CPU, currently being actively improved.',
+  'cpu.description.kobalab': `An advanced-player logic derived from Satoshi Kobayashi's "UpperHand" app.`,
 
   'setup.matchSetup': 'Match Setup',
   'setup.onlineMatchSetup': 'Online Match Setup',
@@ -80,6 +86,10 @@ const en: Messages = {
   'action.saveRecord': 'Save Record',
   'action.loadRecord': 'Load Record',
   'action.exportScoreSheet': 'Export Score Sheet',
+  'action.close': 'Close',
+
+  'license.title': 'Open Source Licenses',
+  'license.description': 'kobalab CPU includes logic ported from UpperHand under the MIT License.',
 
   'status.thinking': 'Thinking',
   'status.turn': 'TURN',
@@ -184,6 +194,7 @@ const ja: Messages = {
   'menu.standard': '標準',
   'menu.faceoff': '対面',
   'menu.gameSetup': 'ゲーム設定',
+  'menu.licenses': 'オープンソースライセンス',
   'menu.choosePlayStyle': '遊び方を選択してください。',
 
   'mode.localMatch': 'ローカル対戦',
@@ -201,7 +212,12 @@ const ja: Messages = {
   'mode.gameMode': 'ゲームモード',
   'mode.easy': 'イージー',
   'mode.normal': 'ノーマル',
-  'mode.hard': 'ハード',
+  'mode.hard': 'SOPHIA',
+  'mode.kobalab': 'kobalab CPU',
+  'cpu.description.easy': 'はじめてでも遊びやすい、やさしめのCPU',
+  'cpu.description.normal': 'バランスよく対戦を楽しめる、標準的なCPU',
+  'cpu.description.hard': '独自開発の研究型CPU。現在鋭意強化中',
+  'cpu.description.kobalab': 'Satoshi Kobayashi氏開発「UpperHand」アプリ由来の上級者向けロジック',
 
   'setup.matchSetup': '対戦設定',
   'setup.onlineMatchSetup': 'オンライン対戦設定',
@@ -253,6 +269,10 @@ const ja: Messages = {
   'action.saveRecord': '棋譜を保存',
   'action.loadRecord': '棋譜を読み込む',
   'action.exportScoreSheet': '棋譜シートを保存',
+  'action.close': '閉じる',
+
+  'license.title': 'オープンソースライセンス',
+  'license.description': 'kobalab CPU には UpperHand 由来ロジックの TypeScript 移植版が含まれ、MIT License の対象です。',
 
   'status.thinking': '考え中',
   'status.turn': 'ターン',

@@ -1,0 +1,26 @@
+#pref
+  h2 設定
+  form
+    dl
+      dt 盤面
+      dd
+        select(name="size")
+          option(value="5") 5路盤
+          option(value="6") 6路盤
+          option(value="7") 7路盤
+      dt 相手
+      dd
+        select(name="level")
+          option(value="0") 人間
+          option(value="1") 初心者
+          option(value="2") 初級者
+          option(value="3") 中級者
+          option(value="4") 上級者
+      dt 手番
+      dd
+        select(name="turn")
+          option(value="1") 先手
+          option(value="2") 後手
+          option(value="3") (自動対戦)
+    input(type="reset" value="キャンセル")
+    input(type="submit" value="設定")

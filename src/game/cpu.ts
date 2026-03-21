@@ -1,7 +1,55 @@
 import { BASE_SIZE, TOTAL_PIECES, type GameState, type Move, type PlayerColor } from './types'
 import { canPlaceAt, evaluateSquareForAutoPlacement, getLegalMoves, placeManualPiece } from './logic'
+import { chooseKobalabMove } from './kobalab'
 
-export type CpuDifficulty = 'easy' | 'normal' | 'hard'
+export type CpuDifficulty = 'easy' | 'normal' | 'hard' | 'kobalab'
+
+export interface CpuDefinition {
+  id: CpuDifficulty
+  labelKey: string
+  descriptionKey: string
+  strategy: 'profile' | 'hard' | 'kobalab'
+  supportsAnalysis: boolean
+}
+
+export const CPU_DEFINITIONS: CpuDefinition[] = [
+  {
+    id: 'easy',
+    labelKey: 'mode.easy',
+    descriptionKey: 'cpu.description.easy',
+    strategy: 'profile',
+    supportsAnalysis: false,
+  },
+  {
+    id: 'normal',
+    labelKey: 'mode.normal',
+    descriptionKey: 'cpu.description.normal',
+    strategy: 'profile',
+    supportsAnalysis: false,
+  },
+  {
+    id: 'hard',
+    labelKey: 'mode.hard',
+    descriptionKey: 'cpu.description.hard',
+    strategy: 'hard',
+    supportsAnalysis: true,
+  },
+  {
+    id: 'kobalab',
+    labelKey: 'mode.kobalab',
+    descriptionKey: 'cpu.description.kobalab',
+    strategy: 'kobalab',
+    supportsAnalysis: false,
+  },
+]
+
+export function isCpuDifficulty(value: unknown): value is CpuDifficulty {
+  return CPU_DEFINITIONS.some((definition) => definition.id === value)
+}
+
+export function getCpuDefinition(difficulty: CpuDifficulty): CpuDefinition {
+  return CPU_DEFINITIONS.find((definition) => definition.id === difficulty) ?? CPU_DEFINITIONS[0]
+}
 
 interface ScoredMove {
   move: Move
@@ -269,6 +317,9 @@ export function chooseCpuMove(state: GameState, cpuColor: PlayerColor, difficult
   const legalMoves = getLegalMoves(state)
   if (legalMoves.length === 0) {
     return null
+  }
+  if (difficulty === 'kobalab') {
+    return chooseKobalabMove(state)
   }
   if (difficulty === 'hard') {
     return chooseHardMove(state, legalMoves, cpuColor).move

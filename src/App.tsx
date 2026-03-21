@@ -2,6 +2,7 @@
 import { BASE_SIZE, MAX_LEVEL, TOTAL_PIECES, type AutoPlacement, type GameState, type Move, type PlayerColor } from './game/types'
 import { createInitialGameState, getLegalMoves, getLevelSize, getPiece, placeManualPiece } from './game/logic'
 import {
+  CPU_DEFINITIONS,
   chooseCpuMove,
   chooseCpuMoveWithAnalysis,
   computeHardScoreFromBreakdown,
@@ -11,10 +12,13 @@ import {
   type HardMoveCandidate,
   type HardScoreComponentKey,
   type HardScoreComponentToggles,
+  getCpuDefinition,
+  isCpuDifficulty,
 } from './game/cpu'
 import { Board3DViewport } from './components/Board3DViewport'
 import { isFirebaseConfigured } from './firebase'
 import { resolveLanguage, translate, type AppLanguage } from './i18n'
+import { THIRD_PARTY_LICENSES_TEXT } from './licenses/thirdPartyLicenses'
 import {
   createMosaicRecordFileName,
   downloadMosaicRecord,
@@ -355,6 +359,7 @@ export default function App() {
   const [selectedDebugMoveKey, setSelectedDebugMoveKey] = useState<string | null>(null)
   const [hoveredDebugMoveKey, setHoveredDebugMoveKey] = useState<string | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [licensesOpen, setLicensesOpen] = useState(false)
   const [recordNotice, setRecordNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null)
   const [mobilePanelMode, setMobilePanelMode] = useState<MobilePanelMode>(() => {
     if (typeof window === 'undefined') {
@@ -1648,6 +1653,7 @@ export default function App() {
     setHardDebugAnalysis(null)
     setDebugOverlayMode('total')
     setIsMobileMenuOpen(false)
+    setLicensesOpen(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
     setDisplayRemaining({ ...game.remaining })
@@ -1693,6 +1699,7 @@ export default function App() {
     setHardDebugAnalysis(null)
     setDebugOverlayMode('total')
     setIsMobileMenuOpen(false)
+    setLicensesOpen(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
     lastWinnerRef.current = null
@@ -2150,13 +2157,13 @@ export default function App() {
       if (record.cpuSettings?.matchType === 'you_vs_cpu' || record.cpuSettings?.matchType === 'cpu_vs_cpu') {
         setCpuMatchType(record.cpuSettings.matchType)
       }
-      if (record.cpuSettings?.cpuDifficulty === 'easy' || record.cpuSettings?.cpuDifficulty === 'normal' || record.cpuSettings?.cpuDifficulty === 'hard') {
+      if (isCpuDifficulty(record.cpuSettings?.cpuDifficulty)) {
         setCpuDifficulty(record.cpuSettings.cpuDifficulty)
       }
-      if (record.cpuSettings?.cpu1Difficulty === 'easy' || record.cpuSettings?.cpu1Difficulty === 'normal' || record.cpuSettings?.cpu1Difficulty === 'hard') {
+      if (isCpuDifficulty(record.cpuSettings?.cpu1Difficulty)) {
         setCpu1Difficulty(record.cpuSettings.cpu1Difficulty)
       }
-      if (record.cpuSettings?.cpu2Difficulty === 'easy' || record.cpuSettings?.cpu2Difficulty === 'normal' || record.cpuSettings?.cpu2Difficulty === 'hard') {
+      if (isCpuDifficulty(record.cpuSettings?.cpu2Difficulty)) {
         setCpu2Difficulty(record.cpuSettings.cpu2Difficulty)
       }
     }
@@ -2703,6 +2710,17 @@ export default function App() {
               type="button"
               role="menuitem"
               className="mobile-menu-item"
+              onClick={() => {
+                setLicensesOpen(true)
+                setIsMobileMenuOpen(false)
+              }}
+            >
+              {t('menu.licenses')}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="mobile-menu-item"
               onClick={handleUndo}
               disabled={matchMode === 'online' || history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
             >
@@ -2742,6 +2760,11 @@ export default function App() {
       </button>
       ) : null}
       {!isOnlineMockView ? (
+      <button type="button" className="licenses-fixed" onClick={() => setLicensesOpen(true)}>
+        {t('menu.licenses')}
+      </button>
+      ) : null}
+      {!isOnlineMockView ? (
       <button
         type="button"
         className="undo-fixed"
@@ -2771,10 +2794,22 @@ export default function App() {
           {recordNotice.message}
         </div>
       ) : null}
+      {licensesOpen ? (
+        <div className="setup-overlay" role="dialog" aria-modal="true" aria-label={t('license.title')}>
+          <div className="setup-modal license-modal">
+            <h2>{t('license.title')}</h2>
+            <p>{t('license.description')}</p>
+            <pre className="license-pre">{THIRD_PARTY_LICENSES_TEXT}</pre>
+            <button type="button" className="start-button" onClick={() => setLicensesOpen(false)}>
+              {t('action.close')}
+            </button>
+          </div>
+        </div>
+      ) : null}
       {showHardDebugOverlay ? (
         <aside className={['cpu-debug-hud', isDebugHudCollapsed ? 'collapsed' : ''].filter(Boolean).join(' ')} aria-live="polite">
           <div className="cpu-debug-header">
-            <div className="cpu-debug-title">CPU Debug (Hard)</div>
+            <div className="cpu-debug-title">CPU Debug (SOPHIA)</div>
             <button
               type="button"
               className="cpu-debug-toggle"
@@ -3153,93 +3188,54 @@ export default function App() {
                 {pendingMode === 'cpu' && pendingCpuMatchType === 'you_vs_cpu' ? (
                   <div className="mode-row">
                     <div className="picker-label">{t('mode.cpuDifficulty')}</div>
-                    <div className="mode-options difficulty-options" role="radiogroup" aria-label="cpu difficulty">
-                      <button
-                        type="button"
-                        className={['mode-option', pendingCpuDifficulty === 'easy' ? 'selected' : ''].filter(Boolean).join(' ')}
-                        onClick={() => setPendingCpuDifficulty('easy')}
-                        aria-pressed={pendingCpuDifficulty === 'easy'}
-                      >
-                        {t('mode.easy')}
-                      </button>
-                      <button
-                        type="button"
-                        className={['mode-option', pendingCpuDifficulty === 'normal' ? 'selected' : ''].filter(Boolean).join(' ')}
-                        onClick={() => setPendingCpuDifficulty('normal')}
-                        aria-pressed={pendingCpuDifficulty === 'normal'}
-                      >
-                        {t('mode.normal')}
-                      </button>
-                      <button
-                        type="button"
-                        className={['mode-option', pendingCpuDifficulty === 'hard' ? 'selected' : ''].filter(Boolean).join(' ')}
-                        onClick={() => setPendingCpuDifficulty('hard')}
-                        aria-pressed={pendingCpuDifficulty === 'hard'}
-                      >
-                        {t('mode.hard')}
-                      </button>
-                    </div>
+                    <select
+                      className="cpu-select"
+                      aria-label="cpu difficulty"
+                      value={pendingCpuDifficulty}
+                      onChange={(event) => setPendingCpuDifficulty(event.target.value as CpuDifficulty)}
+                    >
+                      {CPU_DEFINITIONS.map((definition) => (
+                        <option key={definition.id} value={definition.id}>
+                          {t(definition.labelKey)}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="cpu-description-text">{cpuDifficultyDescription(pendingCpuDifficulty, language)}</div>
                   </div>
                 ) : null}
                 {pendingMode === 'cpu' && pendingCpuMatchType === 'cpu_vs_cpu' ? (
                   <>
                     <div className="mode-row">
                       <div className="picker-label">{t('mode.cpu1Difficulty')}</div>
-                      <div className="mode-options difficulty-options" role="radiogroup" aria-label="cpu 1 difficulty">
-                        <button
-                          type="button"
-                          className={['mode-option', pendingCpu1Difficulty === 'easy' ? 'selected' : ''].filter(Boolean).join(' ')}
-                          onClick={() => setPendingCpu1Difficulty('easy')}
-                          aria-pressed={pendingCpu1Difficulty === 'easy'}
-                        >
-                          {t('mode.easy')}
-                        </button>
-                        <button
-                          type="button"
-                          className={['mode-option', pendingCpu1Difficulty === 'normal' ? 'selected' : ''].filter(Boolean).join(' ')}
-                          onClick={() => setPendingCpu1Difficulty('normal')}
-                          aria-pressed={pendingCpu1Difficulty === 'normal'}
-                        >
-                          {t('mode.normal')}
-                        </button>
-                        <button
-                          type="button"
-                          className={['mode-option', pendingCpu1Difficulty === 'hard' ? 'selected' : ''].filter(Boolean).join(' ')}
-                          onClick={() => setPendingCpu1Difficulty('hard')}
-                          aria-pressed={pendingCpu1Difficulty === 'hard'}
-                        >
-                          {t('mode.hard')}
-                        </button>
-                      </div>
+                      <select
+                        className="cpu-select"
+                        aria-label="cpu 1 difficulty"
+                        value={pendingCpu1Difficulty}
+                        onChange={(event) => setPendingCpu1Difficulty(event.target.value as CpuDifficulty)}
+                      >
+                        {CPU_DEFINITIONS.map((definition) => (
+                          <option key={definition.id} value={definition.id}>
+                            {t(definition.labelKey)}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="cpu-description-text">{cpuDifficultyDescription(pendingCpu1Difficulty, language)}</div>
                     </div>
                     <div className="mode-row">
                       <div className="picker-label">{t('mode.cpu2Difficulty')}</div>
-                      <div className="mode-options difficulty-options" role="radiogroup" aria-label="cpu 2 difficulty">
-                        <button
-                          type="button"
-                          className={['mode-option', pendingCpu2Difficulty === 'easy' ? 'selected' : ''].filter(Boolean).join(' ')}
-                          onClick={() => setPendingCpu2Difficulty('easy')}
-                          aria-pressed={pendingCpu2Difficulty === 'easy'}
-                        >
-                          {t('mode.easy')}
-                        </button>
-                        <button
-                          type="button"
-                          className={['mode-option', pendingCpu2Difficulty === 'normal' ? 'selected' : ''].filter(Boolean).join(' ')}
-                          onClick={() => setPendingCpu2Difficulty('normal')}
-                          aria-pressed={pendingCpu2Difficulty === 'normal'}
-                        >
-                          {t('mode.normal')}
-                        </button>
-                        <button
-                          type="button"
-                          className={['mode-option', pendingCpu2Difficulty === 'hard' ? 'selected' : ''].filter(Boolean).join(' ')}
-                          onClick={() => setPendingCpu2Difficulty('hard')}
-                          aria-pressed={pendingCpu2Difficulty === 'hard'}
-                        >
-                          {t('mode.hard')}
-                        </button>
-                      </div>
+                      <select
+                        className="cpu-select"
+                        aria-label="cpu 2 difficulty"
+                        value={pendingCpu2Difficulty}
+                        onChange={(event) => setPendingCpu2Difficulty(event.target.value as CpuDifficulty)}
+                      >
+                        {CPU_DEFINITIONS.map((definition) => (
+                          <option key={definition.id} value={definition.id}>
+                            {t(definition.labelKey)}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="cpu-description-text">{cpuDifficultyDescription(pendingCpu2Difficulty, language)}</div>
                     </div>
                   </>
                 ) : null}
@@ -3903,13 +3899,11 @@ function cloneMatchRecord(record: MatchRecord): MatchRecord {
 }
 
 function cpuDifficultyLabel(difficulty: CpuDifficulty, language: AppLanguage): string {
-  if (difficulty === 'hard') {
-    return translate(language, 'mode.hard')
-  }
-  if (difficulty === 'normal') {
-    return translate(language, 'mode.normal')
-  }
-  return translate(language, 'mode.easy')
+  return translate(language, getCpuDefinition(difficulty).labelKey)
+}
+
+function cpuDifficultyDescription(difficulty: CpuDifficulty, language: AppLanguage): string {
+  return translate(language, getCpuDefinition(difficulty).descriptionKey)
 }
 
 function hardEndgamePhaseLabel(phase: 'normal' | 'endgame' | 'late_endgame'): string {

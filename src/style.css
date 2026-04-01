@@ -733,11 +733,13 @@ body {
 
 .piece.piece-real-image {
   border: none;
-  background-color: transparent;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: contain;
+  background: transparent center / 100% 100% no-repeat;
   box-shadow: 0 2px 6px rgba(40, 48, 74, 0.28);
+}
+
+.piece.blue.piece-real-image,
+.piece.yellow.piece-real-image {
+  background: transparent center / 100% 100% no-repeat;
 }
 
 .piece.blue {

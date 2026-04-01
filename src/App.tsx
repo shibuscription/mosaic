@@ -2671,7 +2671,7 @@ export default function App() {
                                   .join(' ')}
                                 style={
                                   pieceVisual?.imageUrl
-                                    ? { backgroundImage: `url(${pieceVisual.imageUrl})` }
+                                    ? { background: `transparent center / 100% 100% no-repeat url(${pieceVisual.imageUrl})` }
                                     : undefined
                                 }
                               />

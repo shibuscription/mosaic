@@ -128,8 +128,8 @@ body {
 
 .opening-splash-brand-band.bottom {
   bottom: clamp(6px, 1.4vw, 16px);
-  padding-inline: 0;
-  justify-content: center;
+  padding-inline: clamp(10px, 2.2vw, 22px);
+  justify-content: flex-end;
 }
 
 .opening-splash-logo,
@@ -2100,7 +2100,7 @@ body {
 
   .opening-splash.mobile .opening-splash-brand-band.bottom {
     bottom: calc(-4px + env(safe-area-inset-bottom));
-    padding-inline: 0;
+    padding-inline: 8px;
   }
 
   .page {

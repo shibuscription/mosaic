@@ -59,10 +59,6 @@ body {
   border-radius: 26px;
 }
 
-.opening-splash-flight {
-  display: none;
-}
-
 .opening-splash-window {
   position: relative;
   width: 100%;
@@ -97,14 +93,6 @@ body {
   animation: opening-splash-lid-open 3200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-.opening-splash-flight-lid {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(180deg, rgba(22, 23, 29, 0.96) 0%, rgba(5, 5, 7, 0.985) 74%, rgba(0, 0, 0, 0.995) 100%);
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
-}
-
 .opening-splash-lid::before {
   content: '';
   position: absolute;
@@ -114,26 +102,7 @@ body {
     linear-gradient(90deg, rgba(255, 255, 255, 0.03), transparent 28%, transparent 72%, rgba(255, 255, 255, 0.03));
 }
 
-.opening-splash-flight-lid::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 22%),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03), transparent 28%, transparent 72%, rgba(255, 255, 255, 0.03));
-}
-
 .opening-splash-lid::after {
-  content: '';
-  position: absolute;
-  left: 5%;
-  right: 5%;
-  top: 0;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.opening-splash-flight-lid::after {
   content: '';
   position: absolute;
   left: 5%;
@@ -1946,7 +1915,7 @@ body {
   }
 }
 
-@keyframes opening-splash-shell-clear {
+@keyframes opening-splash-shell-lift {
   0%,
   54% {
     opacity: 1;
@@ -1954,21 +1923,19 @@ body {
   }
   100% {
     opacity: 0;
-    transform: translateY(-16px) scale(0.985);
+    transform: translateY(-132vh) scale(1.02);
   }
 }
 
-@keyframes opening-splash-flight-open {
+@keyframes opening-splash-desktop-reveal {
   0%,
-  54% {
-    transform: translate3d(0, 0, 0) scale(1);
+  52% {
     opacity: 0;
   }
-  58% {
-    opacity: 1;
+  76% {
+    opacity: 0.48;
   }
   100% {
-    transform: translate3d(0, -132vh, 0) scale(1.08);
     opacity: 1;
   }
 }
@@ -1976,7 +1943,7 @@ body {
 
 @media (min-width: 980px) {
   .opening-splash.desktop .opening-splash-shell {
-    animation: opening-splash-shell-clear 3200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation: opening-splash-shell-lift 3200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
 
   .opening-splash.desktop .opening-splash-shell {
@@ -1993,38 +1960,24 @@ body {
   }
 
   .opening-splash.desktop .opening-splash-window::before,
-  .opening-splash.desktop .opening-splash-reveal,
-  .opening-splash.desktop .opening-splash-window,
-  .opening-splash.desktop .opening-splash-lid {
-    animation: none;
-  }
-
   .opening-splash.desktop .opening-splash-window {
     border-radius: 24px;
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
-      rgba(8, 9, 12, 0.16);
+      rgba(8, 9, 12, 0.96);
     backdrop-filter: blur(4px);
+    overflow: visible;
   }
 
-  .opening-splash.desktop .opening-splash-flight {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    display: block;
-    pointer-events: none;
-  }
-
-  .opening-splash.desktop .opening-splash-flight-lid {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: min(68vw, 760px);
-    aspect-ratio: 1.28 / 1;
+  .opening-splash.desktop .opening-splash-lid {
     border-radius: 24px;
-    overflow: hidden;
-    transform: translate(-50%, -50%);
-    animation: opening-splash-flight-open 3200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation: none;
+  }
+
+  .opening-splash.desktop .opening-splash-reveal {
+    height: 54%;
+    opacity: 0;
+    animation: opening-splash-desktop-reveal 3200ms ease forwards;
   }
 
   .table-layout {

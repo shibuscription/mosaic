@@ -2102,7 +2102,7 @@ body {
   }
 
   .opening-splash.mobile .opening-splash-brand-band.bottom {
-    bottom: calc(-4px + env(safe-area-inset-bottom));
+    bottom: calc(20px + env(safe-area-inset-bottom));
     padding-inline: 8px;
   }
 

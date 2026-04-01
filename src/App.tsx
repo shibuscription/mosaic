@@ -295,6 +295,8 @@ const PLAYBACK_AUTO_MS = 120
 const PLAYBACK_GAP_MS = 70
 const MOBILE_PANEL_MODE_KEY = 'mosaic.mobilePanelMode'
 const APP_LANGUAGE_KEY = 'mosaic.language'
+const OPENING_SPLASH_DATE_KEY = 'mosaic.openingSplashDate'
+const OPENING_SPLASH_DURATION_MS = 1500
 const ONLINE_HEARTBEAT_INTERVAL_MS = 5000
 const ONLINE_HEARTBEAT_TIMEOUT_MS = 15000
 const INITIAL_ONLINE_SESSION: OnlineSessionState = {
@@ -378,6 +380,7 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [licensesOpen, setLicensesOpen] = useState(false)
   const [recordNotice, setRecordNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null)
+  const [isOpeningSplashVisible, setIsOpeningSplashVisible] = useState(() => shouldShowOpeningSplashToday())
   const [mobilePanelMode, setMobilePanelMode] = useState<MobilePanelMode>(() => {
     if (typeof window === 'undefined') {
       return 'standard'
@@ -427,6 +430,7 @@ export default function App() {
   const chainBannerTimeoutIdsRef = useRef<number[]>([])
   const chainBannerSeqRef = useRef(0)
   const pendingCpuMoveRef = useRef<Move | null>(null)
+  const openingSplashTimeoutRef = useRef<number | null>(null)
   const onlineRoomUnsubRef = useRef<(() => void) | null>(null)
   const onlineLastMoveSignatureRef = useRef<string | null>(null)
   const onlineLeaveInFlightRef = useRef(false)
@@ -796,6 +800,7 @@ export default function App() {
       clearPlaybackTimer()
       clearCpuTimer()
       clearChainBannerTimers()
+      clearOpeningSplashTimer()
       stopOnlineRoomSubscription()
       audioCtxRef.current?.close().catch(() => undefined)
     }
@@ -1020,6 +1025,23 @@ export default function App() {
     const timeoutId = window.setTimeout(() => setRecordNotice(null), 2200)
     return () => window.clearTimeout(timeoutId)
   }, [recordNotice])
+
+  useEffect(() => {
+    if (!isOpeningSplashVisible || typeof window === 'undefined') {
+      return
+    }
+
+    window.localStorage.setItem(OPENING_SPLASH_DATE_KEY, getLocalDateStamp())
+    clearOpeningSplashTimer()
+    openingSplashTimeoutRef.current = window.setTimeout(() => {
+      setIsOpeningSplashVisible(false)
+      openingSplashTimeoutRef.current = null
+    }, OPENING_SPLASH_DURATION_MS)
+
+    return () => {
+      clearOpeningSplashTimer()
+    }
+  }, [isOpeningSplashVisible])
 
   const positions = useMemo(() => {
     const cells: Array<{
@@ -2422,6 +2444,19 @@ export default function App() {
     timeoutIdsRef.current.push(id1, id2)
   }
 
+  function clearOpeningSplashTimer(): void {
+    if (openingSplashTimeoutRef.current === null) {
+      return
+    }
+    window.clearTimeout(openingSplashTimeoutRef.current)
+    openingSplashTimeoutRef.current = null
+  }
+
+  function dismissOpeningSplash(): void {
+    clearOpeningSplashTimer()
+    setIsOpeningSplashVisible(false)
+  }
+
   return (
     <main className={`page mobile-panels-${mobilePanelMode}`} style={themeStyle}>
       {!isOnlineMockView ? (
@@ -3539,8 +3574,19 @@ export default function App() {
           </div>
         </div>
       ) : null}
+      {isOpeningSplashVisible ? (
+        <OpeningSplash
+          isCompactViewport={isCompactViewport}
+          onSkip={dismissOpeningSplash}
+        />
+      ) : null}
     </main>
   )
+}
+
+interface OpeningSplashProps {
+  isCompactViewport: boolean
+  onSkip: () => void
 }
 
 interface PlayerPanelProps {
@@ -3574,6 +3620,40 @@ interface OnlineMockPanelProps {
   onBackToCreateSetup: () => void
   onBackFromJoinOrError: () => void
   onCancelWaiting: () => void
+}
+
+function OpeningSplash({ isCompactViewport, onSkip }: OpeningSplashProps) {
+  return (
+    <div
+      className={['opening-splash', isCompactViewport ? 'mobile' : 'desktop'].join(' ')}
+      role="button"
+      tabIndex={0}
+      aria-label="Skip opening splash"
+      onPointerDown={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        onSkip()
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ' || event.key === 'Escape') {
+          event.preventDefault()
+          event.stopPropagation()
+          onSkip()
+        }
+      }}
+    >
+      <div className="opening-splash-backdrop" />
+      <div className="opening-splash-shell" aria-hidden="true">
+        <div className="opening-splash-window">
+          <div className="opening-splash-lid">
+            <img className="opening-splash-logo" src="/mosaic_logo_white.png" alt="" />
+            <img className="opening-splash-symbol" src="/mosaic_symbol_white.png" alt="" />
+          </div>
+          <div className="opening-splash-reveal" />
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function OnlineMockPanel({
@@ -3831,6 +3911,20 @@ function isDisplayColorId(value: unknown): value is DisplayColorId {
 function colorLabel(id: DisplayColorId): string {
   const found = COLOR_OPTIONS.find((option) => option.id === id)
   return found ? found.label : id
+}
+
+function getLocalDateStamp(date = new Date()): string {
+  const year = date.getFullYear()
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function shouldShowOpeningSplashToday(): boolean {
+  if (typeof window === 'undefined') {
+    return false
+  }
+  return window.localStorage.getItem(OPENING_SPLASH_DATE_KEY) !== getLocalDateStamp()
 }
 
 function getThemeByAssignedColors(colors: PlayerColorConfig): ColorPairTheme | null {

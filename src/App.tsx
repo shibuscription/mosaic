@@ -3641,6 +3641,14 @@ function OpeningSplash({ isCompactViewport, onSkip }: OpeningSplashProps) {
       }}
     >
       <div className="opening-splash-backdrop" />
+      {!isCompactViewport ? (
+        <div className="opening-splash-flight" aria-hidden="true">
+          <div className="opening-splash-flight-lid">
+            <img className="opening-splash-logo" src="/mosaic_logo_white.png" alt="" />
+            <img className="opening-splash-symbol" src="/mosaic_symbol_white.png" alt="" />
+          </div>
+        </div>
+      ) : null}
       <div className="opening-splash-shell" aria-hidden="true">
         <div className="opening-splash-window">
           <div className="opening-splash-lid">

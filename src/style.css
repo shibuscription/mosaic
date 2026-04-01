@@ -117,18 +117,19 @@ body {
   left: 0;
   width: 100%;
   display: flex;
-  justify-content: center;
   pointer-events: none;
 }
 
 .opening-splash-brand-band.top {
   top: clamp(20px, 4vw, 34px);
   padding-inline: clamp(12px, 3.2vw, 28px);
+  justify-content: flex-start;
 }
 
 .opening-splash-brand-band.bottom {
-  bottom: clamp(16px, 3vw, 28px);
-  padding-inline: clamp(8px, 2.6vw, 22px);
+  bottom: clamp(6px, 1.4vw, 16px);
+  padding-inline: 0;
+  justify-content: center;
 }
 
 .opening-splash-logo,
@@ -141,14 +142,14 @@ body {
 }
 
 .opening-splash-logo {
-  width: min(92%, 720px);
-  max-height: clamp(46px, 11vh, 112px);
+  width: min(46%, 290px);
+  max-height: clamp(40px, 8vh, 72px);
   object-fit: contain;
 }
 
 .opening-splash-symbol {
-  width: min(94%, 760px);
-  max-height: clamp(120px, 33vh, 340px);
+  width: min(112%, 1080px);
+  max-height: clamp(170px, 42vh, 440px);
   object-fit: contain;
   animation-delay: 420ms;
 }
@@ -2078,13 +2079,13 @@ body {
   }
 
   .opening-splash.mobile .opening-splash-logo {
-    width: min(100%, 96vw);
-    max-height: clamp(56px, 14vh, 118px);
+    width: min(58vw, 240px);
+    max-height: clamp(40px, 8vh, 74px);
   }
 
   .opening-splash.mobile .opening-splash-symbol {
-    width: min(100%, 100vw);
-    max-height: clamp(180px, 38vh, 360px);
+    width: min(124vw, 740px);
+    max-height: clamp(220px, 46vh, 420px);
   }
 
   .opening-splash.mobile .opening-splash-reveal {
@@ -2094,11 +2095,11 @@ body {
 
   .opening-splash.mobile .opening-splash-brand-band.top {
     top: calc(16px + env(safe-area-inset-top));
-    padding-inline: 10px;
+    padding-inline: 14px;
   }
 
   .opening-splash.mobile .opening-splash-brand-band.bottom {
-    bottom: calc(8px + env(safe-area-inset-bottom));
+    bottom: calc(-4px + env(safe-area-inset-bottom));
     padding-inline: 0;
   }
 

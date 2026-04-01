@@ -1894,8 +1894,14 @@ body {
 
 @keyframes opening-splash-backdrop-fade {
   0%,
-  86% {
+  56% {
     opacity: 1;
+  }
+  72% {
+    opacity: 0.62;
+  }
+  86% {
+    opacity: 0.24;
   }
   100% {
     opacity: 0;
@@ -1904,11 +1910,11 @@ body {
 
 @keyframes opening-splash-reveal-glow {
   0%,
-  52% {
+  58% {
     opacity: 0;
   }
-  76% {
-    opacity: 0.65;
+  78% {
+    opacity: 0.52;
   }
   100% {
     opacity: 0;
@@ -1929,14 +1935,27 @@ body {
 
 @keyframes opening-splash-desktop-reveal {
   0%,
-  52% {
+  56% {
     opacity: 0;
   }
-  76% {
-    opacity: 0.48;
+  74% {
+    opacity: 0.38;
   }
   100% {
     opacity: 1;
+  }
+}
+
+@keyframes opening-splash-mobile-backlight {
+  0%,
+  60% {
+    opacity: 0;
+  }
+  82% {
+    opacity: 0.48;
+  }
+  100% {
+    opacity: 0.12;
   }
 }
 
@@ -2032,6 +2051,7 @@ body {
 
   .opening-splash.mobile .opening-splash-reveal {
     height: 50%;
+    animation: opening-splash-mobile-backlight 3200ms ease forwards;
   }
 
   .page {

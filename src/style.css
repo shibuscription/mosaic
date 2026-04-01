@@ -729,6 +729,14 @@ body {
   box-shadow: 0 3px 7px #28304a52, inset 0 0 0 1px #18243f40;
 }
 
+.piece.piece-real-image {
+  border-color: rgba(255, 255, 255, 0.78);
+  background-color: rgba(255, 255, 255, 0.24);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
 .piece.blue {
   background: var(--color-blue);
 }
@@ -1390,6 +1398,12 @@ body {
   box-shadow: 0 1px 4px #2531513d;
 }
 
+.theme-preview-chip-real {
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
 .theme-assignment {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -1420,6 +1434,9 @@ body {
   border-radius: 999px;
   border: 2px solid #ffffff;
   box-shadow: 0 1px 6px #2531513d;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 .theme-assignment-name {

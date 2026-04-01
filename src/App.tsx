@@ -79,6 +79,10 @@ interface PlayerColorConfig {
   blue: DisplayColorId
   yellow: DisplayColorId
 }
+interface PieceVisual {
+  imageUrl: string | null
+  useRealImage: boolean
+}
 type MatchMode = 'pvp' | 'cpu' | 'online'
 type SetupStep = 'mode' | 'color'
 type OnlineEntryAction = 'create' | 'join' | null
@@ -170,6 +174,10 @@ interface ChainBannerState {
 }
 
 const DEFAULT_VISIBLE_CPU_DIFFICULTY: CpuDifficulty = 'hard'
+const ORIBE_PIECE_IMAGES: Record<PlayerColor, string> = {
+  blue: '/oribe-1.png',
+  yellow: '/oribe-2.png',
+}
 
 function filterVisibleCpuDefinitions(isResearchMode: boolean) {
   if (isResearchMode) {
@@ -483,6 +491,7 @@ export default function App() {
   const leftPercent = totalRemaining > 0 ? Math.round((rightRemaining / totalRemaining) * 100) : 50
   const rightPercent = 100 - leftPercent
   const selectedColorTheme = useMemo(() => getThemeByAssignedColors(pendingColors), [pendingColors])
+  const activeColorTheme = useMemo(() => getThemeByAssignedColors(playerColors), [playerColors])
   const debugMode = useMemo(() => {
     if (typeof window === 'undefined') {
       return false
@@ -503,6 +512,7 @@ export default function App() {
     return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`).matches
   })
   const showResearchUi = isResearchMode
+  const activePieceVisuals = useMemo(() => getPieceVisualsForTheme(activeColorTheme?.key ?? null), [activeColorTheme])
   const t = (key: string): string => translate(language, key)
   const nextTurnNumber = getNextTurnNumber(isPlayback, playbackMoveCursor, playbackTotalMoves, matchRecord.moves.length)
   const turnBadgeLabel = language === 'ja' ? `${nextTurnNumber}${t('status.moveSuffix')}` : `${t('status.turn')} ${nextTurnNumber}`
@@ -2541,6 +2551,7 @@ export default function App() {
               <Board3DViewport
                 board={game.board}
                 colors={pieceColorMap}
+                pieceTextures={activePieceVisuals}
                 onStartPlayback={game.winner && !isPlayback ? handlePlayback3D : undefined}
                 playbackLabel={t('action.playback')}
                 rotateOnLabel={t('action.rotateOn')}
@@ -2643,7 +2654,30 @@ export default function App() {
                           .join(' ')}
                         style={{ left: `${cell.left}%`, top: `${cell.top}%`, zIndex: `${visualZ}` }}
                       >
-                        {cell.pieceColor ? <span className={`piece ${cell.pieceColor}`} /> : visibleLegal ? <span className="guide" /> : null}
+                        {cell.pieceColor ? (
+                          (() => {
+                            const pieceVisual =
+                              cell.pieceColor === 'blue' || cell.pieceColor === 'yellow'
+                                ? activePieceVisuals[cell.pieceColor]
+                                : null
+                            return (
+                              <span
+                                className={[
+                                  'piece',
+                                  cell.pieceColor,
+                                  pieceVisual?.useRealImage ? 'piece-real-image' : '',
+                                ]
+                                  .filter(Boolean)
+                                  .join(' ')}
+                                style={
+                                  pieceVisual?.imageUrl
+                                    ? { backgroundImage: `url(${pieceVisual.imageUrl})` }
+                                    : undefined
+                                }
+                              />
+                            )
+                          })()
+                        ) : visibleLegal ? <span className="guide" /> : null}
                       </div>
                     </div>
                   )
@@ -3490,8 +3524,17 @@ export default function App() {
                                   return (
                                     <span
                                       key={option.id}
-                                      className="theme-preview-chip"
-                                      style={{ background: option.hex }}
+                                      className={[
+                                        'theme-preview-chip',
+                                        theme.key === 'oribe' ? 'theme-preview-chip-real' : '',
+                                      ]
+                                        .filter(Boolean)
+                                        .join(' ')}
+                                      style={
+                                        theme.key === 'oribe'
+                                          ? { backgroundImage: `url(${ORIBE_PIECE_IMAGES[id === theme.colors[0] ? 'blue' : 'yellow']})` }
+                                          : { background: option.hex }
+                                      }
                                     />
                                   )
                                 })}
@@ -3515,7 +3558,7 @@ export default function App() {
                         </span>
                         <span
                           className="theme-assignment-chip"
-                          style={{ background: (COLOR_OPTION_BY_ID.get(pendingColors.blue)?.hex ?? '#000000') }}
+                          style={getThemeAssignmentChipStyle(pendingColors.blue)}
                           aria-hidden="true"
                         />
                         <span className="theme-assignment-name">{colorLabel(pendingColors.blue)}</span>
@@ -3541,7 +3584,7 @@ export default function App() {
                         </span>
                         <span
                           className="theme-assignment-chip"
-                          style={{ background: (COLOR_OPTION_BY_ID.get(pendingColors.yellow)?.hex ?? '#000000') }}
+                          style={getThemeAssignmentChipStyle(pendingColors.yellow)}
                           aria-hidden="true"
                         />
                         <span className="theme-assignment-name">{colorLabel(pendingColors.yellow)}</span>
@@ -3909,6 +3952,29 @@ function isDisplayColorId(value: unknown): value is DisplayColorId {
 function colorLabel(id: DisplayColorId): string {
   const found = COLOR_OPTIONS.find((option) => option.id === id)
   return found ? found.label : id
+}
+
+function getPieceVisualsForTheme(themeKey: string | null): Record<PlayerColor, PieceVisual> {
+  if (themeKey === 'oribe') {
+    return {
+      blue: { imageUrl: ORIBE_PIECE_IMAGES.blue, useRealImage: true },
+      yellow: { imageUrl: ORIBE_PIECE_IMAGES.yellow, useRealImage: true },
+    }
+  }
+  return {
+    blue: { imageUrl: null, useRealImage: false },
+    yellow: { imageUrl: null, useRealImage: false },
+  }
+}
+
+function getThemeAssignmentChipStyle(id: DisplayColorId): CSSProperties {
+  if (id === 'oribe_green') {
+    return { backgroundImage: `url(${ORIBE_PIECE_IMAGES.blue})` }
+  }
+  if (id === 'oribe_deepbrown') {
+    return { backgroundImage: `url(${ORIBE_PIECE_IMAGES.yellow})` }
+  }
+  return { background: COLOR_OPTION_BY_ID.get(id)?.hex ?? '#000000' }
 }
 
 function getThemeByAssignedColors(colors: PlayerColorConfig): ColorPairTheme | null {

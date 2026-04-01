@@ -6,6 +6,7 @@ import { BASE_SIZE, type Board, type PieceColor } from '../game/types'
 interface Board3DViewportProps {
   board: Board
   colors: Record<PieceColor, string>
+  pieceTextures?: Partial<Record<PieceColor, { imageUrl: string | null; useRealImage: boolean }>>
   onStartPlayback?: () => void
   onSwitchTo2D?: () => void
   playbackLabel?: string
@@ -17,6 +18,7 @@ interface Board3DViewportProps {
 export function Board3DViewport({
   board,
   colors,
+  pieceTextures,
   onStartPlayback,
   onSwitchTo2D,
   playbackLabel = 'Playback',
@@ -104,6 +106,20 @@ export function Board3DViewport({
     const centerOffset = ((BASE_SIZE - 1) * gridSpacing) / 2
     const diskGeometry = new THREE.CylinderGeometry(diskRadius, diskRadius, diskHeight, 40)
     const pieceMeshes = new Map<string, THREE.Mesh>()
+    const textureLoader = new THREE.TextureLoader()
+    const textureCache = new Map<string, THREE.Texture>()
+
+    const getPieceTexture = (url: string): THREE.Texture => {
+      const cached = textureCache.get(url)
+      if (cached) {
+        return cached
+      }
+      const texture = textureLoader.load(url)
+      texture.colorSpace = THREE.SRGBColorSpace
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy()
+      textureCache.set(url, texture)
+      return texture
+    }
 
     const toKey = (level: number, row: number, col: number): string => `${level}-${row}-${col}`
     const addPieceMesh = (level: number, row: number, col: number, color: PieceColor) => {
@@ -114,11 +130,33 @@ export function Board3DViewport({
       const x = col * gridSpacing + level * (gridSpacing / 2) - centerOffset
       const z = row * gridSpacing + level * (gridSpacing / 2) - centerOffset
       const y = level * levelHeight
-      const material = new THREE.MeshStandardMaterial({
-        color: colors[color],
-        roughness: 0.33,
-        metalness: 0.06,
-      })
+      const pieceTexture = pieceTextures?.[color]
+      const material =
+        pieceTexture?.useRealImage && pieceTexture.imageUrl
+          ? [
+              new THREE.MeshStandardMaterial({
+                color: colors[color],
+                roughness: 0.42,
+                metalness: 0.04,
+              }),
+              new THREE.MeshStandardMaterial({
+                color: '#ffffff',
+                map: getPieceTexture(pieceTexture.imageUrl),
+                roughness: 0.3,
+                metalness: 0.04,
+              }),
+              new THREE.MeshStandardMaterial({
+                color: '#ffffff',
+                map: getPieceTexture(pieceTexture.imageUrl),
+                roughness: 0.3,
+                metalness: 0.04,
+              }),
+            ]
+          : new THREE.MeshStandardMaterial({
+              color: colors[color],
+              roughness: 0.33,
+              metalness: 0.06,
+            })
       const mesh = new THREE.Mesh(diskGeometry, material)
       mesh.position.set(x, y, z)
       mesh.castShadow = true
@@ -217,9 +255,11 @@ export function Board3DViewport({
       basePlateGeometry.dispose()
       ;(basePlate.material as THREE.Material).dispose()
       disposePieceMeshes()
+      textureCache.forEach((texture) => texture.dispose())
+      textureCache.clear()
       renderer.dispose()
     }
-  }, [colors])
+  }, [colors, pieceTextures])
 
   return (
     <div className="inline-3d-shell">

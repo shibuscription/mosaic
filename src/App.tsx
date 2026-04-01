@@ -42,6 +42,7 @@ import {
   type RoomDoc,
   deserializeGameState,
 } from './online/room'
+import { MOBILE_BREAKPOINT_PX, OFFICIAL_SITE_URL, isKobalabResearchModeEnabled } from './urlFlags'
 import './style.css'
 
 type DisplayColorId =
@@ -166,6 +167,22 @@ interface ChainBannerState {
   tone: ChainTone
   left: number
   top: number
+}
+
+const DEFAULT_VISIBLE_CPU_DIFFICULTY: CpuDifficulty = 'hard'
+
+function filterVisibleCpuDefinitions(isResearchMode: boolean) {
+  if (isResearchMode) {
+    return CPU_DEFINITIONS
+  }
+  return CPU_DEFINITIONS.filter((definition) => definition.id !== 'kobalab')
+}
+
+function normalizeVisibleCpuDifficulty(difficulty: CpuDifficulty, isResearchMode: boolean): CpuDifficulty {
+  if (isResearchMode || difficulty !== 'kobalab') {
+    return difficulty
+  }
+  return DEFAULT_VISIBLE_CPU_DIFFICULTY
 }
 
 const DEBUG_SCORE_CATEGORIES: DebugScoreCategory[] = [
@@ -469,6 +486,20 @@ export default function App() {
     }
     return new URLSearchParams(window.location.search).get('debug') === '1'
   }, [])
+  const isResearchMode = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+    return isKobalabResearchModeEnabled(window.location.search)
+  }, [])
+  const visibleCpuDefinitions = useMemo(() => filterVisibleCpuDefinitions(isResearchMode), [isResearchMode])
+  const [isCompactViewport, setIsCompactViewport] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+    return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`).matches
+  })
+  const showResearchUi = isResearchMode
   const t = (key: string): string => translate(language, key)
   const nextTurnNumber = getNextTurnNumber(isPlayback, playbackMoveCursor, playbackTotalMoves, matchRecord.moves.length)
   const turnBadgeLabel = language === 'ja' ? `${nextTurnNumber}${t('status.moveSuffix')}` : `${t('status.turn')} ${nextTurnNumber}`
@@ -932,6 +963,34 @@ export default function App() {
     window.localStorage.setItem(APP_LANGUAGE_KEY, language)
     document.title = t('app.title')
   }, [language])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    const mediaQuery = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`)
+    const updateViewportMode = (event?: MediaQueryListEvent) => {
+      setIsCompactViewport(event?.matches ?? mediaQuery.matches)
+    }
+    updateViewportMode()
+    mediaQuery.addEventListener('change', updateViewportMode)
+    return () => {
+      mediaQuery.removeEventListener('change', updateViewportMode)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isResearchMode) {
+      return
+    }
+    setCpuDifficulty((prev) => normalizeVisibleCpuDifficulty(prev, false))
+    setPendingCpuDifficulty((prev) => normalizeVisibleCpuDifficulty(prev, false))
+    setCpu1Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, false))
+    setCpu2Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, false))
+    setPendingCpu1Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, false))
+    setPendingCpu2Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, false))
+    setLicensesOpen(false)
+  }, [isResearchMode])
 
   useEffect(() => {
     if (!isMobileMenuOpen) {
@@ -2706,17 +2765,29 @@ export default function App() {
             >
               {t('action.loadRecord')}
             </button>
-            <button
-              type="button"
+            <a
               role="menuitem"
-              className="mobile-menu-item"
-              onClick={() => {
-                setLicensesOpen(true)
-                setIsMobileMenuOpen(false)
-              }}
+              className="mobile-menu-item mobile-menu-link"
+              href={OFFICIAL_SITE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setIsMobileMenuOpen(false)}
             >
-              {t('menu.licenses')}
-            </button>
+              {t('menu.officialSite')}
+            </a>
+            {showResearchUi ? (
+              <button
+                type="button"
+                role="menuitem"
+                className="mobile-menu-item"
+                onClick={() => {
+                  setLicensesOpen(true)
+                  setIsMobileMenuOpen(false)
+                }}
+              >
+                {t('menu.licenses')}
+              </button>
+            ) : null}
             <button
               type="button"
               role="menuitem"
@@ -2760,9 +2831,11 @@ export default function App() {
       </button>
       ) : null}
       {!isOnlineMockView ? (
+      showResearchUi ? (
       <button type="button" className="licenses-fixed" onClick={() => setLicensesOpen(true)}>
         {t('menu.licenses')}
       </button>
+      ) : null
       ) : null}
       {!isOnlineMockView ? (
       <button
@@ -2794,7 +2867,24 @@ export default function App() {
           {recordNotice.message}
         </div>
       ) : null}
-      {licensesOpen ? (
+      {!isOnlineMockView ? (
+      isCompactViewport ? (
+        <div className="official-logo-badge" aria-hidden="true">
+          <img className="official-logo-image" src="/mosaic_logo_white.png" alt="MOSAIC" />
+        </div>
+      ) : (
+        <a
+          className="official-logo-badge official-logo-link"
+          href={OFFICIAL_SITE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={t('menu.officialSite')}
+        >
+          <img className="official-logo-image" src="/mosaic_logo_white.png" alt="MOSAIC" />
+        </a>
+      )
+      ) : null}
+      {showResearchUi && licensesOpen ? (
         <div className="setup-overlay" role="dialog" aria-modal="true" aria-label={t('license.title')}>
           <div className="setup-modal license-modal">
             <h2>{t('license.title')}</h2>
@@ -3194,7 +3284,7 @@ export default function App() {
                       value={pendingCpuDifficulty}
                       onChange={(event) => setPendingCpuDifficulty(event.target.value as CpuDifficulty)}
                     >
-                      {CPU_DEFINITIONS.map((definition) => (
+                      {visibleCpuDefinitions.map((definition) => (
                         <option key={definition.id} value={definition.id}>
                           {t(definition.labelKey)}
                         </option>
@@ -3213,7 +3303,7 @@ export default function App() {
                         value={pendingCpu1Difficulty}
                         onChange={(event) => setPendingCpu1Difficulty(event.target.value as CpuDifficulty)}
                       >
-                        {CPU_DEFINITIONS.map((definition) => (
+                        {visibleCpuDefinitions.map((definition) => (
                           <option key={definition.id} value={definition.id}>
                             {t(definition.labelKey)}
                           </option>
@@ -3229,7 +3319,7 @@ export default function App() {
                         value={pendingCpu2Difficulty}
                         onChange={(event) => setPendingCpu2Difficulty(event.target.value as CpuDifficulty)}
                       >
-                        {CPU_DEFINITIONS.map((definition) => (
+                        {visibleCpuDefinitions.map((definition) => (
                           <option key={definition.id} value={definition.id}>
                             {t(definition.labelKey)}
                           </option>

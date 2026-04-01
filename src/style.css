@@ -631,6 +631,7 @@ body {
 .language-fixed,
 .load-fixed,
 .licenses-fixed,
+.official-logo-badge,
 .undo-fixed,
 .reset-fixed {
   position: fixed;
@@ -642,6 +643,36 @@ body {
   color: #fff;
   cursor: pointer;
   box-shadow: 0 4px 10px #0f1a302f;
+}
+
+.official-logo-badge {
+  right: 12px;
+  bottom: calc(56px + env(safe-area-inset-bottom));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: rgba(19, 33, 58, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 18px rgba(15, 26, 48, 0.18);
+  backdrop-filter: blur(8px);
+  cursor: default;
+  pointer-events: none;
+}
+
+.official-logo-link {
+  text-decoration: none;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.official-logo-image {
+  display: block;
+  width: 90px;
+  height: auto;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
 }
 
 .mobile-menu {
@@ -1849,6 +1880,11 @@ body {
     cursor: pointer;
   }
 
+  .mobile-menu-link {
+    display: block;
+    text-decoration: none;
+  }
+
   .mobile-menu-item:disabled {
     opacity: 0.48;
     cursor: not-allowed;
@@ -1862,6 +1898,18 @@ body {
   .player-panel {
     grid-template-rows: auto auto auto auto;
     min-height: 0;
+  }
+
+  .official-logo-badge {
+    right: 58px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    min-height: 36px;
+    padding: 6px 8px;
+    border-radius: 10px;
+  }
+
+  .official-logo-image {
+    width: 74px;
   }
 
   .remaining-stack-grid {

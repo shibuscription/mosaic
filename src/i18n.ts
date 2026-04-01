@@ -3,7 +3,7 @@
 type Messages = Record<string, string>
 
 const en: Messages = {
-  'app.title': 'MOSAIC (Unofficial)',
+  'app.title': 'MOSAIC',
   'menu.language': 'Language',
   'menu.english': 'English',
   'menu.japanese': '日本語',
@@ -11,6 +11,7 @@ const en: Messages = {
   'menu.standard': 'Standard',
   'menu.faceoff': 'Face-off',
   'menu.gameSetup': 'Game Setup',
+  'menu.officialSite': 'MOSAIC公式サイト',
   'menu.licenses': 'Open Source Licenses',
   'menu.choosePlayStyle': 'Choose how you want to play.',
 
@@ -186,7 +187,7 @@ const en: Messages = {
 }
 
 const ja: Messages = {
-  'app.title': 'MOSAIC（非公式）',
+  'app.title': 'MOSAIC',
   'menu.language': '言語',
   'menu.english': 'English',
   'menu.japanese': '日本語',
@@ -194,6 +195,7 @@ const ja: Messages = {
   'menu.standard': '標準',
   'menu.faceoff': '対面',
   'menu.gameSetup': 'ゲーム設定',
+  'menu.officialSite': 'MOSAIC公式サイト',
   'menu.licenses': 'オープンソースライセンス',
   'menu.choosePlayStyle': '遊び方を選択してください。',
 

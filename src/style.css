@@ -646,18 +646,18 @@ body {
 }
 
 .official-logo-badge {
-  right: 12px;
-  bottom: calc(56px + env(safe-area-inset-bottom));
+  left: 12px;
+  bottom: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 42px;
-  padding: 7px 10px;
-  border-radius: 12px;
-  background: rgba(19, 33, 58, 0.36);
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(41, 56, 90, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 8px 18px rgba(15, 26, 48, 0.18);
-  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 10px #0f1a302f;
+  backdrop-filter: blur(6px);
   cursor: default;
   pointer-events: none;
 }
@@ -670,7 +670,7 @@ body {
 
 .official-logo-image {
   display: block;
-  width: 90px;
+  width: 82px;
   height: auto;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
 }
@@ -690,7 +690,7 @@ body {
 }
 
 .language-fixed {
-  left: 12px;
+  left: 128px;
   bottom: 12px;
   background: #667194;
 }
@@ -700,7 +700,7 @@ body {
 }
 
 .load-fixed {
-  left: 170px;
+  left: 286px;
   bottom: 12px;
   background: #4f6f99;
 }
@@ -710,7 +710,7 @@ body {
 }
 
 .licenses-fixed {
-  left: 312px;
+  left: 428px;
   bottom: 12px;
   background: #6b5f8f;
 }
@@ -1901,15 +1901,15 @@ body {
   }
 
   .official-logo-badge {
-    right: 58px;
+    left: 10px;
     bottom: calc(10px + env(safe-area-inset-bottom));
-    min-height: 36px;
-    padding: 6px 8px;
-    border-radius: 10px;
+    min-height: 34px;
+    padding: 6px 9px;
+    border-radius: 999px;
   }
 
   .official-logo-image {
-    width: 74px;
+    width: 70px;
   }
 
   .remaining-stack-grid {

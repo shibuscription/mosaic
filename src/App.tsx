@@ -83,6 +83,15 @@ interface PieceVisual {
   imageUrl: string | null
   useRealImage: boolean
 }
+interface ThemeImageConfig {
+  player1ColorId: DisplayColorId
+  player2ColorId: DisplayColorId
+  player1Image: string
+  player2Image: string
+  centerImage: string
+  player1Label: string
+  player2Label: string
+}
 type MatchMode = 'pvp' | 'cpu' | 'online'
 type SetupStep = 'mode' | 'color'
 type OnlineEntryAction = 'create' | 'join' | null
@@ -174,12 +183,73 @@ interface ChainBannerState {
 }
 
 const DEFAULT_VISIBLE_CPU_DIFFICULTY: CpuDifficulty = 'hard'
-const ORIBE_PIECE_IMAGES: Record<PlayerColor, string> = {
-  blue: '/oribe-1.png',
-  yellow: '/oribe-2.png',
-}
 const CENTER_PLAIN_IMAGE_URL = '/center-plain.png'
-const CENTER_IMAGE_THEME_KEYS = new Set(['trad', 'halfblue', 'pastel', 'milkyway', 'oribe', 'miyabi', 'iki'])
+const CENTER_PATTERN_IMAGE_URL = '/center-pattern.png'
+const THEME_IMAGE_CONFIGS = {
+  milkyway: {
+    player1ColorId: 'milkyway_white',
+    player2ColorId: 'milkyway_blue',
+    player1Image: '/milkyway-1.png',
+    player2Image: '/milkyway-2.png',
+    centerImage: CENTER_PLAIN_IMAGE_URL,
+    player1Label: 'Milky Way White',
+    player2Label: 'Milky Way Blue',
+  },
+  pastel: {
+    player1ColorId: 'pastel_green',
+    player2ColorId: 'pastel_pink',
+    player1Image: '/pastel-1.png',
+    player2Image: '/pastel-2.png',
+    centerImage: CENTER_PLAIN_IMAGE_URL,
+    player1Label: 'Pastel Green',
+    player2Label: 'Pastel Pink',
+  },
+  halfblue: {
+    player1ColorId: 'halfblue_sky',
+    player2ColorId: 'halfblue_white',
+    player1Image: '/halfblue-1.png',
+    player2Image: '/halfblue-2.png',
+    centerImage: CENTER_PLAIN_IMAGE_URL,
+    player1Label: 'Half Blue Sky',
+    player2Label: 'Half Blue White',
+  },
+  trad: {
+    player1ColorId: 'trad_black',
+    player2ColorId: 'trad_white',
+    player1Image: '/trad-1.png',
+    player2Image: '/trad-2.png',
+    centerImage: CENTER_PLAIN_IMAGE_URL,
+    player1Label: 'Trad Black',
+    player2Label: 'Trad White',
+  },
+  miyabi: {
+    player1ColorId: 'miyabi_teal',
+    player2ColorId: 'miyabi_vermilion',
+    player1Image: '/miyabi-1.png',
+    player2Image: '/miyabi-2.png',
+    centerImage: CENTER_PATTERN_IMAGE_URL,
+    player1Label: 'Miyabi Teal',
+    player2Label: 'Miyabi Vermilion',
+  },
+  iki: {
+    player1ColorId: 'iki_blue',
+    player2ColorId: 'iki_white',
+    player1Image: '/iki-1.png',
+    player2Image: '/iki-2.png',
+    centerImage: CENTER_PATTERN_IMAGE_URL,
+    player1Label: 'Iki Blue',
+    player2Label: 'Iki White',
+  },
+  oribe: {
+    player1ColorId: 'oribe_green',
+    player2ColorId: 'oribe_deepbrown',
+    player1Image: '/oribe-1.png',
+    player2Image: '/oribe-2.png',
+    centerImage: CENTER_PLAIN_IMAGE_URL,
+    player1Label: 'Oribe Green',
+    player2Label: 'Oribe Deep Brown',
+  },
+} satisfies Record<string, ThemeImageConfig>
 
 function filterVisibleCpuDefinitions(isResearchMode: boolean) {
   if (isResearchMode) {
@@ -267,8 +337,8 @@ const COLOR_OPTIONS: ColorOption[] = [
 ]
 
 const COLOR_PAIR_THEMES: ColorPairTheme[] = [
-  { key: 'milkyway', label: 'Milky Way', colors: ['milkyway_blue', 'milkyway_white'] },
-  { key: 'pastel', label: 'Pastel', colors: ['pastel_pink', 'pastel_green'] },
+  { key: 'milkyway', label: 'Milky Way', colors: ['milkyway_white', 'milkyway_blue'] },
+  { key: 'pastel', label: 'Pastel', colors: ['pastel_green', 'pastel_pink'] },
   { key: 'halfblue', label: 'Half Blue', colors: ['halfblue_sky', 'halfblue_white'] },
   { key: 'trad', label: 'Trad', colors: ['trad_black', 'trad_white'] },
   { key: 'miyabi', label: 'Miyabi', colors: ['miyabi_teal', 'miyabi_vermilion'] },
@@ -492,7 +562,6 @@ export default function App() {
   const leftPercent = totalRemaining > 0 ? Math.round((rightRemaining / totalRemaining) * 100) : 50
   const rightPercent = 100 - leftPercent
   const selectedColorTheme = useMemo(() => getThemeByAssignedColors(pendingColors), [pendingColors])
-  const activeColorTheme = useMemo(() => getThemeByAssignedColors(playerColors), [playerColors])
   const debugMode = useMemo(() => {
     if (typeof window === 'undefined') {
       return false
@@ -513,7 +582,7 @@ export default function App() {
     return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`).matches
   })
   const showResearchUi = isResearchMode
-  const activePieceVisuals = useMemo(() => getPieceVisualsForTheme(activeColorTheme?.key ?? null), [activeColorTheme])
+  const activePieceVisuals = useMemo(() => getPieceVisualsForColors(playerColors), [playerColors])
   const t = (key: string): string => translate(language, key)
   const nextTurnNumber = getNextTurnNumber(isPlayback, playbackMoveCursor, playbackTotalMoves, matchRecord.moves.length)
   const turnBadgeLabel = language === 'ja' ? `${nextTurnNumber}${t('status.moveSuffix')}` : `${t('status.turn')} ${nextTurnNumber}`
@@ -3499,6 +3568,7 @@ export default function App() {
                       <div className="theme-grid" role="radiogroup" aria-label="color theme">
                         {COLOR_PAIR_THEMES.map((theme) => {
                           const isSelected = selectedColorTheme?.key === theme.key
+                          const themeImageConfig = getThemeImageConfig(theme.key)
                           return (
                             <button
                               key={theme.key}
@@ -3514,25 +3584,29 @@ export default function App() {
                             >
                               <span className="theme-option-label">{t(`theme.${theme.key}`)}</span>
                               <span className="theme-option-chips" aria-hidden="true">
-                                {theme.colors.map((id) => {
+                                {theme.colors.map((id, index) => {
                                   const option = COLOR_OPTION_BY_ID.get(id)
                                   if (!option) {
                                     return null
                                   }
+                                  const previewStyle =
+                                    themeImageConfig !== null
+                                      ? {
+                                          background: `transparent center / 100% 100% no-repeat url(${
+                                            index === 0 ? themeImageConfig.player1Image : themeImageConfig.player2Image
+                                          })`,
+                                        }
+                                      : { background: option.hex }
                                   return (
                                     <span
                                       key={option.id}
                                       className={[
                                         'theme-preview-chip',
-                                        theme.key === 'oribe' ? 'theme-preview-chip-real' : '',
+                                        themeImageConfig !== null ? 'theme-preview-chip-real' : '',
                                       ]
                                         .filter(Boolean)
                                         .join(' ')}
-                                      style={
-                                        theme.key === 'oribe'
-                                          ? { backgroundImage: `url(${ORIBE_PIECE_IMAGES[id === theme.colors[0] ? 'blue' : 'yellow']})` }
-                                          : { background: option.hex }
-                                      }
+                                      style={previewStyle}
                                     />
                                   )
                                 })}
@@ -3952,41 +4026,70 @@ function isDisplayColorId(value: unknown): value is DisplayColorId {
 }
 
 function colorLabel(id: DisplayColorId): string {
+  const themeImageConfig = getThemeImageConfigByColorId(id)
+  if (themeImageConfig !== null) {
+    return themeImageConfig.player1ColorId === id ? themeImageConfig.player1Label : themeImageConfig.player2Label
+  }
   const found = COLOR_OPTIONS.find((option) => option.id === id)
   return found ? found.label : id
 }
 
-function getPieceVisualsForTheme(themeKey: string | null): Record<PieceColor, PieceVisual> {
-  const centerPieceImage = getCenterPieceImage(themeKey)
-  if (themeKey === 'oribe') {
-    return {
-      blue: { imageUrl: ORIBE_PIECE_IMAGES.blue, useRealImage: true },
-      yellow: { imageUrl: ORIBE_PIECE_IMAGES.yellow, useRealImage: true },
-      neutral: { imageUrl: centerPieceImage, useRealImage: centerPieceImage !== null },
-    }
-  }
+function getPieceVisualsForColors(colors: PlayerColorConfig): Record<PieceColor, PieceVisual> {
+  const activeTheme = getThemeByAssignedColors(colors)
+  const centerPieceImage = getCenterPieceImage(activeTheme?.key ?? null)
+  const blueImage = getPieceImageForColorId(colors.blue)
+  const yellowImage = getPieceImageForColorId(colors.yellow)
   return {
-    blue: { imageUrl: null, useRealImage: false },
-    yellow: { imageUrl: null, useRealImage: false },
-    neutral: { imageUrl: centerPieceImage, useRealImage: centerPieceImage !== null },
+    blue: {
+      imageUrl: blueImage,
+      useRealImage: blueImage !== null,
+    },
+    yellow: {
+      imageUrl: yellowImage,
+      useRealImage: yellowImage !== null,
+    },
+    neutral: {
+      imageUrl: centerPieceImage,
+      useRealImage: centerPieceImage !== null,
+    },
   }
 }
 
 function getCenterPieceImage(themeKey: string | null): string | null {
-  if (!themeKey || !CENTER_IMAGE_THEME_KEYS.has(themeKey)) {
-    return null
-  }
-  return CENTER_PLAIN_IMAGE_URL
+  return getThemeImageConfig(themeKey)?.centerImage ?? null
 }
 
 function getThemeAssignmentChipStyle(id: DisplayColorId): CSSProperties {
-  if (id === 'oribe_green') {
-    return { backgroundImage: `url(${ORIBE_PIECE_IMAGES.blue})` }
-  }
-  if (id === 'oribe_deepbrown') {
-    return { backgroundImage: `url(${ORIBE_PIECE_IMAGES.yellow})` }
+  const imageUrl = getPieceImageForColorId(id)
+  if (imageUrl !== null) {
+    return {
+      background: `transparent center / 100% 100% no-repeat url(${imageUrl})`,
+    }
   }
   return { background: COLOR_OPTION_BY_ID.get(id)?.hex ?? '#000000' }
+}
+
+function getThemeImageConfig(themeKey: string | null): ThemeImageConfig | null {
+  if (!themeKey) {
+    return null
+  }
+  return THEME_IMAGE_CONFIGS[themeKey as keyof typeof THEME_IMAGE_CONFIGS] ?? null
+}
+
+function getThemeImageConfigByColorId(id: DisplayColorId): ThemeImageConfig | null {
+  return (
+    Object.values(THEME_IMAGE_CONFIGS).find(
+      (themeImageConfig) => themeImageConfig.player1ColorId === id || themeImageConfig.player2ColorId === id,
+    ) ?? null
+  )
+}
+
+function getPieceImageForColorId(id: DisplayColorId): string | null {
+  const themeImageConfig = getThemeImageConfigByColorId(id)
+  if (themeImageConfig === null) {
+    return null
+  }
+  return themeImageConfig.player1ColorId === id ? themeImageConfig.player1Image : themeImageConfig.player2Image
 }
 
 function getThemeByAssignedColors(colors: PlayerColorConfig): ColorPairTheme | null {

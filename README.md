@@ -473,9 +473,9 @@ src/
 
 ## Piece Image Prototype Notes
 
-- `Classic` theme is currently excluded from the selectable theme list for the ongoing real-piece image rollout.
-- The center piece now uses `center-plain.png` in supported themes.
-- Full image rollout for regular pieces in non-Oribe themes, plus dedicated center images for `miyabi` / `iki`, is planned for a future update.
+- `Classic` remains excluded from the selectable theme list because image assets are not yet prepared for it.
+- Regular piece images are now officially reflected across the supported themes, with the default mapping set to Player 1 = `-1` and Player 2 = `-2`.
+- `miyabi` and `iki` use `center-pattern.png` for the center piece, while the other supported themes use `center-plain.png`.
 
 ## Splash Layout Notes
 

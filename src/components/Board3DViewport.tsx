@@ -103,8 +103,14 @@ export function Board3DViewport({
     const boardPlateSize = boardSpan + boardPadding
     const boardPlateThickness = 0.12
     const boardCornerRadius = 0.13
+    const baseHoleRadius = 0.082
+    const baseHoleDepth = 0.018
+    const baseHoleRimRadius = 0.118
+    const baseHoleRimHeight = 0.008
     const centerOffset = ((BASE_SIZE - 1) * gridSpacing) / 2
     const diskGeometry = new THREE.CylinderGeometry(diskRadius, diskRadius, diskHeight, 40)
+    const baseHoleGeometry = new THREE.CylinderGeometry(baseHoleRadius, baseHoleRadius, baseHoleDepth, 28)
+    const baseHoleRimGeometry = new THREE.CylinderGeometry(baseHoleRimRadius, baseHoleRimRadius, baseHoleRimHeight, 28)
     const pieceMeshes = new Map<string, THREE.Mesh>()
     const textureLoader = new THREE.TextureLoader()
     const textureCache = new Map<string, THREE.Texture>()
@@ -209,6 +215,35 @@ export function Board3DViewport({
     )
     basePlate.receiveShadow = true
     boardGroup.add(basePlate)
+
+    const baseHoleMaterial = new THREE.MeshStandardMaterial({
+      color: '#6e4d30',
+      roughness: 0.92,
+      metalness: 0.01,
+    })
+    const baseHoleRimMaterial = new THREE.MeshStandardMaterial({
+      color: '#c79e71',
+      roughness: 0.85,
+      metalness: 0.01,
+    })
+
+    for (let row = 0; row < BASE_SIZE; row += 1) {
+      for (let col = 0; col < BASE_SIZE; col += 1) {
+        const x = col * gridSpacing - centerOffset
+        const z = row * gridSpacing - centerOffset
+
+        const holeRim = new THREE.Mesh(baseHoleRimGeometry, baseHoleRimMaterial)
+        holeRim.position.set(x, topSurfaceY - baseHoleRimHeight * 0.32, z)
+        holeRim.receiveShadow = true
+        boardGroup.add(holeRim)
+
+        const hole = new THREE.Mesh(baseHoleGeometry, baseHoleMaterial)
+        hole.position.set(x, topSurfaceY - baseHoleDepth * 0.55, z)
+        hole.receiveShadow = true
+        boardGroup.add(hole)
+      }
+    }
+
     renderBoard(boardRef.current)
 
     const resize = () => {
@@ -252,8 +287,12 @@ export function Board3DViewport({
       controls.dispose()
       mount.removeChild(renderer.domElement)
       diskGeometry.dispose()
+      baseHoleGeometry.dispose()
+      baseHoleRimGeometry.dispose()
       basePlateGeometry.dispose()
       ;(basePlate.material as THREE.Material).dispose()
+      baseHoleMaterial.dispose()
+      baseHoleRimMaterial.dispose()
       disposePieceMeshes()
       textureCache.forEach((texture) => texture.dispose())
       textureCache.clear()

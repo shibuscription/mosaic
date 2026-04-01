@@ -2644,8 +2644,9 @@ export default function App() {
               <div className="board">
                 {positions.map((cell) => {
                   const visibleLegal = cell.legal && !(suppressDeeperCpuLegalIndicators && cell.level > 0)
+                  const showBaseHole = cell.level === 0 && !cell.pieceColor
 
-                  if (!cell.pieceColor && !visibleLegal) {
+                  if (!cell.pieceColor && !visibleLegal && !showBaseHole) {
                     return null
                   }
 
@@ -2724,6 +2725,7 @@ export default function App() {
                           .join(' ')}
                         style={{ left: `${cell.left}%`, top: `${cell.top}%`, zIndex: `${visualZ}` }}
                       >
+                        {showBaseHole ? <span className="base-hole" aria-hidden="true" /> : null}
                         {cell.pieceColor ? (
                           (() => {
                             const pieceVisual = activePieceVisuals[cell.pieceColor]

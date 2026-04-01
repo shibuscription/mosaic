@@ -482,3 +482,7 @@ src/
 - The splash logo / symbol layout was updated from corner placement to a top-band / bottom-band composition.
 - This change is aimed at improving visibility on phones and tablets with larger brand imagery.
 - PC now follows the same top-and-bottom layout idea while keeping the centered box-opening animation.
+
+## Board Detail Notes
+
+- To better match the physical board feel, small hole details were added to the center of each level-1 placement point in both 2D and 3D views.

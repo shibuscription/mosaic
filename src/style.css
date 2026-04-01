@@ -148,9 +148,11 @@ body {
 }
 
 .opening-splash-symbol {
+  position: relative;
   width: min(112%, 1080px);
   max-height: clamp(170px, 42vh, 440px);
   object-fit: contain;
+  left: clamp(56px, 8vw, 132px);
   animation-delay: 420ms;
 }
 
@@ -2086,6 +2088,7 @@ body {
   .opening-splash.mobile .opening-splash-symbol {
     width: min(124vw, 740px);
     max-height: clamp(220px, 46vh, 420px);
+    left: clamp(40px, 10vw, 92px);
   }
 
   .opening-splash.mobile .opening-splash-reveal {

@@ -295,8 +295,7 @@ const PLAYBACK_AUTO_MS = 120
 const PLAYBACK_GAP_MS = 70
 const MOBILE_PANEL_MODE_KEY = 'mosaic.mobilePanelMode'
 const APP_LANGUAGE_KEY = 'mosaic.language'
-const OPENING_SPLASH_DATE_KEY = 'mosaic.openingSplashDate'
-const OPENING_SPLASH_DURATION_MS = 1500
+const OPENING_SPLASH_DURATION_MS = 3200
 const ONLINE_HEARTBEAT_INTERVAL_MS = 5000
 const ONLINE_HEARTBEAT_TIMEOUT_MS = 15000
 const INITIAL_ONLINE_SESSION: OnlineSessionState = {
@@ -380,7 +379,7 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [licensesOpen, setLicensesOpen] = useState(false)
   const [recordNotice, setRecordNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null)
-  const [isOpeningSplashVisible, setIsOpeningSplashVisible] = useState(() => shouldShowOpeningSplashToday())
+  const [isOpeningSplashVisible, setIsOpeningSplashVisible] = useState(true)
   const [mobilePanelMode, setMobilePanelMode] = useState<MobilePanelMode>(() => {
     if (typeof window === 'undefined') {
       return 'standard'
@@ -1031,7 +1030,6 @@ export default function App() {
       return
     }
 
-    window.localStorage.setItem(OPENING_SPLASH_DATE_KEY, getLocalDateStamp())
     clearOpeningSplashTimer()
     openingSplashTimeoutRef.current = window.setTimeout(() => {
       setIsOpeningSplashVisible(false)
@@ -3911,20 +3909,6 @@ function isDisplayColorId(value: unknown): value is DisplayColorId {
 function colorLabel(id: DisplayColorId): string {
   const found = COLOR_OPTIONS.find((option) => option.id === id)
   return found ? found.label : id
-}
-
-function getLocalDateStamp(date = new Date()): string {
-  const year = date.getFullYear()
-  const month = `${date.getMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getDate()}`.padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function shouldShowOpeningSplashToday(): boolean {
-  if (typeof window === 'undefined') {
-    return false
-  }
-  return window.localStorage.getItem(OPENING_SPLASH_DATE_KEY) !== getLocalDateStamp()
 }
 
 function getThemeByAssignedColors(colors: PlayerColorConfig): ColorPairTheme | null {

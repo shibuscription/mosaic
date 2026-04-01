@@ -476,3 +476,9 @@ src/
 - `Classic` theme is currently excluded from the selectable theme list for the ongoing real-piece image rollout.
 - The center piece now uses `center-plain.png` in supported themes.
 - Full image rollout for regular pieces in non-Oribe themes, plus dedicated center images for `miyabi` / `iki`, is planned for a future update.
+
+## Splash Layout Notes
+
+- The splash logo / symbol layout was updated from corner placement to a top-band / bottom-band composition.
+- This change is aimed at improving visibility on phones and tablets with larger brand imagery.
+- PC now follows the same top-and-bottom layout idea while keeping the centered box-opening animation.

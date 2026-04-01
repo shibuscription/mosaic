@@ -1168,6 +1168,16 @@ export default function App() {
     return cells
   }, [game.board, game.lastMove, legalSet, hiddenAutoKeySet, animatingKey])
 
+  const boardHoleMap = useMemo(() => {
+    const baseLayerGradients = positions
+      .filter((cell) => cell.level === 0)
+      .map(
+        (cell) =>
+          `radial-gradient(circle at ${cell.left}% ${cell.top}%, rgba(55, 34, 18, 0.2) 0 0.72%, rgba(116, 82, 50, 0.14) 0.95%, rgba(245, 232, 211, 0.08) 1.32%, transparent 2.2%)`,
+      )
+    return baseLayerGradients.join(', ')
+  }, [positions])
+
   function commitResolvedMove(
     level: number,
     row: number,
@@ -2641,12 +2651,11 @@ export default function App() {
             </div>
           ) : (
             <div className="board-wrap" style={{ width: `${boardSize}px`, height: `${boardSize}px` }}>
-              <div className="board">
+              <div className="board" style={{ '--board-hole-map': boardHoleMap } as CSSProperties}>
                 {positions.map((cell) => {
                   const visibleLegal = cell.legal && !(suppressDeeperCpuLegalIndicators && cell.level > 0)
-                  const showBaseHole = cell.level === 0 && !cell.pieceColor
 
-                  if (!cell.pieceColor && !visibleLegal && !showBaseHole) {
+                  if (!cell.pieceColor && !visibleLegal) {
                     return null
                   }
 
@@ -2746,7 +2755,6 @@ export default function App() {
                             )
                           })()
                         ) : visibleLegal ? <span className="guide" /> : null}
-                        {showBaseHole ? <span className="base-hole" aria-hidden="true" /> : null}
                       </div>
                     </div>
                   )

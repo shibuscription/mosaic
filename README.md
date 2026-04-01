@@ -470,3 +470,9 @@ src/
 - `kobalab CPU` includes logic derived from UpperHand by Satoshi Kobayashi and is covered by the MIT License.
 - Full third-party license text is available in `THIRD_PARTY_LICENSES.md`.
 - In the app, open the licenses view from `Open Source Licenses` in the menu or the fixed desktop button.
+
+## Piece Image Prototype Notes
+
+- `Classic` theme is currently excluded from the selectable theme list for the ongoing real-piece image rollout.
+- The center piece now uses `center-plain.png` in supported themes.
+- Full image rollout for regular pieces in non-Oribe themes, plus dedicated center images for `miyabi` / `iki`, is planned for a future update.

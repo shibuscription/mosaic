@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { BASE_SIZE, MAX_LEVEL, TOTAL_PIECES, type AutoPlacement, type GameState, type Move, type PlayerColor } from './game/types'
+import { BASE_SIZE, MAX_LEVEL, TOTAL_PIECES, type AutoPlacement, type GameState, type Move, type PieceColor, type PlayerColor } from './game/types'
 import { createInitialGameState, getLegalMoves, getLevelSize, getPiece, placeManualPiece } from './game/logic'
 import {
   CPU_DEFINITIONS,
@@ -178,6 +178,8 @@ const ORIBE_PIECE_IMAGES: Record<PlayerColor, string> = {
   blue: '/oribe-1.png',
   yellow: '/oribe-2.png',
 }
+const CENTER_PLAIN_IMAGE_URL = '/center-plain.png'
+const CENTER_IMAGE_THEME_KEYS = new Set(['trad', 'halfblue', 'pastel', 'milkyway', 'oribe', 'miyabi', 'iki'])
 
 function filterVisibleCpuDefinitions(isResearchMode: boolean) {
   if (isResearchMode) {
@@ -265,7 +267,6 @@ const COLOR_OPTIONS: ColorOption[] = [
 ]
 
 const COLOR_PAIR_THEMES: ColorPairTheme[] = [
-  { key: 'classic', label: 'Classic', colors: ['classic_brown', 'classic_blue'] },
   { key: 'milkyway', label: 'Milky Way', colors: ['milkyway_blue', 'milkyway_white'] },
   { key: 'pastel', label: 'Pastel', colors: ['pastel_pink', 'pastel_green'] },
   { key: 'halfblue', label: 'Half Blue', colors: ['halfblue_sky', 'halfblue_white'] },
@@ -277,10 +278,10 @@ const COLOR_PAIR_THEMES: ColorPairTheme[] = [
 
 const COLOR_OPTION_BY_ID = new Map<DisplayColorId, ColorOption>(COLOR_OPTIONS.map((option) => [option.id, option]))
 
-// Default palette: Classic.
+// Default palette: Trad.
 const DEFAULT_PLAYER_COLORS: PlayerColorConfig = {
-  blue: 'classic_brown',
-  yellow: 'classic_blue',
+  blue: 'trad_black',
+  yellow: 'trad_white',
 }
 
 const INTERNAL_LABEL: Record<PlayerColor, string> = {
@@ -2656,21 +2657,18 @@ export default function App() {
                       >
                         {cell.pieceColor ? (
                           (() => {
-                            const pieceVisual =
-                              cell.pieceColor === 'blue' || cell.pieceColor === 'yellow'
-                                ? activePieceVisuals[cell.pieceColor]
-                                : null
+                            const pieceVisual = activePieceVisuals[cell.pieceColor]
                             return (
                               <span
                                 className={[
                                   'piece',
                                   cell.pieceColor,
-                                  pieceVisual?.useRealImage ? 'piece-real-image' : '',
+                                  pieceVisual.useRealImage ? 'piece-real-image' : '',
                                 ]
                                   .filter(Boolean)
                                   .join(' ')}
                                 style={
-                                  pieceVisual?.imageUrl
+                                  pieceVisual.imageUrl
                                     ? { background: `transparent center / 100% 100% no-repeat url(${pieceVisual.imageUrl})` }
                                     : undefined
                                 }
@@ -3954,17 +3952,27 @@ function colorLabel(id: DisplayColorId): string {
   return found ? found.label : id
 }
 
-function getPieceVisualsForTheme(themeKey: string | null): Record<PlayerColor, PieceVisual> {
+function getPieceVisualsForTheme(themeKey: string | null): Record<PieceColor, PieceVisual> {
+  const centerPieceImage = getCenterPieceImage(themeKey)
   if (themeKey === 'oribe') {
     return {
       blue: { imageUrl: ORIBE_PIECE_IMAGES.blue, useRealImage: true },
       yellow: { imageUrl: ORIBE_PIECE_IMAGES.yellow, useRealImage: true },
+      neutral: { imageUrl: centerPieceImage, useRealImage: centerPieceImage !== null },
     }
   }
   return {
     blue: { imageUrl: null, useRealImage: false },
     yellow: { imageUrl: null, useRealImage: false },
+    neutral: { imageUrl: centerPieceImage, useRealImage: centerPieceImage !== null },
   }
+}
+
+function getCenterPieceImage(themeKey: string | null): string | null {
+  if (!themeKey || !CENTER_IMAGE_THEME_KEYS.has(themeKey)) {
+    return null
+  }
+  return CENTER_PLAIN_IMAGE_URL
 }
 
 function getThemeAssignmentChipStyle(id: DisplayColorId): CSSProperties {

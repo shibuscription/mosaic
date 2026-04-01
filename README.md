@@ -485,4 +485,4 @@ src/
 
 ## Board Detail Notes
 
-- To better match the physical board feel, small hole details were added to the center of each level-1 placement point in both 2D and 3D views.
+- To better match the physical board feel, a small center-hole detail was added to each level-1 placement point in both 2D and 3D views.

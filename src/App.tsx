@@ -2725,7 +2725,6 @@ export default function App() {
                           .join(' ')}
                         style={{ left: `${cell.left}%`, top: `${cell.top}%`, zIndex: `${visualZ}` }}
                       >
-                        {showBaseHole ? <span className="base-hole" aria-hidden="true" /> : null}
                         {cell.pieceColor ? (
                           (() => {
                             const pieceVisual = activePieceVisuals[cell.pieceColor]
@@ -2747,6 +2746,7 @@ export default function App() {
                             )
                           })()
                         ) : visibleLegal ? <span className="guide" /> : null}
+                        {showBaseHole ? <span className="base-hole" aria-hidden="true" /> : null}
                       </div>
                     </div>
                   )

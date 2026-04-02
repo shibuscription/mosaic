@@ -1,14 +1,22 @@
 import { BASE_SIZE, TOTAL_PIECES, type GameState, type Move, type PlayerColor } from './types'
 import { canPlaceAt, evaluateSquareForAutoPlacement, getLegalMoves, placeManualPiece } from './logic'
 import { chooseKobalabMove } from './kobalab'
+import { chooseOnumaMove } from './onuma'
 
-export type CpuDifficulty = 'easy' | 'normal' | 'hard' | 'kobalab'
+export type CpuDifficulty =
+  | 'easy'
+  | 'normal'
+  | 'hard'
+  | 'former_easy'
+  | 'former_normal'
+  | 'sophia'
+  | 'kobalab'
 
 export interface CpuDefinition {
   id: CpuDifficulty
   labelKey: string
   descriptionKey: string
-  strategy: 'profile' | 'hard' | 'kobalab'
+  strategy: 'former_profile' | 'sophia' | 'kobalab' | 'onuma'
   supportsAnalysis: boolean
 }
 
@@ -17,21 +25,42 @@ export const CPU_DEFINITIONS: CpuDefinition[] = [
     id: 'easy',
     labelKey: 'mode.easy',
     descriptionKey: 'cpu.description.easy',
-    strategy: 'profile',
+    strategy: 'onuma',
     supportsAnalysis: false,
   },
   {
     id: 'normal',
     labelKey: 'mode.normal',
     descriptionKey: 'cpu.description.normal',
-    strategy: 'profile',
+    strategy: 'onuma',
     supportsAnalysis: false,
   },
   {
     id: 'hard',
     labelKey: 'mode.hard',
     descriptionKey: 'cpu.description.hard',
-    strategy: 'hard',
+    strategy: 'onuma',
+    supportsAnalysis: false,
+  },
+  {
+    id: 'former_easy',
+    labelKey: 'mode.formerEasy',
+    descriptionKey: 'cpu.description.formerEasy',
+    strategy: 'former_profile',
+    supportsAnalysis: false,
+  },
+  {
+    id: 'former_normal',
+    labelKey: 'mode.formerNormal',
+    descriptionKey: 'cpu.description.formerNormal',
+    strategy: 'former_profile',
+    supportsAnalysis: false,
+  },
+  {
+    id: 'sophia',
+    labelKey: 'mode.sophia',
+    descriptionKey: 'cpu.description.sophia',
+    strategy: 'sophia',
     supportsAnalysis: true,
   },
   {
@@ -318,10 +347,13 @@ export function chooseCpuMove(state: GameState, cpuColor: PlayerColor, difficult
   if (legalMoves.length === 0) {
     return null
   }
+  if (difficulty === 'easy' || difficulty === 'normal' || difficulty === 'hard') {
+    return chooseOnumaMove(state, undefined, difficulty)
+  }
   if (difficulty === 'kobalab') {
     return chooseKobalabMove(state)
   }
-  if (difficulty === 'hard') {
+  if (difficulty === 'sophia') {
     return chooseHardMove(state, legalMoves, cpuColor).move
   }
   const profile = getProfile(difficulty)
@@ -343,7 +375,7 @@ export function chooseCpuMoveWithAnalysis(
     return { move: null, analysis: null }
   }
 
-  if (difficulty !== 'hard') {
+  if (difficulty !== 'sophia') {
     return {
       move: chooseCpuMove(state, cpuColor, difficulty),
       analysis: null,
@@ -1266,10 +1298,7 @@ function pickMoveWithVariance(scoredMoves: ScoredMove[], profile: DifficultyProf
 }
 
 function getProfile(difficulty: CpuDifficulty): DifficultyProfile {
-  if (difficulty === 'hard') {
-    return HARD_PROFILE
-  }
-  if (difficulty === 'normal') {
+  if (difficulty === 'former_normal') {
     return NORMAL_PROFILE
   }
   return EASY_PROFILE

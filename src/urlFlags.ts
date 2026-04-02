@@ -4,3 +4,7 @@ export const MOBILE_BREAKPOINT_PX = 979
 export function isKobalabResearchModeEnabled(search: string): boolean {
   return new URLSearchParams(search).get('kobalab') === '1'
 }
+
+export function isFormerCpuModeEnabled(search: string): boolean {
+  return new URLSearchParams(search).get('former') === '1'
+}

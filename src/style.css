@@ -910,10 +910,10 @@ body {
 .cpu-debug-hud {
   position: fixed;
   left: 12px;
-  bottom: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   z-index: 620;
   width: min(360px, calc(100vw - 24px));
-  max-height: calc(100vh - 24px);
+  max-height: min(calc(100dvh - 24px - env(safe-area-inset-bottom, 0px)), calc(100vh - 24px));
   border-radius: 10px;
   border: 1px solid #8ea3c8;
   background: #f5f9ffeb;
@@ -938,8 +938,11 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  position: relative;
+  position: sticky;
+  top: 0;
   z-index: 1;
+  background: #f5f9ffeb;
+  padding-bottom: 2px;
 }
 
 .cpu-debug-body {
@@ -948,6 +951,8 @@ body {
   display: grid;
   gap: 4px;
   padding-right: 2px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .cpu-debug-title {
@@ -1095,6 +1100,51 @@ body {
   gap: 3px;
 }
 
+.cpu-debug-param-grid {
+  display: grid;
+  gap: 4px;
+}
+
+.cpu-debug-param-row {
+  display: grid;
+  grid-template-columns: 1fr 72px;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.66rem;
+  color: #29456f;
+}
+
+.cpu-debug-number-input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #bcd0ea;
+  background: #fff;
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 0.66rem;
+  color: #213b66;
+}
+
+.cpu-debug-button-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cpu-debug-mini-btn {
+  border: 1px solid #bed0eb;
+  background: #ebf2ff;
+  color: #20355f;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.64rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.cpu-debug-mini-btn:hover {
+  background: #dfeaff;
+}
+
 .cpu-debug-group-toggle {
   border: 1px solid #bed0eb;
   background: #ebf2ff;
@@ -1205,6 +1255,22 @@ body {
 .cpu-debug-item.hovered {
   background: #e4efff;
   border: 1px solid #b7cffa;
+}
+
+@media (max-width: 979px) {
+  .cpu-debug-hud {
+    left: 8px;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    width: auto;
+    max-height: min(calc(100dvh - 16px - env(safe-area-inset-bottom, 0px)), calc(100vh - 16px));
+    border-radius: 12px;
+  }
+
+  .cpu-debug-hud.collapsed {
+    width: auto;
+    max-width: min(260px, calc(100vw - 16px));
+  }
 }
 
 .playback-chip {

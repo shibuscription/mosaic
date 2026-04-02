@@ -22,7 +22,7 @@ https://mosaic-game-bef28.web.app
 詳細仕様は [`docs/README.md`](./docs/README.md) に整理しています。
 
 - ルール: [`docs/rules.md`](./docs/rules.md)
-- CPU 仕様: [`docs/cpu-easy.md`](./docs/cpu-easy.md), [`docs/cpu-normal.md`](./docs/cpu-normal.md), [`docs/cpu-sophia.md`](./docs/cpu-sophia.md), [`docs/cpu-kobalab.md`](./docs/cpu-kobalab.md)
+- CPU 仕様: [`docs/cpu-easy.md`](./docs/cpu-easy.md), [`docs/cpu-normal.md`](./docs/cpu-normal.md), [`docs/cpu-sophia.md`](./docs/cpu-sophia.md), [`docs/cpu-kobalab.md`](./docs/cpu-kobalab.md), [`docs/cpu-onuma.md`](./docs/cpu-onuma.md)
 - 棋譜仕様: [`docs/record-save-format.md`](./docs/record-save-format.md), [`docs/record-image-format.md`](./docs/record-image-format.md)
 
 ## 現在できること
@@ -431,6 +431,10 @@ npm run dev -- --host 0.0.0.0 --port 5173
 CPU解析デバッグ（Hardのみ）:
 
 - URLに `?debug=1` を付けると、Hard CPU 手番で候補手の順位/スコアオーバーレイと解析HUDを表示
+- 通常の CPU 選択肢は `Easy` / `Normal` / `Hard`
+- URL に `?former=1` を付けると `Former Easy` / `Former Normal` / `SOPHIA` が追加表示される
+- URL に `?kobalab=1` を付けると `kobalab CPU` が追加表示される
+- URL に `?debug=1` を付けると、選択中 CPU に応じた debug HUD と盤面オーバーレイが有効になる
 
 ## 主要ファイル構成
 
@@ -467,11 +471,12 @@ src/
 - オンライン対戦の高度化（再戦、切断復帰、戦績）
 ## CPU Lineup and Licenses
 
-- CPU lineup in Game Setup: `Easy`, `Normal`, `SOPHIA`, `kobalab CPU`
-- `SOPHIA` is the existing MOSAIC `hard` CPU. The internal identifier remains `hard` for backward compatibility.
+- CPU lineup in Game Setup: `Easy`, `Normal`, `Hard`
+- `Former Easy`, `Former Normal`, and `SOPHIA` appear with `?former=1`.
 - `kobalab CPU` is a new TypeScript port based on the reference code under `reference/upperhand/src/js/game.js` and `reference/upperhand/src/js/player.js`.
-- Existing Easy / Normal / Hard-family logic remains in place. The new CPU is added as a separate strategy and can be compared in `CPU vs CPU`.
+- The public `Easy` / `Normal` / `Hard` lineup is backed by the Onuma-style evaluation logic with different tolerances.
 - CPU choices are now managed from a definition list in `src/game/cpu.ts`, so future CPUs can be added with minimal UI changes.
+- `kobalab CPU` appears with `?kobalab=1`.
 
 ### Open Source License Note
 

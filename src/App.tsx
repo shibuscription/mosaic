@@ -16,6 +16,17 @@ import {
   isCpuDifficulty,
 } from './game/cpu'
 import { analyzeKobalabMove, type KobalabDebugAnalysis, type KobalabDebugCandidate } from './game/kobalab'
+import {
+  analyzeOnumaMove,
+  DEFAULT_ONUMA_TUNING,
+  getOnumaOverlayValue,
+  onumaBoardOverlayLabel,
+  type OnumaDebugAnalysis,
+  type OnumaDebugCandidate,
+  type OnumaDifficultyMode,
+  type OnumaDebugOverlayMode,
+  type OnumaTuning,
+} from './game/onuma'
 import { Board3DViewport } from './components/Board3DViewport'
 import { isFirebaseConfigured } from './firebase'
 import { resolveLanguage, translate, type AppLanguage } from './i18n'
@@ -43,7 +54,7 @@ import {
   type RoomDoc,
   deserializeGameState,
 } from './online/room'
-import { MOBILE_BREAKPOINT_PX, OFFICIAL_SITE_URL, isKobalabResearchModeEnabled } from './urlFlags'
+import { MOBILE_BREAKPOINT_PX, OFFICIAL_SITE_URL, isFormerCpuModeEnabled, isKobalabResearchModeEnabled } from './urlFlags'
 import './style.css'
 
 type DisplayColorId =
@@ -175,6 +186,7 @@ interface DebugScoreComponentDefinition {
 type DebugOverlayMode = 'total' | HardScoreComponentKey
 type KobalabDebugOverlayMode = 'final' | 'rvDelta' | 'rank' | 'priority' | 'value'
 type KobalabDebugAnalysisSource = 'lastTurn' | 'currentPreview'
+type OnumaDebugAnalysisSource = 'lastTurn' | 'currentPreview'
 type ChainTone = 'cool' | 'violet' | 'magenta' | 'orange' | 'hot'
 
 interface ChainBannerState {
@@ -254,18 +266,30 @@ const THEME_IMAGE_CONFIGS = {
   },
 } satisfies Record<string, ThemeImageConfig>
 
-function filterVisibleCpuDefinitions(isResearchMode: boolean) {
-  if (isResearchMode) {
-    return CPU_DEFINITIONS
-  }
-  return CPU_DEFINITIONS.filter((definition) => definition.id !== 'kobalab')
+function filterVisibleCpuDefinitions(isFormerMode: boolean, isKobalabMode: boolean) {
+  return CPU_DEFINITIONS.filter((definition) => {
+    if (definition.id === 'former_easy' || definition.id === 'former_normal' || definition.id === 'sophia') {
+      return isFormerMode
+    }
+    if (definition.id === 'kobalab') {
+      return isKobalabMode
+    }
+    return true
+  })
 }
 
-function normalizeVisibleCpuDifficulty(difficulty: CpuDifficulty, isResearchMode: boolean): CpuDifficulty {
-  if (isResearchMode || difficulty !== 'kobalab') {
-    return difficulty
+function normalizeVisibleCpuDifficulty(
+  difficulty: CpuDifficulty,
+  isFormerMode: boolean,
+  isKobalabMode: boolean,
+): CpuDifficulty {
+  if (difficulty === 'kobalab' && !isKobalabMode) {
+    return DEFAULT_VISIBLE_CPU_DIFFICULTY
   }
-  return DEFAULT_VISIBLE_CPU_DIFFICULTY
+  if ((difficulty === 'former_easy' || difficulty === 'former_normal' || difficulty === 'sophia') && !isFormerMode) {
+    return DEFAULT_VISIBLE_CPU_DIFFICULTY
+  }
+  return difficulty
 }
 
 const DEBUG_SCORE_CATEGORIES: DebugScoreCategory[] = [
@@ -453,6 +477,8 @@ export default function App() {
   const [hardDebugAnalysis, setHardDebugAnalysis] = useState<HardMoveAnalysis | null>(null)
   const [lastKobalabDebugAnalysis, setLastKobalabDebugAnalysis] = useState<KobalabDebugAnalysis | null>(null)
   const [previewKobalabDebugAnalysis, setPreviewKobalabDebugAnalysis] = useState<KobalabDebugAnalysis | null>(null)
+  const [lastOnumaDebugAnalysis, setLastOnumaDebugAnalysis] = useState<OnumaDebugAnalysis | null>(null)
+  const [previewOnumaDebugAnalysis, setPreviewOnumaDebugAnalysis] = useState<OnumaDebugAnalysis | null>(null)
   const [debugScoreComponents, setDebugScoreComponents] = useState<HardScoreComponentToggles>(() => ({
     ...DEFAULT_HARD_SCORE_COMPONENTS,
   }))
@@ -460,6 +486,9 @@ export default function App() {
   const [debugOverlayMode, setDebugOverlayMode] = useState<DebugOverlayMode>('total')
   const [kobalabDebugOverlayMode, setKobalabDebugOverlayMode] = useState<KobalabDebugOverlayMode>('final')
   const [kobalabDebugSource, setKobalabDebugSource] = useState<KobalabDebugAnalysisSource>('lastTurn')
+  const [onumaDebugOverlayMode, setOnumaDebugOverlayMode] = useState<OnumaDebugOverlayMode>('final')
+  const [onumaDebugSource, setOnumaDebugSource] = useState<OnumaDebugAnalysisSource>('lastTurn')
+  const [onumaDebugParams, setOnumaDebugParams] = useState<OnumaTuning>({ ...DEFAULT_ONUMA_TUNING })
   const [selectedDebugMoveKey, setSelectedDebugMoveKey] = useState<string | null>(null)
   const [hoveredDebugMoveKey, setHoveredDebugMoveKey] = useState<string | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -581,7 +610,16 @@ export default function App() {
     }
     return isKobalabResearchModeEnabled(window.location.search)
   }, [])
-  const visibleCpuDefinitions = useMemo(() => filterVisibleCpuDefinitions(isResearchMode), [isResearchMode])
+  const isFormerMode = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+    return isFormerCpuModeEnabled(window.location.search)
+  }, [])
+  const visibleCpuDefinitions = useMemo(
+    () => filterVisibleCpuDefinitions(isFormerMode, isResearchMode),
+    [isFormerMode, isResearchMode],
+  )
   const [isCompactViewport, setIsCompactViewport] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -595,6 +633,20 @@ export default function App() {
   const turnBadgeLabel = language === 'ja' ? `${nextTurnNumber}${t('status.moveSuffix')}` : `${t('status.turn')} ${nextTurnNumber}`
   const playbackTurnPlayer = getPlaybackTurnPlayer(playbackOpeningTurnRef.current, playbackMoveCursor)
   const displayTurnPlayer: PlayerColor = isPlayback ? playbackTurnPlayer : game.currentTurn
+  const observedCpuColor: PlayerColor = cpuMatchType === 'cpu_vs_cpu' ? 'blue' : 'yellow'
+  const observedCpuDifficulty: CpuDifficulty = cpuMatchType === 'cpu_vs_cpu' ? cpu1Difficulty : cpuDifficulty
+  const currentOnumaPreviewDifficulty = useMemo(() => {
+    return getOnumaDifficultyForCpu(observedCpuDifficulty)
+  }, [observedCpuDifficulty])
+  const observedPreviewState = useMemo(() => {
+    if (game.currentTurn === observedCpuColor) {
+      return game
+    }
+    return {
+      ...game,
+      currentTurn: observedCpuColor,
+    }
+  }, [game, observedCpuColor])
   const isOnlineMode = matchMode === 'online'
   const isOnlineMyTurn = isOnlineMode && onlineSession.role === game.currentTurn
   const shouldWarnOnlineLeave =
@@ -605,9 +657,11 @@ export default function App() {
     debugMode &&
     !setupOpen &&
     matchMode === 'cpu' &&
-    cpuMatchType === 'you_vs_cpu' &&
-    cpuDifficulty === 'hard' &&
+    observedCpuDifficulty === 'sophia' &&
     !isPlayback
+  const onumaCpuConfigured =
+    matchMode === 'cpu' &&
+    isOnumaBackedCpu(observedCpuDifficulty)
   const showKobalabDebugOverlay =
     (() => {
       if (!debugMode || !isResearchMode || setupOpen) {
@@ -616,9 +670,7 @@ export default function App() {
 
       const kobalabInLiveCpuMatch =
         matchMode === 'cpu' &&
-        (cpuMatchType === 'you_vs_cpu'
-          ? cpuDifficulty === 'kobalab'
-          : cpu1Difficulty === 'kobalab' || cpu2Difficulty === 'kobalab')
+        observedCpuDifficulty === 'kobalab'
 
       const isPaused2DPlayback =
         isPlayback &&
@@ -641,6 +693,41 @@ export default function App() {
 
       return isLive2DBoard || isReview2DPosition
     })()
+  const showOnumaDebugOverlay =
+    (() => {
+      if (!debugMode || setupOpen || !onumaCpuConfigured) {
+        return false
+      }
+
+      const isPaused2DPlayback =
+        isPlayback &&
+        playbackRenderer === '2d' &&
+        playbackStatus === 'paused'
+
+      const isReview2DPosition =
+        !isPlayback &&
+        boardRenderer === '2d' &&
+        Boolean(game.winner)
+
+      const isLive2DBoard =
+        !isPlayback &&
+        boardRenderer === '2d' &&
+        onumaCpuConfigured
+
+      if (isPlayback) {
+        return isPaused2DPlayback
+      }
+
+      return isLive2DBoard || isReview2DPosition
+    })()
+  const isOnumaDebugPlaybackPaused =
+    showOnumaDebugOverlay && isPlayback && playbackRenderer === '2d' && playbackStatus === 'paused'
+  const isOnumaDebugReviewPosition =
+    showOnumaDebugOverlay && !isPlayback && boardRenderer === '2d' && Boolean(game.winner)
+  const isOnumaDebugLiveCpuTurn =
+    showOnumaDebugOverlay &&
+    !isPlayback &&
+    matchMode === 'cpu'
   const isKobalabDebugPlaybackPaused =
     showKobalabDebugOverlay && isPlayback && playbackRenderer === '2d' && playbackStatus === 'paused'
   const isKobalabDebugReviewPosition =
@@ -648,11 +735,9 @@ export default function App() {
   const isKobalabDebugLiveCpuTurn =
     showKobalabDebugOverlay &&
     !isPlayback &&
-    matchMode === 'cpu' &&
-    (cpuMatchType === 'you_vs_cpu'
-      ? cpuDifficulty === 'kobalab'
-      : cpu1Difficulty === 'kobalab' || cpu2Difficulty === 'kobalab')
-  const allowKobalabLastTurnSource = isKobalabDebugLiveCpuTurn
+    matchMode === 'cpu'
+  const allowKobalabLastTurnSource = isKobalabDebugLiveCpuTurn || Boolean(lastKobalabDebugAnalysis)
+  const allowOnumaLastTurnSource = isOnumaDebugLiveCpuTurn || Boolean(lastOnumaDebugAnalysis)
   const suppressDeeperCpuLegalIndicators =
     matchMode === 'cpu' &&
     cpuMatchType === 'you_vs_cpu' &&
@@ -1015,6 +1100,159 @@ export default function App() {
     return map
   }, [kobalabDebugCandidates, showKobalabDebugOverlay])
 
+  const displayedOnumaDebugAnalysis = useMemo<OnumaDebugAnalysis | null>(() => {
+    if (!allowOnumaLastTurnSource) {
+      return previewOnumaDebugAnalysis
+    }
+    return onumaDebugSource === 'currentPreview' ? previewOnumaDebugAnalysis : lastOnumaDebugAnalysis
+  }, [allowOnumaLastTurnSource, lastOnumaDebugAnalysis, onumaDebugSource, previewOnumaDebugAnalysis])
+
+  const onumaDebugCandidates = useMemo(() => {
+    return displayedOnumaDebugAnalysis?.candidates ?? []
+  }, [displayedOnumaDebugAnalysis])
+
+  const onumaDebugTopCandidates = useMemo(() => {
+    return onumaDebugCandidates.slice(0, 10)
+  }, [onumaDebugCandidates])
+
+  const onumaDebugSelectedCandidate = useMemo<OnumaDebugCandidate | null>(() => {
+    if (!onumaDebugCandidates.length) {
+      return null
+    }
+    if (selectedDebugMoveKey) {
+      const selected = onumaDebugCandidates.find(
+        (item) => toMoveKey(item.move.level, item.move.row, item.move.col) === selectedDebugMoveKey,
+      )
+      if (selected) {
+        return selected
+      }
+    }
+    if (displayedOnumaDebugAnalysis?.selected) {
+      const selected = onumaDebugCandidates.find(
+        (item) =>
+          item.move.level === displayedOnumaDebugAnalysis.selected?.level &&
+          item.move.row === displayedOnumaDebugAnalysis.selected?.row &&
+          item.move.col === displayedOnumaDebugAnalysis.selected?.col,
+      )
+      if (selected) {
+        return selected
+      }
+    }
+    return onumaDebugCandidates[0] ?? null
+  }, [displayedOnumaDebugAnalysis, onumaDebugCandidates, selectedDebugMoveKey])
+
+  const onumaDebugHoveredCandidate = useMemo<OnumaDebugCandidate | null>(() => {
+    if (!onumaDebugCandidates.length || !hoveredDebugMoveKey) {
+      return null
+    }
+    return (
+      onumaDebugCandidates.find(
+        (item) => toMoveKey(item.move.level, item.move.row, item.move.col) === hoveredDebugMoveKey,
+      ) ?? null
+    )
+  }, [hoveredDebugMoveKey, onumaDebugCandidates])
+
+  const onumaDebugDetailCandidate = useMemo<OnumaDebugCandidate | null>(() => {
+    return onumaDebugHoveredCandidate ?? onumaDebugSelectedCandidate
+  }, [onumaDebugHoveredCandidate, onumaDebugSelectedCandidate])
+
+  const onumaDebugOverlayMap = useMemo(() => {
+    const map = new Map<string, { value: number; text: string; style: CSSProperties }>()
+    if (!onumaDebugCandidates.length) {
+      return { map }
+    }
+
+    const total = onumaDebugCandidates.length
+    const rawValues = onumaDebugCandidates.map((candidate) => {
+      const overlay = getOnumaOverlayValue(candidate, onumaDebugOverlayMode, total)
+      return {
+        key: toMoveKey(candidate.move.level, candidate.move.row, candidate.move.col),
+        value: overlay.value,
+        text: overlay.text,
+        rank: candidate.rank,
+      }
+    })
+
+    if (onumaDebugOverlayMode === 'rank') {
+      const topCount = Math.max(1, Math.ceil(total * 0.25))
+      const bottomStart = Math.max(topCount + 1, Math.floor(total * 0.75) + 1)
+      for (const entry of rawValues) {
+        let backgroundColor = 'rgba(255, 255, 255, 0.84)'
+        let borderColor = 'rgba(170, 180, 198, 0.72)'
+        let color = '#1f365f'
+        if (entry.rank <= topCount) {
+          backgroundColor = 'rgba(44, 176, 102, 0.68)'
+          borderColor = 'rgba(29, 126, 71, 0.8)'
+          color = '#0f2f20'
+        } else if (entry.rank >= bottomStart) {
+          backgroundColor = 'rgba(232, 77, 86, 0.68)'
+          borderColor = 'rgba(159, 30, 47, 0.8)'
+          color = '#4a0f1a'
+        }
+        map.set(entry.key, {
+          value: entry.value,
+          text: entry.text,
+          style: {
+            backgroundColor,
+            borderColor,
+            color,
+          },
+        })
+      }
+      return { map }
+    }
+
+    const sorted = rawValues.map((item) => item.value).sort((a, b) => a - b)
+    let lower = sorted[0] ?? 0
+    let upper = sorted[sorted.length - 1] ?? 0
+    const spread = upper - lower
+
+    for (const entry of rawValues) {
+      const normalized01 = spread < 1e-6 ? 0.5 : (entry.value - lower) / spread
+      const relative = normalized01 * 2 - 1
+      const intensity = Math.sqrt(Math.abs(relative))
+      let backgroundColor = 'rgba(255, 255, 255, 0.84)'
+      let borderColor = 'rgba(170, 180, 198, 0.72)'
+      let color = '#1f365f'
+
+      if (Math.abs(relative) >= 0.03) {
+        const alpha = 0.16 + intensity * 0.6
+        if (relative > 0) {
+          backgroundColor = `rgba(44, 176, 102, ${alpha.toFixed(3)})`
+          borderColor = `rgba(29, 126, 71, ${(0.38 + intensity * 0.46).toFixed(3)})`
+          color = '#0f2f20'
+        } else {
+          backgroundColor = `rgba(232, 77, 86, ${alpha.toFixed(3)})`
+          borderColor = `rgba(159, 30, 47, ${(0.38 + intensity * 0.46).toFixed(3)})`
+          color = '#4a0f1a'
+        }
+      }
+
+      map.set(entry.key, {
+        value: entry.value,
+        text: entry.text,
+        style: {
+          backgroundColor,
+          borderColor,
+          color,
+        },
+      })
+    }
+
+    return { map }
+  }, [onumaDebugCandidates, onumaDebugOverlayMode])
+
+  const onumaDebugCandidateMap = useMemo(() => {
+    const map = new Map<string, OnumaDebugCandidate>()
+    if (!showOnumaDebugOverlay || !onumaDebugCandidates.length) {
+      return map
+    }
+    for (const item of onumaDebugCandidates) {
+      map.set(toMoveKey(item.move.level, item.move.row, item.move.col), item)
+    }
+    return map
+  }, [onumaDebugCandidates, showOnumaDebugOverlay])
+
   useEffect(() => {
     if (!hardDebugAnalysis) {
       return
@@ -1047,25 +1285,43 @@ export default function App() {
   }, [displayedKobalabDebugAnalysis])
 
   useEffect(() => {
-    if (hardDebugAnalysis || displayedKobalabDebugAnalysis) {
+    if (!displayedOnumaDebugAnalysis) {
+      return
+    }
+    if (displayedOnumaDebugAnalysis.selected) {
+      setSelectedDebugMoveKey(
+        toMoveKey(
+          displayedOnumaDebugAnalysis.selected.level,
+          displayedOnumaDebugAnalysis.selected.row,
+          displayedOnumaDebugAnalysis.selected.col,
+        ),
+      )
+    } else {
+      setSelectedDebugMoveKey(null)
+    }
+    setHoveredDebugMoveKey(null)
+  }, [displayedOnumaDebugAnalysis])
+
+  useEffect(() => {
+    if (hardDebugAnalysis || displayedKobalabDebugAnalysis || displayedOnumaDebugAnalysis) {
       return
     }
     setSelectedDebugMoveKey(null)
     setHoveredDebugMoveKey(null)
-  }, [displayedKobalabDebugAnalysis, hardDebugAnalysis])
+  }, [displayedKobalabDebugAnalysis, displayedOnumaDebugAnalysis, hardDebugAnalysis])
 
   useEffect(() => {
-    if (!showHardDebugOverlay && !showKobalabDebugOverlay) {
+    if (!showHardDebugOverlay && !showKobalabDebugOverlay && !showOnumaDebugOverlay) {
       setIsDebugHudCollapsed(true)
     }
-  }, [showHardDebugOverlay, showKobalabDebugOverlay])
+  }, [showHardDebugOverlay, showKobalabDebugOverlay, showOnumaDebugOverlay])
 
   useEffect(() => {
     if (!showKobalabDebugOverlay || kobalabDebugSource !== 'currentPreview') {
       return
     }
-    setPreviewKobalabDebugAnalysis(analyzeKobalabMove(game))
-  }, [game, kobalabDebugSource, showKobalabDebugOverlay])
+    setPreviewKobalabDebugAnalysis(analyzeKobalabMove(observedPreviewState))
+  }, [kobalabDebugSource, observedPreviewState, showKobalabDebugOverlay])
 
   useEffect(() => {
     if (!showKobalabDebugOverlay || allowKobalabLastTurnSource) {
@@ -1075,6 +1331,22 @@ export default function App() {
       setKobalabDebugSource('currentPreview')
     }
   }, [allowKobalabLastTurnSource, kobalabDebugSource, showKobalabDebugOverlay])
+
+  useEffect(() => {
+    if (!showOnumaDebugOverlay) {
+      return
+    }
+    setPreviewOnumaDebugAnalysis(analyzeOnumaMove(observedPreviewState, onumaDebugParams, currentOnumaPreviewDifficulty))
+  }, [currentOnumaPreviewDifficulty, observedPreviewState, onumaDebugParams, showOnumaDebugOverlay])
+
+  useEffect(() => {
+    if (!showOnumaDebugOverlay || allowOnumaLastTurnSource) {
+      return
+    }
+    if (onumaDebugSource !== 'currentPreview') {
+      setOnumaDebugSource('currentPreview')
+    }
+  }, [allowOnumaLastTurnSource, onumaDebugSource, showOnumaDebugOverlay])
 
   useEffect(() => {
     const stage = boardStageRef.current
@@ -1152,20 +1424,34 @@ export default function App() {
 
     setIsCpuThinking(true)
 
-    if (debugMode && cpuMatchType === 'you_vs_cpu' && actor === 'yellow' && currentCpuDifficulty === 'hard') {
-      const analyzed = chooseCpuMoveWithAnalysis(game, actor, 'hard', {
+    const isObservedCpuTurn = actor === observedCpuColor
+
+    if (debugMode && isObservedCpuTurn && observedCpuDifficulty === 'sophia' && currentCpuDifficulty === observedCpuDifficulty) {
+      const analyzed = chooseCpuMoveWithAnalysis(game, actor, 'sophia', {
         enabledComponents: debugScoreComponents,
       })
       pendingCpuMoveRef.current = analyzed.move
       setHardDebugAnalysis(analyzed.analysis)
       setLastKobalabDebugAnalysis(null)
-    } else if (debugMode && isResearchMode && currentCpuDifficulty === 'kobalab') {
+      setLastOnumaDebugAnalysis(null)
+    } else if (debugMode && isObservedCpuTurn && isOnumaBackedCpu(observedCpuDifficulty) && currentCpuDifficulty === observedCpuDifficulty) {
+      const analyzed = analyzeOnumaMove(game, onumaDebugParams, getOnumaDifficultyForCpu(observedCpuDifficulty))
+      pendingCpuMoveRef.current = analyzed.selected
+      setLastOnumaDebugAnalysis(analyzed)
+      setHardDebugAnalysis(null)
+      setLastKobalabDebugAnalysis(null)
+    } else if (debugMode && isObservedCpuTurn && isResearchMode && observedCpuDifficulty === 'kobalab' && currentCpuDifficulty === observedCpuDifficulty) {
       const analyzed = analyzeKobalabMove(game)
       pendingCpuMoveRef.current = analyzed.selected
       setLastKobalabDebugAnalysis(analyzed)
       setHardDebugAnalysis(null)
+      setLastOnumaDebugAnalysis(null)
+    } else if (!isObservedCpuTurn) {
+      pendingCpuMoveRef.current = null
     } else {
       setHardDebugAnalysis(null)
+      setLastKobalabDebugAnalysis(null)
+      setLastOnumaDebugAnalysis(null)
     }
 
     const delayMs = 700 + Math.floor(Math.random() * 301)
@@ -1194,6 +1480,9 @@ export default function App() {
     isAnimating,
     isPlayback,
     matchMode,
+    observedCpuColor,
+    observedCpuDifficulty,
+    onumaDebugParams,
     setupOpen,
   ])
 
@@ -1303,17 +1592,16 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (isResearchMode) {
-      return
+    setCpuDifficulty((prev) => normalizeVisibleCpuDifficulty(prev, isFormerMode, isResearchMode))
+    setPendingCpuDifficulty((prev) => normalizeVisibleCpuDifficulty(prev, isFormerMode, isResearchMode))
+    setCpu1Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, isFormerMode, isResearchMode))
+    setCpu2Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, isFormerMode, isResearchMode))
+    setPendingCpu1Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, isFormerMode, isResearchMode))
+    setPendingCpu2Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, isFormerMode, isResearchMode))
+    if (!isResearchMode) {
+      setLicensesOpen(false)
     }
-    setCpuDifficulty((prev) => normalizeVisibleCpuDifficulty(prev, false))
-    setPendingCpuDifficulty((prev) => normalizeVisibleCpuDifficulty(prev, false))
-    setCpu1Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, false))
-    setCpu2Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, false))
-    setPendingCpu1Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, false))
-    setPendingCpu2Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, false))
-    setLicensesOpen(false)
-  }, [isResearchMode])
+  }, [isFormerMode, isResearchMode])
 
   useEffect(() => {
     if (!isMobileMenuOpen) {
@@ -2922,8 +3210,11 @@ export default function App() {
                     (!isOnlineMode || (onlineSession.phase === 'playing' && isOnlineMyTurn))
                   const hardDebug = hardDebugCandidateMap.get(cell.key)
                   const hardOverlay = hardDebugOverlayMap.map.get(cell.key)
+                  const onumaDebug = onumaDebugCandidateMap.get(cell.key)
+                  const onumaOverlay = onumaDebugOverlayMap.map.get(cell.key)
                   const kobalabDebug = kobalabDebugCandidateMap.get(cell.key)
                   const kobalabOverlay = kobalabDebugOverlayMap.map.get(cell.key)
+                  const showOnumaHoverTarget = showOnumaDebugOverlay && !showPlayableHit && !!onumaDebug
                   const showKobalabHoverTarget = showKobalabDebugOverlay && !showPlayableHit && !!kobalabDebug
 
                   return (
@@ -2935,19 +3226,28 @@ export default function App() {
                           style={{ left: `${cell.left}%`, top: `${cell.top}%`, zIndex: `${hitZ}` }}
                           onClick={() => onCellClick(cell.level, cell.row, cell.col)}
                           onMouseEnter={() => {
-                            if (!showHardDebugOverlay && !showKobalabDebugOverlay) {
+                            if (!showHardDebugOverlay && !showOnumaDebugOverlay && !showKobalabDebugOverlay) {
                               return
                             }
                             setHoveredDebugMoveKey(cell.key)
                           }}
                           onMouseLeave={() => {
-                            if (!showHardDebugOverlay && !showKobalabDebugOverlay) {
+                            if (!showHardDebugOverlay && !showOnumaDebugOverlay && !showKobalabDebugOverlay) {
                               return
                             }
                             setHoveredDebugMoveKey((prev) => (prev === cell.key ? null : prev))
                           }}
                           type="button"
                           aria-label={`L${cell.level} row ${cell.row + 1} col ${cell.col + 1}`}
+                        />
+                      ) : null}
+                      {showOnumaHoverTarget ? (
+                        <div
+                          className="token-hit cpu-debug-hover-hit"
+                          style={{ left: `${cell.left}%`, top: `${cell.top}%`, zIndex: `${hitZ}` }}
+                          onMouseEnter={() => setHoveredDebugMoveKey(cell.key)}
+                          onMouseLeave={() => setHoveredDebugMoveKey((prev) => (prev === cell.key ? null : prev))}
+                          aria-hidden="true"
                         />
                       ) : null}
                       {showKobalabHoverTarget ? (
@@ -2979,6 +3279,30 @@ export default function App() {
                           >
                             {hardDebug.rank <= 5 ? <span className="rank">#{hardDebug.rank}</span> : null}
                             <span className="score">{hardOverlay?.text ?? Math.round(hardDebug.score)}</span>
+                          </div>
+                        ) : null
+                      ) : showOnumaDebugOverlay ? (
+                        onumaDebug ? (
+                          <div
+                            className={[
+                              'cpu-debug-marker',
+                              onumaDebug.rank <= 5 ? 'top' : '',
+                              selectedDebugMoveKey === cell.key ? 'selected' : '',
+                              hoveredDebugMoveKey === cell.key ? 'hovered' : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' ')}
+                            style={{
+                              left: `${cell.left}%`,
+                              top: `${cell.top}%`,
+                              zIndex: `${hitZ + 1}`,
+                              ...(onumaOverlay?.style ?? {}),
+                            }}
+                          >
+                            {onumaDebug.rank <= 3 && onumaDebugOverlayMode !== 'rank' ? (
+                              <span className="rank">#{onumaDebug.rank}</span>
+                            ) : null}
+                            <span className="score">{onumaOverlay?.text ?? onumaDebug.finalScore.toFixed(1)}</span>
                           </div>
                         ) : null
                       ) : showKobalabDebugOverlay ? (
@@ -3523,6 +3847,224 @@ export default function App() {
                   </button>
                 ))}
               </div>
+              </>
+            ) : null}
+          </div>
+        </aside>
+      ) : showOnumaDebugOverlay ? (
+        <aside className={['cpu-debug-hud', isDebugHudCollapsed ? 'collapsed' : ''].filter(Boolean).join(' ')} aria-live="polite">
+          <div className="cpu-debug-header">
+            <div className="cpu-debug-title">CPU Debug (Onuma)</div>
+            <button
+              type="button"
+              className="cpu-debug-toggle"
+              onClick={() => {
+                setIsDebugHudCollapsed((prev) => !prev)
+              }}
+              aria-label={isDebugHudCollapsed ? 'Expand debug HUD' : 'Collapse debug HUD'}
+            >
+              {isDebugHudCollapsed ? '+' : '-'}
+            </button>
+          </div>
+          <div className="cpu-debug-body">
+            <div className="cpu-debug-overlay-status">
+              <span className="cpu-debug-overlay-chip">
+                {isOnumaDebugPlaybackPaused
+                  ? 'Playback paused'
+                  : isOnumaDebugReviewPosition
+                    ? 'Review position'
+                    : 'Live board'}
+              </span>
+              <span className="cpu-debug-overlay-chip">
+                Analysis source:{' '}
+                {allowOnumaLastTurnSource
+                  ? onumaDebugSource === 'lastTurn'
+                    ? 'Last CPU turn'
+                    : 'Current board preview'
+                  : 'Current board preview'}
+              </span>
+              <span className="cpu-debug-overlay-chip">Board overlay: {onumaBoardOverlayLabel(onumaDebugOverlayMode)}</span>
+              <span className="cpu-debug-overlay-chip">
+                Difficulty: {displayedOnumaDebugAnalysis?.difficulty ?? currentOnumaPreviewDifficulty}
+              </span>
+              <span className="cpu-debug-overlay-chip">
+                Active tolerance: {displayedOnumaDebugAnalysis?.activeTolerance ?? resolveOnumaTolerancePreview(currentOnumaPreviewDifficulty, onumaDebugParams)}
+              </span>
+              <span className="cpu-debug-overlay-chip">
+                Candidate count: {displayedOnumaDebugAnalysis?.candidates.length ?? 0}
+              </span>
+              {onumaDebugSource === 'currentPreview' ? (
+                <span className="cpu-debug-overlay-chip">Previewing current side to move</span>
+              ) : null}
+              {displayedOnumaDebugAnalysis?.isTerminal && displayedOnumaDebugAnalysis.terminalMessage ? (
+                <span className="cpu-debug-overlay-chip">Status: {displayedOnumaDebugAnalysis.terminalMessage}</span>
+              ) : null}
+              {!isDebugHudCollapsed ? (
+                <span className="cpu-debug-overlay-legend">
+                  lower
+                  <span className="heat-neg" />
+                  <span className="heat-mid" />
+                  <span className="heat-pos" />
+                  higher
+                </span>
+              ) : null}
+            </div>
+            {!isDebugHudCollapsed ? (
+              <>
+                {allowOnumaLastTurnSource ? (
+                  <div className="cpu-debug-radio-list">
+                    {(['lastTurn', 'currentPreview'] as OnumaDebugAnalysisSource[]).map((source) => (
+                      <label key={source} className="cpu-debug-radio-row">
+                        <input
+                          type="radio"
+                          name="onuma-analysis-source"
+                          checked={onumaDebugSource === source}
+                          onChange={() => setOnumaDebugSource(source)}
+                        />
+                        <span>{source === 'lastTurn' ? 'Last CPU turn' : 'Current board preview'}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="cpu-debug-radio-list">
+                  {(
+                    ['final', 'base', 'adjacent', 'opponentRisk', 'blockBonus', 'selfBonusPenalty', 'mixedBonusReward', 'rank'] as OnumaDebugOverlayMode[]
+                  ).map((mode) => (
+                    <label key={mode} className="cpu-debug-radio-row">
+                      <input
+                        type="radio"
+                        name="onuma-board-overlay-mode"
+                        checked={onumaDebugOverlayMode === mode}
+                        onChange={() => setOnumaDebugOverlayMode(mode)}
+                      />
+                      <span>{onumaBoardOverlayLabel(mode)}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="cpu-debug-group">
+                  <div className="cpu-debug-title">Preview Parameters</div>
+                  <div className="cpu-debug-param-grid">
+                    {(
+                      [
+                        ['toleranceEasy', 'Tolerance Easy'],
+                        ['toleranceNormal', 'Tolerance Normal'],
+                        ['toleranceHard', 'Tolerance Hard'],
+                        ['adjacentBonus', 'Adjacent Bonus'],
+                        ['opponentThreatPenalty', 'Opponent Threat Penalty'],
+                        ['selfOnlyBonusPenalty', 'Self Bonus Penalty'],
+                        ['denyOpponentBonusReward', 'Deny Opponent Bonus'],
+                        ['allowOpponentBonusPenalty', 'Allow Opponent Bonus'],
+                        ['mixedBonusReward', 'Mixed Bonus Reward'],
+                      ] as Array<[keyof OnumaTuning, string]>
+                    ).map(([key, label]) => (
+                      <label key={key} className="cpu-debug-param-row">
+                        <span>{label}</span>
+                        <input
+                          className="cpu-debug-number-input"
+                          type="number"
+                          value={onumaDebugParams[key]}
+                          onChange={(event) => {
+                            const value = Number(event.target.value)
+                            setOnumaDebugParams((prev) => ({
+                              ...prev,
+                              [key]: Number.isFinite(value) ? value : prev[key],
+                            }))
+                          }}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  <div className="cpu-debug-button-row">
+                    <button
+                      type="button"
+                      className="cpu-debug-mini-btn"
+                      onClick={() => setOnumaDebugParams({ ...DEFAULT_ONUMA_TUNING })}
+                    >
+                      Reset defaults
+                    </button>
+                  </div>
+                </div>
+                {onumaDebugDetailCandidate ? (
+                  <div className="cpu-debug-selected">
+                    <div className="line">
+                      source: {allowOnumaLastTurnSource ? (onumaDebugSource === 'lastTurn' ? 'Last CPU turn' : 'Current board preview') : 'Current board preview'}
+                    </div>
+                    <div className="line">
+                      Difficulty: {displayedOnumaDebugAnalysis?.difficulty ?? currentOnumaPreviewDifficulty} / tolerance used:{' '}
+                      {displayedOnumaDebugAnalysis?.activeTolerance ?? resolveOnumaTolerancePreview(currentOnumaPreviewDifficulty, onumaDebugParams)}
+                    </div>
+                    <div className="line">
+                      {onumaDebugHoveredCandidate ? 'Hovering' : 'Selected'}: L{onumaDebugDetailCandidate.move.level} (
+                      {onumaDebugDetailCandidate.move.row + 1},{onumaDebugDetailCandidate.move.col + 1})
+                    </div>
+                    <div className="line">Final score: {onumaDebugDetailCandidate.finalScore.toFixed(1)}</div>
+                    <div className="line">Rank: #{onumaDebugDetailCandidate.rank}</div>
+                    <div className="line">Base weight: {onumaDebugDetailCandidate.baseWeight}</div>
+                    <div className="line">Adjacent bonus: +{onumaDebugDetailCandidate.adjacentBonus}</div>
+                    <div className="line">Opponent threat penalty: -{onumaDebugDetailCandidate.opponentThreatPenalty}</div>
+                    <div className="line">Self-only bonus penalty: -{onumaDebugDetailCandidate.selfOnlyBonusPenalty}</div>
+                    <div className="line">Deny opponent bonus reward: +{onumaDebugDetailCandidate.denyOpponentBonusReward}</div>
+                    <div className="line">Allow opponent bonus penalty: -{onumaDebugDetailCandidate.allowOpponentBonusPenalty}</div>
+                    <div className="line">Mixed bonus reward: +{onumaDebugDetailCandidate.mixedBonusReward}</div>
+                    <div className="line">Square evaluations: {onumaDebugDetailCandidate.squareEvaluationsCount}</div>
+                    <div className="line sub">
+                      Selected move: {displayedOnumaDebugAnalysis?.selected ? `L${displayedOnumaDebugAnalysis.selected.level} (${displayedOnumaDebugAnalysis.selected.row + 1},${displayedOnumaDebugAnalysis.selected.col + 1})` : '--'}
+                    </div>
+                  </div>
+                ) : displayedOnumaDebugAnalysis?.isTerminal ? (
+                  <div className="cpu-debug-selected">
+                    <div className="line">Game over</div>
+                    <div className="line">terminal: {displayedOnumaDebugAnalysis.terminalMessage ?? 'No legal moves.'}</div>
+                    <div className="line">
+                      Difficulty: {displayedOnumaDebugAnalysis.difficulty} / tolerance used: {displayedOnumaDebugAnalysis.activeTolerance}
+                    </div>
+                    <div className="line">Candidate count: 0</div>
+                    <div className="line">Selected move: --</div>
+                  </div>
+                ) : (
+                  <div className="cpu-debug-selected">
+                    <div className="line">No analysis yet.</div>
+                    <div className="line">
+                      {onumaDebugSource === 'lastTurn'
+                        ? 'Last CPU turn data will appear after Onuma thinks.'
+                        : 'Current board preview will appear automatically.'}
+                    </div>
+                    <div className="line">Final: --</div>
+                  </div>
+                )}
+                <div className="cpu-debug-list">
+                  {onumaDebugTopCandidates.map((item) => {
+                    const moveKey = toMoveKey(item.move.level, item.move.row, item.move.col)
+                    return (
+                      <button
+                        key={moveKey}
+                        type="button"
+                        className={[
+                          'cpu-debug-item',
+                          selectedDebugMoveKey === moveKey ? 'selected' : '',
+                          hoveredDebugMoveKey === moveKey ? 'hovered' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        onClick={() => setSelectedDebugMoveKey(moveKey)}
+                        onMouseEnter={() => setHoveredDebugMoveKey(moveKey)}
+                        onMouseLeave={() => setHoveredDebugMoveKey((prev) => (prev === moveKey ? null : prev))}
+                      >
+                        <span>#{item.rank}</span>
+                        <span>
+                          L{item.move.level} ({item.move.row + 1},{item.move.col + 1}) final {item.finalScore.toFixed(1)} / base {item.baseWeight}
+                        </span>
+                        <span>
+                          {displayedOnumaDebugAnalysis?.difficulty ?? currentOnumaPreviewDifficulty} / tol{' '}
+                          {displayedOnumaDebugAnalysis?.activeTolerance ?? resolveOnumaTolerancePreview(currentOnumaPreviewDifficulty, onumaDebugParams)} / a+
+                          {item.adjacentBonus} r-{item.opponentThreatPenalty} b
+                          {item.denyOpponentBonusReward - item.allowOpponentBonusPenalty >= 0 ? '+' : ''}
+                          {item.denyOpponentBonusReward - item.allowOpponentBonusPenalty} m+{item.mixedBonusReward}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
               </>
             ) : null}
           </div>
@@ -4652,6 +5194,30 @@ function kobalabBoardOverlayLabel(mode: KobalabDebugOverlayMode): string {
     return 'Priority (static)'
   }
   return 'Value (rv after)'
+}
+
+function isOnumaBackedCpu(difficulty: CpuDifficulty): boolean {
+  return difficulty === 'easy' || difficulty === 'normal' || difficulty === 'hard'
+}
+
+function getOnumaDifficultyForCpu(difficulty: CpuDifficulty): OnumaDifficultyMode {
+  if (difficulty === 'easy') {
+    return 'easy'
+  }
+  if (difficulty === 'hard') {
+    return 'hard'
+  }
+  return 'normal'
+}
+
+function resolveOnumaTolerancePreview(difficulty: OnumaDifficultyMode, params: OnumaTuning): number {
+  if (difficulty === 'easy') {
+    return params.toleranceEasy
+  }
+  if (difficulty === 'hard') {
+    return params.toleranceHard
+  }
+  return params.toleranceNormal
 }
 
 function resolveChainTone(chainCount: number): ChainTone {

@@ -17,6 +17,14 @@ https://mosaic-game-bef28.web.app
 本アプリは単体のローカル専用版ではなく、同一アプリ内に複数の対戦モードを持つ構成です。  
 フェーズ2まででスタンドアロン対戦体験（ローカル2人対戦・CPU対戦・Playback・3D表示）を整備し、フェーズ3でオンライン対戦モードを追加予定です。
 
+## 詳細仕様ドキュメント
+
+詳細仕様は [`docs/README.md`](./docs/README.md) に整理しています。
+
+- ルール: [`docs/rules.md`](./docs/rules.md)
+- CPU 仕様: [`docs/cpu-easy.md`](./docs/cpu-easy.md), [`docs/cpu-normal.md`](./docs/cpu-normal.md), [`docs/cpu-sophia.md`](./docs/cpu-sophia.md), [`docs/cpu-kobalab.md`](./docs/cpu-kobalab.md)
+- 棋譜仕様: [`docs/record-save-format.md`](./docs/record-save-format.md), [`docs/record-image-format.md`](./docs/record-image-format.md)
+
 ## 現在できること
 
 - 2D対局画面（段が半マスずつずれる表示）

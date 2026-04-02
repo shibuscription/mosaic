@@ -19,6 +19,46 @@ const KOBALAB_LEVEL = 3
 const KOBALAB_TEMPLATE = buildTemplate(BASE_SIZE)
 const KOBALAB_WEIGHT = getWeight(KOBALAB_TEMPLATE.child, KOBALAB_TEMPLATE.statusLength)
 const KOBALAB_PRIORITY = makePriorityOfPosition(KOBALAB_WEIGHT)
+const KOBALAB_PRIORITY_RANK = buildPriorityRankMap(KOBALAB_PRIORITY)
+
+export interface KobalabDebugCandidate {
+  move: Move
+  position: number
+  finalScore: number
+  rank: number
+  currentRv: number
+  afterMoveRv: number
+  deltaRv: number
+  valueScore: number
+  priorityWeight: number
+  priorityRank: number
+  searchedOrder: number
+  legalMoves: number
+  legalMovesAfterMove: number
+  depth: number
+  bestReply: Move | null
+  bestReplyPosition: number | null
+  bestReplyScore: number | null
+  afterReplyRv: number | null
+  nodes: number
+  leaves: number
+  prunes: number
+}
+
+export interface KobalabDebugAnalysis {
+  selected: Move | null
+  selectedPosition: number | null
+  currentRv: number
+  depth: number
+  legalMoves: number
+  selectionMode: 'priority_only' | 'search' | 'terminal'
+  isTerminal: boolean
+  terminalMessage: string | null
+  candidates: KobalabDebugCandidate[]
+  totalNodes: number
+  totalLeaves: number
+  totalPrunes: number
+}
 
 class KobalabGame {
   private readonly _size = BASE_SIZE
@@ -132,6 +172,147 @@ export function chooseKobalabMove(state: GameState): Move | null {
     return null
   }
   return KOBALAB_TEMPLATE.moves[position] ?? null
+}
+
+export function analyzeKobalabMove(state: GameState): KobalabDebugAnalysis {
+  const game = createKobalabGameFromState(state)
+  const player = new KobalabCpu(game, KOBALAB_LEVEL)
+  const depth = player.depth()
+  const currentRv = getValue(game)
+  const legalPositions = new Set(game.moves())
+  const legalMoves = legalPositions.size
+  const noNextPlayer = !game.next
+  const isTerminal = Boolean(state.winner) || noNextPlayer || legalMoves <= 0
+  const currentPlayer = game.next ?? 1
+  const selectionMode: 'priority_only' | 'search' | 'terminal' = isTerminal
+    ? 'terminal'
+    : depth === 0
+      ? 'priority_only'
+      : 'search'
+
+  if (isTerminal) {
+    let terminalMessage = 'Preview unavailable on terminal position.'
+    if (state.winner) {
+      terminalMessage = 'Game over.'
+    } else if (legalMoves <= 0) {
+      terminalMessage = 'No legal moves.'
+    } else if (noNextPlayer) {
+      terminalMessage = 'No legal next player.'
+    }
+    return {
+      selected: null,
+      selectedPosition: null,
+      currentRv,
+      depth: 0,
+      legalMoves,
+      selectionMode,
+      isTerminal: true,
+      terminalMessage,
+      candidates: [],
+      totalNodes: 0,
+      totalLeaves: 0,
+      totalPrunes: 0,
+    }
+  }
+
+  let selectedPosition: number | null = null
+  let selectedMove: Move | null = null
+  let max = 0
+  let totalNodes = 0
+  let totalLeaves = 0
+  let totalPrunes = 0
+
+  const candidates: KobalabDebugCandidate[] = []
+
+  for (const [index, position] of KOBALAB_PRIORITY.entries()) {
+    if (!legalPositions.has(position)) {
+      continue
+    }
+
+    const afterMoveGame = game.clone().makeMove(position)
+    const afterMoveRv = getValue(afterMoveGame)
+    const deltaRv = afterMoveRv - currentRv
+    const evaluation =
+      depth === 0
+        ? {
+            score: evaluatePositionForPlayer(afterMoveGame, currentPlayer),
+            nodes: 1,
+            leaves: 1,
+            prunes: 0,
+          }
+        : evaluateWithStats(afterMoveGame, currentPlayer, depth - 1, KOBALAB_PRIORITY, max, game.length)
+
+    const bestReply = analyzeBestReply(afterMoveGame, currentPlayer, depth)
+    totalNodes += evaluation.nodes
+    totalLeaves += evaluation.leaves
+    totalPrunes += evaluation.prunes
+
+    if (depth === 0) {
+      if (selectedPosition == null) {
+        selectedPosition = position
+        selectedMove = KOBALAB_TEMPLATE.moves[position] ?? null
+      }
+    } else if (evaluation.score > max) {
+      max = evaluation.score
+      selectedPosition = position
+      selectedMove = KOBALAB_TEMPLATE.moves[position] ?? null
+    }
+
+    candidates.push({
+      move: KOBALAB_TEMPLATE.moves[position],
+      position,
+      finalScore: evaluation.score,
+      rank: 0,
+      currentRv,
+      afterMoveRv,
+      deltaRv,
+      valueScore: afterMoveRv,
+      priorityWeight: KOBALAB_WEIGHT[position] ?? 0,
+      priorityRank: KOBALAB_PRIORITY_RANK[position] ?? index + 1,
+      searchedOrder: index + 1,
+      legalMoves,
+      legalMovesAfterMove: afterMoveGame.moves().length,
+      depth,
+      bestReply: bestReply.position != null ? (KOBALAB_TEMPLATE.moves[bestReply.position] ?? null) : null,
+      bestReplyPosition: bestReply.position,
+      bestReplyScore: bestReply.score,
+      afterReplyRv: bestReply.afterReplyRv,
+      nodes: evaluation.nodes,
+      leaves: evaluation.leaves,
+      prunes: evaluation.prunes,
+    })
+  }
+
+  candidates.sort((a, b) => {
+    if (b.finalScore !== a.finalScore) {
+      return b.finalScore - a.finalScore
+    }
+    return a.priorityRank - b.priorityRank
+  })
+
+  candidates.forEach((candidate, index) => {
+    candidate.rank = index + 1
+  })
+
+  if (!selectedMove && candidates.length > 0) {
+    selectedMove = candidates[0].move
+    selectedPosition = candidates[0].position
+  }
+
+  return {
+    selected: selectedMove,
+    selectedPosition,
+    currentRv,
+    depth,
+    legalMoves,
+    selectionMode,
+    isTerminal: false,
+    terminalMessage: null,
+    candidates,
+    totalNodes,
+    totalLeaves,
+    totalPrunes,
+  }
 }
 
 class KobalabCpu {
@@ -264,6 +445,14 @@ function makePriorityOfPosition(weight: number[]): number[] {
   return position
 }
 
+function buildPriorityRankMap(priority: number[]): number[] {
+  const rankMap: number[] = []
+  for (let index = 0; index < priority.length; index += 1) {
+    rankMap[priority[index]] = index + 1
+  }
+  return rankMap
+}
+
 function getValue(game: KobalabGame): number {
   // Reference origin: UpperHand src/js/player.js getValue()
   if (!game.next) {
@@ -300,6 +489,113 @@ function getValue(game: KobalabGame): number {
   }
 
   return rv
+}
+
+function evaluatePositionForPlayer(game: KobalabGame, player: 1 | 2): number {
+  const rv = getValue(game)
+  return player === 1 ? rv : game.length - rv
+}
+
+function evaluateWithStats(
+  game: KobalabGame,
+  player: 1 | 2,
+  depth: number,
+  position: number[],
+  a: number,
+  b: number,
+): {
+  score: number
+  nodes: number
+  leaves: number
+  prunes: number
+} {
+  if (!game.next || depth === 0) {
+    return {
+      score: evaluatePositionForPlayer(game, player),
+      nodes: 1,
+      leaves: 1,
+      prunes: 0,
+    }
+  }
+
+  let max = a
+  let min = b
+  let nodes = 1
+  let leaves = 0
+  let prunes = 0
+
+  for (const candidate of position) {
+    if (game.status(candidate) !== -1) {
+      continue
+    }
+    const child = evaluateWithStats(game.clone().makeMove(candidate), player, depth - 1, position, max, min)
+    nodes += child.nodes
+    leaves += child.leaves
+    prunes += child.prunes
+
+    if (game.next === player) {
+      if (child.score >= b) {
+        prunes += 1
+        return { score: b, nodes, leaves, prunes }
+      }
+      max = child.score > max ? child.score : max
+    } else {
+      if (child.score <= a) {
+        prunes += 1
+        return { score: a, nodes, leaves, prunes }
+      }
+      min = child.score < min ? child.score : min
+    }
+  }
+
+  return {
+    score: game.next === player ? max : min,
+    nodes,
+    leaves,
+    prunes,
+  }
+}
+
+function analyzeBestReply(
+  game: KobalabGame,
+  player: 1 | 2,
+  depth: number,
+): {
+  position: number | null
+  score: number | null
+  afterReplyRv: number | null
+} {
+  if (!game.next) {
+    return { position: null, score: null, afterReplyRv: null }
+  }
+
+  let bestPosition: number | null = null
+  let bestScore = Number.POSITIVE_INFINITY
+  let bestAfterReplyRv: number | null = null
+  const remainingDepth = Math.max(depth - 2, 0)
+
+  for (const candidate of KOBALAB_PRIORITY) {
+    if (game.status(candidate) !== -1) {
+      continue
+    }
+    const afterReplyGame = game.clone().makeMove(candidate)
+    const score = evaluateWithStats(afterReplyGame, player, remainingDepth, KOBALAB_PRIORITY, 0, game.length).score
+    if (score < bestScore) {
+      bestScore = score
+      bestPosition = candidate
+      bestAfterReplyRv = getValue(afterReplyGame)
+    }
+  }
+
+  if (bestPosition == null) {
+    return { position: null, score: null, afterReplyRv: null }
+  }
+
+  return {
+    position: bestPosition,
+    score: bestScore,
+    afterReplyRv: bestAfterReplyRv,
+  }
 }
 
 function evaluate(

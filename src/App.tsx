@@ -15,6 +15,7 @@ import {
   getCpuDefinition,
   isCpuDifficulty,
 } from './game/cpu'
+import { analyzeKobalabMove, type KobalabDebugAnalysis, type KobalabDebugCandidate } from './game/kobalab'
 import { Board3DViewport } from './components/Board3DViewport'
 import { isFirebaseConfigured } from './firebase'
 import { resolveLanguage, translate, type AppLanguage } from './i18n'
@@ -172,6 +173,8 @@ interface DebugScoreComponentDefinition {
 }
 
 type DebugOverlayMode = 'total' | HardScoreComponentKey
+type KobalabDebugOverlayMode = 'final' | 'rvDelta' | 'rank' | 'priority' | 'value'
+type KobalabDebugAnalysisSource = 'lastTurn' | 'currentPreview'
 type ChainTone = 'cool' | 'violet' | 'magenta' | 'orange' | 'hot'
 
 interface ChainBannerState {
@@ -448,11 +451,15 @@ export default function App() {
   const [boardRenderer, setBoardRenderer] = useState<BoardRendererMode>('2d')
   const [isCpuThinking, setIsCpuThinking] = useState(false)
   const [hardDebugAnalysis, setHardDebugAnalysis] = useState<HardMoveAnalysis | null>(null)
+  const [lastKobalabDebugAnalysis, setLastKobalabDebugAnalysis] = useState<KobalabDebugAnalysis | null>(null)
+  const [previewKobalabDebugAnalysis, setPreviewKobalabDebugAnalysis] = useState<KobalabDebugAnalysis | null>(null)
   const [debugScoreComponents, setDebugScoreComponents] = useState<HardScoreComponentToggles>(() => ({
     ...DEFAULT_HARD_SCORE_COMPONENTS,
   }))
   const [isDebugHudCollapsed, setIsDebugHudCollapsed] = useState(true)
   const [debugOverlayMode, setDebugOverlayMode] = useState<DebugOverlayMode>('total')
+  const [kobalabDebugOverlayMode, setKobalabDebugOverlayMode] = useState<KobalabDebugOverlayMode>('final')
+  const [kobalabDebugSource, setKobalabDebugSource] = useState<KobalabDebugAnalysisSource>('lastTurn')
   const [selectedDebugMoveKey, setSelectedDebugMoveKey] = useState<string | null>(null)
   const [hoveredDebugMoveKey, setHoveredDebugMoveKey] = useState<string | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -601,6 +608,51 @@ export default function App() {
     cpuMatchType === 'you_vs_cpu' &&
     cpuDifficulty === 'hard' &&
     !isPlayback
+  const showKobalabDebugOverlay =
+    (() => {
+      if (!debugMode || !isResearchMode || setupOpen) {
+        return false
+      }
+
+      const kobalabInLiveCpuMatch =
+        matchMode === 'cpu' &&
+        (cpuMatchType === 'you_vs_cpu'
+          ? cpuDifficulty === 'kobalab'
+          : cpu1Difficulty === 'kobalab' || cpu2Difficulty === 'kobalab')
+
+      const isPaused2DPlayback =
+        isPlayback &&
+        playbackRenderer === '2d' &&
+        playbackStatus === 'paused'
+
+      const isReview2DPosition =
+        !isPlayback &&
+        boardRenderer === '2d' &&
+        Boolean(game.winner)
+
+      const isLive2DBoard =
+        !isPlayback &&
+        boardRenderer === '2d' &&
+        kobalabInLiveCpuMatch
+
+      if (isPlayback) {
+        return isPaused2DPlayback
+      }
+
+      return isLive2DBoard || isReview2DPosition
+    })()
+  const isKobalabDebugPlaybackPaused =
+    showKobalabDebugOverlay && isPlayback && playbackRenderer === '2d' && playbackStatus === 'paused'
+  const isKobalabDebugReviewPosition =
+    showKobalabDebugOverlay && !isPlayback && boardRenderer === '2d' && Boolean(game.winner)
+  const isKobalabDebugLiveCpuTurn =
+    showKobalabDebugOverlay &&
+    !isPlayback &&
+    matchMode === 'cpu' &&
+    (cpuMatchType === 'you_vs_cpu'
+      ? cpuDifficulty === 'kobalab'
+      : cpu1Difficulty === 'kobalab' || cpu2Difficulty === 'kobalab')
+  const allowKobalabLastTurnSource = isKobalabDebugLiveCpuTurn
   const suppressDeeperCpuLegalIndicators =
     matchMode === 'cpu' &&
     cpuMatchType === 'you_vs_cpu' &&
@@ -823,10 +875,148 @@ export default function App() {
     return map
   }, [hardDebugCandidates, showHardDebugOverlay])
 
+  const displayedKobalabDebugAnalysis = useMemo<KobalabDebugAnalysis | null>(() => {
+    if (!allowKobalabLastTurnSource) {
+      return previewKobalabDebugAnalysis
+    }
+    return kobalabDebugSource === 'currentPreview' ? previewKobalabDebugAnalysis : lastKobalabDebugAnalysis
+  }, [allowKobalabLastTurnSource, kobalabDebugSource, lastKobalabDebugAnalysis, previewKobalabDebugAnalysis])
+
+  const kobalabDebugCandidates = useMemo(() => {
+    return displayedKobalabDebugAnalysis?.candidates ?? []
+  }, [displayedKobalabDebugAnalysis])
+
+  const kobalabDebugTopCandidates = useMemo(() => {
+    return kobalabDebugCandidates.slice(0, 5)
+  }, [kobalabDebugCandidates])
+
+  const kobalabDebugSelectedCandidate = useMemo<KobalabDebugCandidate | null>(() => {
+    if (!kobalabDebugCandidates.length) {
+      return null
+    }
+    if (selectedDebugMoveKey) {
+      const selected = kobalabDebugCandidates.find(
+        (item) => toMoveKey(item.move.level, item.move.row, item.move.col) === selectedDebugMoveKey,
+      )
+      if (selected) {
+        return selected
+      }
+    }
+    if (displayedKobalabDebugAnalysis?.selected) {
+      const selected = kobalabDebugCandidates.find(
+        (item) =>
+          item.move.level === displayedKobalabDebugAnalysis.selected?.level &&
+          item.move.row === displayedKobalabDebugAnalysis.selected?.row &&
+          item.move.col === displayedKobalabDebugAnalysis.selected?.col,
+      )
+      if (selected) {
+        return selected
+      }
+    }
+    return kobalabDebugCandidates[0] ?? null
+  }, [displayedKobalabDebugAnalysis, kobalabDebugCandidates, selectedDebugMoveKey])
+
+  const kobalabDebugHoveredCandidate = useMemo<KobalabDebugCandidate | null>(() => {
+    if (!kobalabDebugCandidates.length || !hoveredDebugMoveKey) {
+      return null
+    }
+    return (
+      kobalabDebugCandidates.find(
+        (item) => toMoveKey(item.move.level, item.move.row, item.move.col) === hoveredDebugMoveKey,
+      ) ?? null
+    )
+  }, [hoveredDebugMoveKey, kobalabDebugCandidates])
+
+  const kobalabDebugDetailCandidate = useMemo<KobalabDebugCandidate | null>(() => {
+    return kobalabDebugHoveredCandidate ?? kobalabDebugSelectedCandidate
+  }, [kobalabDebugHoveredCandidate, kobalabDebugSelectedCandidate])
+
+  const kobalabDebugOverlayLabel = useMemo(() => {
+    if (kobalabDebugOverlayMode === 'final') {
+      return 'Final'
+    }
+    if (kobalabDebugOverlayMode === 'rvDelta') {
+      return 'RV Delta'
+    }
+    if (kobalabDebugOverlayMode === 'rank') {
+      return 'Rank'
+    }
+    if (kobalabDebugOverlayMode === 'priority') {
+      return 'Priority'
+    }
+    return 'Value'
+  }, [kobalabDebugOverlayMode])
+
+  const kobalabDebugOverlayMap = useMemo(() => {
+    const map = new Map<string, { value: number; text: string; style: CSSProperties }>()
+    if (!kobalabDebugCandidates.length) {
+      return { map }
+    }
+
+    const total = kobalabDebugCandidates.length
+    const topCount = Math.max(1, Math.ceil(total * 0.25))
+    const bottomStart = Math.max(topCount + 1, Math.floor(total * 0.75) + 1)
+
+    for (const candidate of kobalabDebugCandidates) {
+      const key = toMoveKey(candidate.move.level, candidate.move.row, candidate.move.col)
+      let value = candidate.finalScore
+      let text = candidate.finalScore.toFixed(1)
+
+      if (kobalabDebugOverlayMode === 'rvDelta') {
+        value = candidate.deltaRv
+        text = candidate.deltaRv >= 0 ? `+${candidate.deltaRv.toFixed(1)}` : candidate.deltaRv.toFixed(1)
+      } else if (kobalabDebugOverlayMode === 'rank') {
+        value = total - candidate.rank + 1
+        text = `#${candidate.rank}`
+      } else if (kobalabDebugOverlayMode === 'priority') {
+        value = candidate.priorityWeight
+        text = `${candidate.priorityWeight}`
+      } else if (kobalabDebugOverlayMode === 'value') {
+        value = candidate.valueScore
+        text = candidate.valueScore.toFixed(1)
+      }
+
+      let backgroundColor = 'rgba(255, 255, 255, 0.84)'
+      let borderColor = 'rgba(170, 180, 198, 0.72)'
+      let color = '#1f365f'
+
+      if (candidate.rank <= topCount) {
+        backgroundColor = 'rgba(44, 176, 102, 0.68)'
+        borderColor = 'rgba(29, 126, 71, 0.8)'
+        color = '#0f2f20'
+      } else if (candidate.rank >= bottomStart) {
+        backgroundColor = 'rgba(232, 77, 86, 0.68)'
+        borderColor = 'rgba(159, 30, 47, 0.8)'
+        color = '#4a0f1a'
+      }
+
+      map.set(key, {
+        value,
+        text,
+        style: {
+          backgroundColor,
+          borderColor,
+          color,
+        },
+      })
+    }
+
+    return { map }
+  }, [kobalabDebugCandidates, kobalabDebugOverlayMode])
+
+  const kobalabDebugCandidateMap = useMemo(() => {
+    const map = new Map<string, KobalabDebugCandidate>()
+    if (!showKobalabDebugOverlay || !kobalabDebugCandidates.length) {
+      return map
+    }
+    for (const item of kobalabDebugCandidates) {
+      map.set(toMoveKey(item.move.level, item.move.row, item.move.col), item)
+    }
+    return map
+  }, [kobalabDebugCandidates, showKobalabDebugOverlay])
+
   useEffect(() => {
     if (!hardDebugAnalysis) {
-      setSelectedDebugMoveKey(null)
-      setHoveredDebugMoveKey(null)
       return
     }
     const selected = hardDebugAnalysis.candidates.find((item) => item.isSelected) ?? hardDebugAnalysis.candidates[0]
@@ -839,10 +1029,52 @@ export default function App() {
   }, [hardDebugAnalysis])
 
   useEffect(() => {
-    if (!showHardDebugOverlay) {
+    if (!displayedKobalabDebugAnalysis) {
+      return
+    }
+    if (displayedKobalabDebugAnalysis.selected) {
+      setSelectedDebugMoveKey(
+        toMoveKey(
+          displayedKobalabDebugAnalysis.selected.level,
+          displayedKobalabDebugAnalysis.selected.row,
+          displayedKobalabDebugAnalysis.selected.col,
+        ),
+      )
+    } else {
+      setSelectedDebugMoveKey(null)
+    }
+    setHoveredDebugMoveKey(null)
+  }, [displayedKobalabDebugAnalysis])
+
+  useEffect(() => {
+    if (hardDebugAnalysis || displayedKobalabDebugAnalysis) {
+      return
+    }
+    setSelectedDebugMoveKey(null)
+    setHoveredDebugMoveKey(null)
+  }, [displayedKobalabDebugAnalysis, hardDebugAnalysis])
+
+  useEffect(() => {
+    if (!showHardDebugOverlay && !showKobalabDebugOverlay) {
       setIsDebugHudCollapsed(true)
     }
-  }, [showHardDebugOverlay])
+  }, [showHardDebugOverlay, showKobalabDebugOverlay])
+
+  useEffect(() => {
+    if (!showKobalabDebugOverlay || kobalabDebugSource !== 'currentPreview') {
+      return
+    }
+    setPreviewKobalabDebugAnalysis(analyzeKobalabMove(game))
+  }, [game, kobalabDebugSource, showKobalabDebugOverlay])
+
+  useEffect(() => {
+    if (!showKobalabDebugOverlay || allowKobalabLastTurnSource) {
+      return
+    }
+    if (kobalabDebugSource !== 'currentPreview') {
+      setKobalabDebugSource('currentPreview')
+    }
+  }, [allowKobalabLastTurnSource, kobalabDebugSource, showKobalabDebugOverlay])
 
   useEffect(() => {
     const stage = boardStageRef.current
@@ -926,6 +1158,12 @@ export default function App() {
       })
       pendingCpuMoveRef.current = analyzed.move
       setHardDebugAnalysis(analyzed.analysis)
+      setLastKobalabDebugAnalysis(null)
+    } else if (debugMode && isResearchMode && currentCpuDifficulty === 'kobalab') {
+      const analyzed = analyzeKobalabMove(game)
+      pendingCpuMoveRef.current = analyzed.selected
+      setLastKobalabDebugAnalysis(analyzed)
+      setHardDebugAnalysis(null)
     } else {
       setHardDebugAnalysis(null)
     }
@@ -952,6 +1190,7 @@ export default function App() {
     debugMode,
     debugScoreComponents,
     game,
+    isResearchMode,
     isAnimating,
     isPlayback,
     matchMode,
@@ -1820,7 +2059,11 @@ export default function App() {
     setWinnerModalVisible(false)
     setIsCpuThinking(false)
     setHardDebugAnalysis(null)
+    setLastKobalabDebugAnalysis(null)
+    setPreviewKobalabDebugAnalysis(null)
     setDebugOverlayMode('total')
+    setKobalabDebugOverlayMode('final')
+    setKobalabDebugSource('lastTurn')
     setIsMobileMenuOpen(false)
     setLicensesOpen(false)
     setAnimatingKey(null)
@@ -1866,7 +2109,11 @@ export default function App() {
     setPlaybackRenderer(null)
     setIsCpuThinking(false)
     setHardDebugAnalysis(null)
+    setLastKobalabDebugAnalysis(null)
+    setPreviewKobalabDebugAnalysis(null)
     setDebugOverlayMode('total')
+    setKobalabDebugOverlayMode('final')
+    setKobalabDebugSource('lastTurn')
     setIsMobileMenuOpen(false)
     setLicensesOpen(false)
     setAnimatingKey(null)
@@ -2313,7 +2560,11 @@ export default function App() {
     setPlaybackRenderer(null)
     setIsCpuThinking(false)
     setHardDebugAnalysis(null)
+    setLastKobalabDebugAnalysis(null)
+    setPreviewKobalabDebugAnalysis(null)
     setDebugOverlayMode('total')
+    setKobalabDebugOverlayMode('final')
+    setKobalabDebugSource('lastTurn')
     setIsMobileMenuOpen(false)
     setAnimatingKey(null)
     setRevealedAutoCount(0)
@@ -2661,29 +2912,36 @@ export default function App() {
 
                   const visualZ = 10 + cell.level * 10 + (cell.pieceColor ? 1 : 0)
                   const hitZ = 200 + cell.level
+                  const showPlayableHit =
+                    visibleLegal &&
+                    !game.winner &&
+                    !cell.pieceColor &&
+                    !setupOpen &&
+                    !isAnimating &&
+                    !(matchMode === 'cpu' && (cpuMatchType === 'cpu_vs_cpu' || game.currentTurn === 'yellow')) &&
+                    (!isOnlineMode || (onlineSession.phase === 'playing' && isOnlineMyTurn))
+                  const hardDebug = hardDebugCandidateMap.get(cell.key)
+                  const hardOverlay = hardDebugOverlayMap.map.get(cell.key)
+                  const kobalabDebug = kobalabDebugCandidateMap.get(cell.key)
+                  const kobalabOverlay = kobalabDebugOverlayMap.map.get(cell.key)
+                  const showKobalabHoverTarget = showKobalabDebugOverlay && !showPlayableHit && !!kobalabDebug
 
                   return (
                     <div key={cell.key}>
-                      {visibleLegal &&
-                      !game.winner &&
-                      !cell.pieceColor &&
-                      !setupOpen &&
-                      !isAnimating &&
-                      !(matchMode === 'cpu' && (cpuMatchType === 'cpu_vs_cpu' || game.currentTurn === 'yellow')) &&
-                      (!isOnlineMode || (onlineSession.phase === 'playing' && isOnlineMyTurn)) ? (
+                      {showPlayableHit ? (
                         <button
                           className="token-hit"
                           data-turn={game.currentTurn}
                           style={{ left: `${cell.left}%`, top: `${cell.top}%`, zIndex: `${hitZ}` }}
                           onClick={() => onCellClick(cell.level, cell.row, cell.col)}
                           onMouseEnter={() => {
-                            if (!showHardDebugOverlay) {
+                            if (!showHardDebugOverlay && !showKobalabDebugOverlay) {
                               return
                             }
                             setHoveredDebugMoveKey(cell.key)
                           }}
                           onMouseLeave={() => {
-                            if (!showHardDebugOverlay) {
+                            if (!showHardDebugOverlay && !showKobalabDebugOverlay) {
                               return
                             }
                             setHoveredDebugMoveKey((prev) => (prev === cell.key ? null : prev))
@@ -2692,35 +2950,63 @@ export default function App() {
                           aria-label={`L${cell.level} row ${cell.row + 1} col ${cell.col + 1}`}
                         />
                       ) : null}
+                      {showKobalabHoverTarget ? (
+                        <div
+                          className="token-hit cpu-debug-hover-hit"
+                          style={{ left: `${cell.left}%`, top: `${cell.top}%`, zIndex: `${hitZ}` }}
+                          onMouseEnter={() => setHoveredDebugMoveKey(cell.key)}
+                          onMouseLeave={() => setHoveredDebugMoveKey((prev) => (prev === cell.key ? null : prev))}
+                          aria-hidden="true"
+                        />
+                      ) : null}
                       {showHardDebugOverlay ? (
-                        (() => {
-                          const debug = hardDebugCandidateMap.get(cell.key)
-                          const overlay = hardDebugOverlayMap.map.get(cell.key)
-                          if (!debug) {
-                            return null
-                          }
-                          return (
-                            <div
-                              className={[
-                                'cpu-debug-marker',
-                                debug.rank <= 5 ? 'top' : '',
-                                selectedDebugMoveKey === cell.key ? 'selected' : '',
-                                hoveredDebugMoveKey === cell.key ? 'hovered' : '',
-                              ]
-                                .filter(Boolean)
-                                .join(' ')}
-                              style={{
-                                left: `${cell.left}%`,
-                                top: `${cell.top}%`,
-                                zIndex: `${hitZ + 1}`,
-                                ...(overlay?.style ?? {}),
-                              }}
-                            >
-                              {debug.rank <= 5 ? <span className="rank">#{debug.rank}</span> : null}
-                              <span className="score">{overlay?.text ?? Math.round(debug.score)}</span>
-                            </div>
-                          )
-                        })()
+                        hardDebug ? (
+                          <div
+                            className={[
+                              'cpu-debug-marker',
+                              hardDebug.rank <= 5 ? 'top' : '',
+                              selectedDebugMoveKey === cell.key ? 'selected' : '',
+                              hoveredDebugMoveKey === cell.key ? 'hovered' : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' ')}
+                            style={{
+                              left: `${cell.left}%`,
+                              top: `${cell.top}%`,
+                              zIndex: `${hitZ + 1}`,
+                              ...(hardOverlay?.style ?? {}),
+                            }}
+                          >
+                            {hardDebug.rank <= 5 ? <span className="rank">#{hardDebug.rank}</span> : null}
+                            <span className="score">{hardOverlay?.text ?? Math.round(hardDebug.score)}</span>
+                          </div>
+                        ) : null
+                      ) : showKobalabDebugOverlay ? (
+                        kobalabDebug ? (
+                          <div
+                            className={[
+                              'cpu-debug-marker',
+                              kobalabDebug.rank <= 5 ? 'top' : '',
+                              selectedDebugMoveKey === cell.key ? 'selected' : '',
+                              hoveredDebugMoveKey === cell.key ? 'hovered' : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' ')}
+                            style={{
+                              left: `${cell.left}%`,
+                              top: `${cell.top}%`,
+                              zIndex: `${hitZ + 1}`,
+                              ...(kobalabOverlay?.style ?? {}),
+                            }}
+                          >
+                            {kobalabDebug.rank <= 3 && kobalabDebugOverlayMode !== 'rank' ? (
+                              <span className="rank">#{kobalabDebug.rank}</span>
+                            ) : null}
+                            <span className="score">
+                              {kobalabOverlay?.text ?? kobalabDebug.finalScore.toFixed(1)}
+                            </span>
+                          </div>
+                        ) : null
                       ) : null}
 
                       <div
@@ -3237,6 +3523,195 @@ export default function App() {
                   </button>
                 ))}
               </div>
+              </>
+            ) : null}
+          </div>
+        </aside>
+      ) : showKobalabDebugOverlay ? (
+        <aside className={['cpu-debug-hud', isDebugHudCollapsed ? 'collapsed' : ''].filter(Boolean).join(' ')} aria-live="polite">
+          <div className="cpu-debug-header">
+            <div className="cpu-debug-title">CPU Debug (kobalab)</div>
+            <button
+              type="button"
+              className="cpu-debug-toggle"
+              onClick={() => {
+                setIsDebugHudCollapsed((prev) => !prev)
+              }}
+              aria-label={isDebugHudCollapsed ? 'Expand debug HUD' : 'Collapse debug HUD'}
+            >
+              {isDebugHudCollapsed ? '+' : '-'}
+            </button>
+          </div>
+          <div className="cpu-debug-body">
+            <div className="cpu-debug-overlay-status">
+              <span className="cpu-debug-overlay-chip">
+                {isKobalabDebugPlaybackPaused
+                  ? 'Playback paused'
+                  : isKobalabDebugReviewPosition
+                    ? 'Review position'
+                    : 'Live board'}
+              </span>
+              <span className="cpu-debug-overlay-chip">
+                Analysis source:{' '}
+                {allowKobalabLastTurnSource
+                  ? kobalabDebugSource === 'lastTurn'
+                    ? 'Last CPU turn'
+                    : 'Current board preview'
+                  : 'Current board preview'}
+              </span>
+              <span className="cpu-debug-overlay-chip">Board overlay: {kobalabDebugOverlayLabel}</span>
+              <span className="cpu-debug-overlay-chip">
+                rv(current): {displayedKobalabDebugAnalysis ? displayedKobalabDebugAnalysis.currentRv.toFixed(1) : '--'}
+              </span>
+              {kobalabDebugSource === 'currentPreview' ? (
+                <span className="cpu-debug-overlay-chip">Previewing current side to move</span>
+              ) : null}
+              {displayedKobalabDebugAnalysis?.isTerminal && displayedKobalabDebugAnalysis.terminalMessage ? (
+                <span className="cpu-debug-overlay-chip">Status: {displayedKobalabDebugAnalysis.terminalMessage}</span>
+              ) : null}
+              {!isDebugHudCollapsed ? (
+                <span className="cpu-debug-overlay-legend">
+                  lower
+                  <span className="heat-neg" />
+                  <span className="heat-mid" />
+                  <span className="heat-pos" />
+                  higher
+                </span>
+              ) : null}
+            </div>
+            {!isDebugHudCollapsed ? (
+              <>
+                {allowKobalabLastTurnSource ? (
+                  <div className="cpu-debug-radio-list">
+                    {(['lastTurn', 'currentPreview'] as KobalabDebugAnalysisSource[]).map((source) => (
+                      <label key={source} className="cpu-debug-radio-row">
+                        <input
+                          type="radio"
+                          name="kobalab-analysis-source"
+                          checked={kobalabDebugSource === source}
+                          onChange={() => setKobalabDebugSource(source)}
+                        />
+                        <span>{source === 'lastTurn' ? 'Last CPU turn' : 'Current board preview'}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="cpu-debug-radio-list">
+                  {(['final', 'rvDelta', 'rank', 'priority', 'value'] as KobalabDebugOverlayMode[]).map((mode) => (
+                    <label key={mode} className="cpu-debug-radio-row">
+                      <input
+                        type="radio"
+                        name="kobalab-board-overlay-mode"
+                        checked={kobalabDebugOverlayMode === mode}
+                        onChange={() => setKobalabDebugOverlayMode(mode)}
+                      />
+                      <span>{kobalabBoardOverlayLabel(mode)}</span>
+                    </label>
+                  ))}
+                </div>
+                {kobalabDebugDetailCandidate ? (
+                  <div className="cpu-debug-selected">
+                    <div className="line">
+                      {kobalabDebugHoveredCandidate ? 'Hovering' : 'Selected'}: L{kobalabDebugDetailCandidate.move.level} (
+                      {kobalabDebugDetailCandidate.move.row + 1},{kobalabDebugDetailCandidate.move.col + 1})
+                    </div>
+                    <div className="line">Final score: {kobalabDebugDetailCandidate.finalScore.toFixed(3)}</div>
+                    <div className="line">
+                      Rank: #{kobalabDebugDetailCandidate.rank} / Priority (static): {kobalabDebugDetailCandidate.priorityWeight} (order{' '}
+                      {kobalabDebugDetailCandidate.priorityRank})
+                    </div>
+                    <div className="line">
+                      Current rv: {kobalabDebugDetailCandidate.currentRv.toFixed(3)} / After move rv:{' '}
+                      {kobalabDebugDetailCandidate.afterMoveRv.toFixed(3)}
+                    </div>
+                    <div className="line">
+                      Delta rv: {kobalabDebugDetailCandidate.deltaRv >= 0 ? '+' : ''}
+                      {kobalabDebugDetailCandidate.deltaRv.toFixed(3)} / Value (rv after): {kobalabDebugDetailCandidate.valueScore.toFixed(3)}
+                    </div>
+                    <div className="line">
+                      Best opponent reply:{' '}
+                      {kobalabDebugDetailCandidate.bestReply
+                        ? `L${kobalabDebugDetailCandidate.bestReply.level} (${kobalabDebugDetailCandidate.bestReply.row + 1},${kobalabDebugDetailCandidate.bestReply.col + 1})`
+                        : '--'}
+                    </div>
+                    <div className="line">
+                      After reply rv:{' '}
+                      {kobalabDebugDetailCandidate.afterReplyRv != null
+                        ? kobalabDebugDetailCandidate.afterReplyRv.toFixed(3)
+                        : '--'}{' '}
+                      / Reply score:{' '}
+                      {kobalabDebugDetailCandidate.bestReplyScore != null
+                        ? kobalabDebugDetailCandidate.bestReplyScore.toFixed(3)
+                        : '--'}
+                    </div>
+                    <div className="line">
+                      Depth: {displayedKobalabDebugAnalysis?.depth ?? '--'} ({displayedKobalabDebugAnalysis?.selectionMode === 'priority_only' ? 'priority only' : 'search'}) / Legal moves:{' '}
+                      {displayedKobalabDebugAnalysis?.legalMoves ?? '--'}
+                    </div>
+                    <div className="line sub">
+                      searched order: {kobalabDebugDetailCandidate.searchedOrder} / legal after move:{' '}
+                      {kobalabDebugDetailCandidate.legalMovesAfterMove}
+                    </div>
+                    <div className="line sub">
+                      nodes {kobalabDebugDetailCandidate.nodes} / leaves {kobalabDebugDetailCandidate.leaves} / prunes{' '}
+                      {kobalabDebugDetailCandidate.prunes}
+                    </div>
+                    {displayedKobalabDebugAnalysis ? (
+                      <div className="line sub">
+                        total nodes {displayedKobalabDebugAnalysis.totalNodes} / leaves {displayedKobalabDebugAnalysis.totalLeaves} / prunes{' '}
+                        {displayedKobalabDebugAnalysis.totalPrunes}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : displayedKobalabDebugAnalysis?.isTerminal ? (
+                  <div className="cpu-debug-selected">
+                    <div className="line">Game over</div>
+                    <div className="line">
+                      {kobalabDebugSource === 'currentPreview'
+                        ? 'Preview unavailable on terminal position.'
+                        : displayedKobalabDebugAnalysis.terminalMessage ?? 'No legal next player.'}
+                    </div>
+                    <div className="line">rv(current): {displayedKobalabDebugAnalysis.currentRv.toFixed(3)}</div>
+                    <div className="line">
+                      Depth: -- / Legal moves: {displayedKobalabDebugAnalysis.legalMoves}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="cpu-debug-selected">
+                    <div className="line">No analysis yet.</div>
+                    <div className="line">
+                      {kobalabDebugSource === 'lastTurn'
+                        ? 'Last CPU turn data will appear after kobalab thinks.'
+                        : 'Current board preview will appear after preview analysis runs.'}
+                    </div>
+                    <div className="line">Final: --</div>
+                  </div>
+                )}
+                <div className="cpu-debug-list">
+                  {kobalabDebugTopCandidates.map((item) => {
+                    const moveKey = toMoveKey(item.move.level, item.move.row, item.move.col)
+                    return (
+                      <button
+                        key={moveKey}
+                        type="button"
+                        className={[
+                          'cpu-debug-item',
+                          selectedDebugMoveKey === moveKey ? 'selected' : '',
+                          hoveredDebugMoveKey === moveKey ? 'hovered' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        onClick={() => setSelectedDebugMoveKey(moveKey)}
+                        onMouseEnter={() => setHoveredDebugMoveKey(moveKey)}
+                        onMouseLeave={() => setHoveredDebugMoveKey((prev) => (prev === moveKey ? null : prev))}
+                      >
+                        <span>#{item.rank}</span>
+                        <span>L{item.move.level} ({item.move.row + 1},{item.move.col + 1})</span>
+                        <span>{item.finalScore.toFixed(2)}</span>
+                      </button>
+                    )
+                  })}
+                </div>
               </>
             ) : null}
           </div>
@@ -4161,6 +4636,22 @@ function getDebugOverlayMetricValue(candidate: HardMoveCandidate, mode: DebugOve
     return -b.chainBackfirePenalty
   }
   return b.endgameAdjustment
+}
+
+function kobalabBoardOverlayLabel(mode: KobalabDebugOverlayMode): string {
+  if (mode === 'final') {
+    return 'Final'
+  }
+  if (mode === 'rvDelta') {
+    return 'RV Delta'
+  }
+  if (mode === 'rank') {
+    return 'Rank'
+  }
+  if (mode === 'priority') {
+    return 'Priority (static)'
+  }
+  return 'Value (rv after)'
 }
 
 function resolveChainTone(chainCount: number): ChainTone {

@@ -634,6 +634,10 @@ body {
   cursor: pointer;
 }
 
+.cpu-debug-hover-hit {
+  cursor: default;
+}
+
 .cpu-debug-marker {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -1056,6 +1060,30 @@ body {
 .cpu-debug-controls {
   display: grid;
   gap: 3px;
+}
+
+.cpu-debug-radio-list {
+  display: grid;
+  gap: 3px;
+  border: 1px solid #ccd9ef;
+  background: #f8fbff;
+  border-radius: 8px;
+  padding: 5px 6px;
+}
+
+.cpu-debug-radio-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.68rem;
+  color: #29456f;
+}
+
+.cpu-debug-radio-row input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #355f9f;
 }
 
 .cpu-debug-group {

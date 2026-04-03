@@ -1,0 +1,214 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isPlayerColor(value) {
+      return value == 'blue' || value == 'yellow';
+    }
+
+    function isNullablePlayerColor(value) {
+      return value == null || isPlayerColor(value);
+    }
+
+    function isRoomStatus(value) {
+      return value == 'waiting' || value == 'playing' || value == 'finished';
+    }
+
+    function isPlayerStatus(value) {
+      return value == 'connected' || value == 'left';
+    }
+
+    function isDisplayColorId(value) {
+      return value in [
+        'classic_brown',
+        'classic_blue',
+        'milkyway_blue',
+        'milkyway_white',
+        'pastel_pink',
+        'pastel_green',
+        'halfblue_sky',
+        'halfblue_white',
+        'trad_black',
+        'trad_white',
+        'miyabi_teal',
+        'miyabi_vermilion',
+        'iki_blue',
+        'iki_white',
+        'oribe_green',
+        'oribe_deepbrown'
+      ];
+    }
+
+    function isMove(value) {
+      return value is map
+        && value.keys().hasAll(['level', 'row', 'col'])
+        && value.keys().hasOnly(['level', 'row', 'col'])
+        && value.level is int
+        && value.level >= 0
+        && value.level <= 6
+        && value.row is int
+        && value.row >= 0
+        && value.row < 7 - value.level
+        && value.col is int
+        && value.col >= 0
+        && value.col < 7 - value.level;
+    }
+
+    function isNullableMove(value) {
+      return value == null || isMove(value);
+    }
+
+    function isRemainingMap(value) {
+      return value is map
+        && value.keys().hasAll(['blue', 'yellow'])
+        && value.keys().hasOnly(['blue', 'yellow'])
+        && value.blue is int
+        && value.blue >= 0
+        && value.blue <= 70
+        && value.yellow is int
+        && value.yellow >= 0
+        && value.yellow <= 70;
+    }
+
+    function isRoomSlot(value, role) {
+      return value is map
+        && value.keys().hasAll(['role', 'joined', 'status'])
+        && value.keys().hasOnly(['role', 'joined', 'status', 'joinedAt', 'lastSeenAt'])
+        && value.role == role
+        && value.joined is bool
+        && isPlayerStatus(value.status)
+        && (!value.keys().hasAny(['joinedAt']) || value.joinedAt is timestamp)
+        && (!value.keys().hasAny(['lastSeenAt']) || value.lastSeenAt is timestamp);
+    }
+
+    function isPlayersMap(value) {
+      return value is map
+        && value.keys().hasAll(['player1', 'player2'])
+        && value.keys().hasOnly(['player1', 'player2'])
+        && isRoomSlot(value.player1, 'blue')
+        && value.player1.joined == true
+        && isRoomSlot(value.player2, 'yellow');
+    }
+
+    function isPlayerColors(value) {
+      return value is map
+        && value.keys().hasAll(['blue', 'yellow'])
+        && value.keys().hasOnly(['blue', 'yellow'])
+        && value.blue is string
+        && value.yellow is string
+        && isDisplayColorId(value.blue)
+        && isDisplayColorId(value.yellow)
+        && value.blue != value.yellow;
+    }
+
+    function isBoardState(value) {
+      return value is map
+        && value.keys().hasAll([
+          'boardCells',
+          'currentTurn',
+          'remaining',
+          'winner',
+          'message',
+          'lastMove',
+          'lastAutoPlacements',
+          'lastActor'
+        ])
+        && value.keys().hasOnly([
+          'boardCells',
+          'currentTurn',
+          'remaining',
+          'winner',
+          'message',
+          'lastMove',
+          'lastAutoPlacements',
+          'lastActor'
+        ])
+        && value.boardCells is list
+        && value.boardCells.size() <= 140
+        && isPlayerColor(value.currentTurn)
+        && isRemainingMap(value.remaining)
+        && isNullablePlayerColor(value.winner)
+        && value.message is string
+        && value.message.size() <= 280
+        && isNullableMove(value.lastMove)
+        && value.lastAutoPlacements is list
+        && value.lastAutoPlacements.size() <= 70
+        && isNullablePlayerColor(value.lastActor);
+    }
+
+    function isValidRoomDocument(roomId, data) {
+      return data is map
+        && data.keys().hasAll([
+          'roomCode',
+          'status',
+          'hostStarts',
+          'players',
+          'playerColors',
+          'currentTurn',
+          'boardState',
+          'winner',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'roomCode',
+          'status',
+          'hostStarts',
+          'players',
+          'playerColors',
+          'currentTurn',
+          'boardState',
+          'winner',
+          'createdAt',
+          'updatedAt'
+        ])
+        && roomId.matches('^[A-Z0-9]{4,8}$')
+        && data.roomCode == roomId
+        && isRoomStatus(data.status)
+        && data.hostStarts is bool
+        && isPlayersMap(data.players)
+        && isPlayerColors(data.playerColors)
+        && isPlayerColor(data.currentTurn)
+        && isBoardState(data.boardState)
+        && isNullablePlayerColor(data.winner)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.currentTurn == data.boardState.currentTurn
+        && data.winner == data.boardState.winner
+        && (
+          (data.status == 'waiting' && data.players.player2.joined == false && data.winner == null) ||
+          (data.status == 'playing' && data.players.player2.joined == true && data.winner == null) ||
+          (data.status == 'finished' && data.players.player2.joined == true && isPlayerColor(data.winner))
+        );
+    }
+
+    match /rooms/{roomId} {
+      allow read: if true;
+
+      allow create: if isValidRoomDocument(roomId, request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if isValidRoomDocument(roomId, request.resource.data)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'status',
+          'players',
+          'currentTurn',
+          'boardState',
+          'winner',
+          'updatedAt'
+        ])
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.roomCode == resource.data.roomCode
+        && request.resource.data.hostStarts == resource.data.hostStarts
+        && request.resource.data.playerColors == resource.data.playerColors
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

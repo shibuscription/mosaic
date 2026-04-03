@@ -499,3 +499,10 @@ src/
 ## Board Detail Notes
 
 - To better match the physical board feel, a small center-hole detail was added to each level-1 placement point in the 3D view.
+
+## Firestore Rules Notes
+
+- Firestore is intended to use a dedicated `rooms` collection for online matches, and the bundled `firestore.rules` denies every other collection by default.
+- Deploy the rules before relying on online play in production: `firebase deploy --only firestore:rules`
+- The current rules are a minimum hardening step away from test mode. Because room writes are still unauthenticated, they reduce accidental misuse more than they stop a determined attacker.
+- Recommended next steps are Firebase Anonymous Auth, App Check, and moving move validation / room mutation behind trusted Functions.

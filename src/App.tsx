@@ -548,6 +548,7 @@ export default function App() {
   const onlineRoomUnsubRef = useRef<(() => void) | null>(null)
   const onlineLastMoveSignatureRef = useRef<string | null>(null)
   const onlineLeaveInFlightRef = useRef(false)
+  const onlineBeforeUnloadPromptRef = useRef(false)
   const gameRef = useRef<GameState>(initialGame)
   const matchRecordRef = useRef<MatchRecord>({
     players: { ...DEFAULT_PLAYER_COLORS },
@@ -1512,17 +1513,31 @@ export default function App() {
 
   useEffect(() => {
     if (!shouldWarnOnlineLeave) {
+      onlineBeforeUnloadPromptRef.current = false
       return
     }
 
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (onlineBeforeUnloadPromptRef.current) {
+        return
+      }
+      onlineBeforeUnloadPromptRef.current = true
       event.preventDefault()
       event.returnValue = ''
     }
 
+    const resetBeforeUnloadPrompt = () => {
+      onlineBeforeUnloadPromptRef.current = false
+    }
+
     window.addEventListener('beforeunload', onBeforeUnload)
+    window.addEventListener('focus', resetBeforeUnloadPrompt)
+    window.addEventListener('pageshow', resetBeforeUnloadPrompt)
     return () => {
       window.removeEventListener('beforeunload', onBeforeUnload)
+      window.removeEventListener('focus', resetBeforeUnloadPrompt)
+      window.removeEventListener('pageshow', resetBeforeUnloadPrompt)
+      onlineBeforeUnloadPromptRef.current = false
     }
   }, [shouldWarnOnlineLeave])
 
@@ -2029,6 +2044,9 @@ export default function App() {
     if (!shouldWarnOnlineLeave) {
       return true
     }
+    if (onlineBeforeUnloadPromptRef.current) {
+      return true
+    }
     return window.confirm(`${t('confirm.leaveOnlineTitle')}\n${t('confirm.leaveOnlineBody')}`)
   }
 
@@ -2130,7 +2148,6 @@ export default function App() {
             ? t('online.matchInProgress')
             : t('online.matchFinished')
       let nextConnectionState: OnlineConnectionState = room.status === 'waiting' ? 'waiting' : 'connected'
-
       const myRole = prev.role
       if (myRole) {
         const opponentKey = myRole === 'blue' ? 'player2' : 'player1'

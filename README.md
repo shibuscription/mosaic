@@ -506,3 +506,9 @@ src/
 - Deploy the rules before relying on online play in production: `firebase deploy --only firestore:rules`
 - The current rules are a minimum hardening step away from test mode. Because room writes are still unauthenticated, they reduce accidental misuse more than they stop a determined attacker.
 - Recommended next steps are Firebase Anonymous Auth, App Check, and moving move validation / room mutation behind trusted Functions.
+
+## Online Stability Notes
+
+- Online resume / rejoin support is currently deferred so the basic create / join / play flow stays stable across devices and browsers.
+- The current priority is reliable room creation, joining, move sync, and match completion.
+- Room codes exclude visually confusing characters such as `1`, `I`, `0`, and `O` for easier sharing by voice.

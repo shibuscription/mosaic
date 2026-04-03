@@ -89,13 +89,20 @@ export class RoomError extends Error {
 }
 
 const ROOM_COLLECTION = 'rooms'
+const ROOM_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
+const ROOM_CODE_LENGTH = 6
 
 function roleToPlayerKey(role: PlayerColor): 'player1' | 'player2' {
   return role === 'blue' ? 'player1' : 'player2'
 }
 
 export function generateRoomCode(): string {
-  return Math.random().toString(36).slice(2, 8).toUpperCase()
+  let code = ''
+  for (let index = 0; index < ROOM_CODE_LENGTH; index += 1) {
+    const randomIndex = Math.floor(Math.random() * ROOM_CODE_ALPHABET.length)
+    code += ROOM_CODE_ALPHABET[randomIndex]
+  }
+  return code
 }
 
 export function normalizeRoomCode(input: string): string {

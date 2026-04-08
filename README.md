@@ -472,9 +472,10 @@ src/
 ## CPU Lineup and Licenses
 
 - CPU lineup in Game Setup: `Easy`, `Normal`, `Hard`
-- `Former Easy`, `Former Normal`, and `SOPHIA` appear with `?former=1`.
+- Public CPU mapping is `Easy = Former Normal`, `Normal = SOPHIA`, `Hard = Onuma Hard`.
+- `?dev=1` shows developer / prototype CPUs. `?former=1` is kept as a legacy compatibility alias for `?dev=1`.
+- `?debug=1` enables CPU HUD / analysis overlays for supported CPUs.
 - `kobalab CPU` is a new TypeScript port based on the reference code under `reference/upperhand/src/js/game.js` and `reference/upperhand/src/js/player.js`.
-- The public `Easy` / `Normal` / `Hard` lineup is backed by the Onuma-style evaluation logic with different tolerances.
 - CPU choices are now managed from a definition list in `src/game/cpu.ts`, so future CPUs can be added with minimal UI changes.
 - `kobalab CPU` appears with `?kobalab=1`.
 

@@ -16,7 +16,9 @@ export interface CpuDefinition {
   id: CpuDifficulty
   labelKey: string
   descriptionKey: string
+  exposure: 'public' | 'dev' | 'kobalab'
   strategy: 'former_profile' | 'sophia' | 'kobalab' | 'onuma'
+  runtime: 'former_easy' | 'former_normal' | 'sophia' | 'kobalab' | 'onuma_hard'
   supportsAnalysis: boolean
 }
 
@@ -25,49 +27,63 @@ export const CPU_DEFINITIONS: CpuDefinition[] = [
     id: 'easy',
     labelKey: 'mode.easy',
     descriptionKey: 'cpu.description.easy',
-    strategy: 'onuma',
+    exposure: 'public',
+    strategy: 'former_profile',
+    runtime: 'former_normal',
     supportsAnalysis: false,
   },
   {
     id: 'normal',
     labelKey: 'mode.normal',
     descriptionKey: 'cpu.description.normal',
-    strategy: 'onuma',
-    supportsAnalysis: false,
+    exposure: 'public',
+    strategy: 'sophia',
+    runtime: 'sophia',
+    supportsAnalysis: true,
   },
   {
     id: 'hard',
     labelKey: 'mode.hard',
     descriptionKey: 'cpu.description.hard',
+    exposure: 'public',
     strategy: 'onuma',
+    runtime: 'onuma_hard',
     supportsAnalysis: false,
   },
   {
     id: 'former_easy',
     labelKey: 'mode.formerEasy',
     descriptionKey: 'cpu.description.formerEasy',
+    exposure: 'dev',
     strategy: 'former_profile',
+    runtime: 'former_easy',
     supportsAnalysis: false,
   },
   {
     id: 'former_normal',
     labelKey: 'mode.formerNormal',
     descriptionKey: 'cpu.description.formerNormal',
+    exposure: 'dev',
     strategy: 'former_profile',
+    runtime: 'former_normal',
     supportsAnalysis: false,
   },
   {
     id: 'sophia',
     labelKey: 'mode.sophia',
     descriptionKey: 'cpu.description.sophia',
+    exposure: 'dev',
     strategy: 'sophia',
+    runtime: 'sophia',
     supportsAnalysis: true,
   },
   {
     id: 'kobalab',
     labelKey: 'mode.kobalab',
     descriptionKey: 'cpu.description.kobalab',
+    exposure: 'kobalab',
     strategy: 'kobalab',
+    runtime: 'kobalab',
     supportsAnalysis: false,
   },
 ]
@@ -78,6 +94,35 @@ export function isCpuDifficulty(value: unknown): value is CpuDifficulty {
 
 export function getCpuDefinition(difficulty: CpuDifficulty): CpuDefinition {
   return CPU_DEFINITIONS.find((definition) => definition.id === difficulty) ?? CPU_DEFINITIONS[0]
+}
+
+export function getVisibleCpuDefinitions(options: {
+  devMode: boolean
+  kobalabMode: boolean
+}): CpuDefinition[] {
+  return CPU_DEFINITIONS.filter((definition) => {
+    if (definition.exposure === 'public') {
+      return true
+    }
+    if (definition.exposure === 'dev') {
+      return options.devMode
+    }
+    return options.kobalabMode
+  })
+}
+
+export function normalizeVisibleCpuDifficulty(
+  difficulty: CpuDifficulty,
+  options: {
+    devMode: boolean
+    kobalabMode: boolean
+  },
+): CpuDifficulty {
+  const visible = getVisibleCpuDefinitions(options)
+  if (visible.some((definition) => definition.id === difficulty)) {
+    return difficulty
+  }
+  return 'hard'
 }
 
 interface ScoredMove {
@@ -347,16 +392,19 @@ export function chooseCpuMove(state: GameState, cpuColor: PlayerColor, difficult
   if (legalMoves.length === 0) {
     return null
   }
-  if (difficulty === 'easy' || difficulty === 'normal' || difficulty === 'hard') {
-    return chooseOnumaMove(state, undefined, difficulty)
+  const definition = getCpuDefinition(difficulty)
+
+  if (definition.runtime === 'onuma_hard') {
+    return chooseOnumaMove(state, undefined, 'hard')
   }
-  if (difficulty === 'kobalab') {
+  if (definition.runtime === 'kobalab') {
     return chooseKobalabMove(state)
   }
-  if (difficulty === 'sophia') {
+  if (definition.runtime === 'sophia') {
     return chooseHardMove(state, legalMoves, cpuColor).move
   }
-  const profile = getProfile(difficulty)
+
+  const profile = getProfile(definition.runtime)
 
   const scored = legalMoves.map((move) => ({ move, score: scoreMove(state, move, cpuColor, profile) }))
   scored.sort((a, b) => b.score - a.score)
@@ -375,7 +423,7 @@ export function chooseCpuMoveWithAnalysis(
     return { move: null, analysis: null }
   }
 
-  if (difficulty !== 'sophia') {
+  if (getCpuDefinition(difficulty).runtime !== 'sophia') {
     return {
       move: chooseCpuMove(state, cpuColor, difficulty),
       analysis: null,
@@ -1297,8 +1345,8 @@ function pickMoveWithVariance(scoredMoves: ScoredMove[], profile: DifficultyProf
   return nearBest[0].move
 }
 
-function getProfile(difficulty: CpuDifficulty): DifficultyProfile {
-  if (difficulty === 'former_normal') {
+function getProfile(runtime: CpuDefinition['runtime']): DifficultyProfile {
+  if (runtime === 'former_normal') {
     return NORMAL_PROFILE
   }
   return EASY_PROFILE

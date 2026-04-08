@@ -2,11 +2,11 @@
 import { BASE_SIZE, MAX_LEVEL, TOTAL_PIECES, type AutoPlacement, type GameState, type Move, type PieceColor, type PlayerColor } from './game/types'
 import { createInitialGameState, getLegalMoves, getLevelSize, getPiece, placeManualPiece } from './game/logic'
 import {
-  CPU_DEFINITIONS,
   chooseCpuMove,
   chooseCpuMoveWithAnalysis,
   computeHardScoreFromBreakdown,
   DEFAULT_HARD_SCORE_COMPONENTS,
+  getVisibleCpuDefinitions,
   type CpuDifficulty,
   type HardMoveAnalysis,
   type HardMoveCandidate,
@@ -14,6 +14,7 @@ import {
   type HardScoreComponentToggles,
   getCpuDefinition,
   isCpuDifficulty,
+  normalizeVisibleCpuDifficulty,
 } from './game/cpu'
 import { analyzeKobalabMove, type KobalabDebugAnalysis, type KobalabDebugCandidate } from './game/kobalab'
 import {
@@ -54,7 +55,7 @@ import {
   type RoomDoc,
   deserializeGameState,
 } from './online/room'
-import { MOBILE_BREAKPOINT_PX, OFFICIAL_SITE_URL, isFormerCpuModeEnabled, isKobalabResearchModeEnabled } from './urlFlags'
+import { MOBILE_BREAKPOINT_PX, OFFICIAL_SITE_URL, isDevCpuModeEnabled, isKobalabResearchModeEnabled } from './urlFlags'
 import './style.css'
 
 type DisplayColorId =
@@ -197,7 +198,6 @@ interface ChainBannerState {
   top: number
 }
 
-const DEFAULT_VISIBLE_CPU_DIFFICULTY: CpuDifficulty = 'hard'
 const CENTER_PLAIN_IMAGE_URL = '/center-plain.png'
 const CENTER_PATTERN_IMAGE_URL = '/center-pattern.png'
 const THEME_IMAGE_CONFIGS = {
@@ -265,32 +265,6 @@ const THEME_IMAGE_CONFIGS = {
     player2Label: 'Oribe Deep Brown',
   },
 } satisfies Record<string, ThemeImageConfig>
-
-function filterVisibleCpuDefinitions(isFormerMode: boolean, isKobalabMode: boolean) {
-  return CPU_DEFINITIONS.filter((definition) => {
-    if (definition.id === 'former_easy' || definition.id === 'former_normal' || definition.id === 'sophia') {
-      return isFormerMode
-    }
-    if (definition.id === 'kobalab') {
-      return isKobalabMode
-    }
-    return true
-  })
-}
-
-function normalizeVisibleCpuDifficulty(
-  difficulty: CpuDifficulty,
-  isFormerMode: boolean,
-  isKobalabMode: boolean,
-): CpuDifficulty {
-  if (difficulty === 'kobalab' && !isKobalabMode) {
-    return DEFAULT_VISIBLE_CPU_DIFFICULTY
-  }
-  if ((difficulty === 'former_easy' || difficulty === 'former_normal' || difficulty === 'sophia') && !isFormerMode) {
-    return DEFAULT_VISIBLE_CPU_DIFFICULTY
-  }
-  return difficulty
-}
 
 const DEBUG_SCORE_CATEGORIES: DebugScoreCategory[] = [
   { key: 'gain', label: 'Gain' },
@@ -611,15 +585,15 @@ export default function App() {
     }
     return isKobalabResearchModeEnabled(window.location.search)
   }, [])
-  const isFormerMode = useMemo(() => {
+  const isDevMode = useMemo(() => {
     if (typeof window === 'undefined') {
       return false
     }
-    return isFormerCpuModeEnabled(window.location.search)
+    return isDevCpuModeEnabled(window.location.search)
   }, [])
   const visibleCpuDefinitions = useMemo(
-    () => filterVisibleCpuDefinitions(isFormerMode, isResearchMode),
-    [isFormerMode, isResearchMode],
+    () => getVisibleCpuDefinitions({ devMode: isDevMode, kobalabMode: isResearchMode }),
+    [isDevMode, isResearchMode],
   )
   const [isCompactViewport, setIsCompactViewport] = useState(() => {
     if (typeof window === 'undefined') {
@@ -658,7 +632,7 @@ export default function App() {
     debugMode &&
     !setupOpen &&
     matchMode === 'cpu' &&
-    observedCpuDifficulty === 'sophia' &&
+    isSophiaBackedCpu(observedCpuDifficulty) &&
     !isPlayback
   const onumaCpuConfigured =
     matchMode === 'cpu' &&
@@ -1427,8 +1401,8 @@ export default function App() {
 
     const isObservedCpuTurn = actor === observedCpuColor
 
-    if (debugMode && isObservedCpuTurn && observedCpuDifficulty === 'sophia' && currentCpuDifficulty === observedCpuDifficulty) {
-      const analyzed = chooseCpuMoveWithAnalysis(game, actor, 'sophia', {
+    if (debugMode && isObservedCpuTurn && isSophiaBackedCpu(observedCpuDifficulty) && currentCpuDifficulty === observedCpuDifficulty) {
+      const analyzed = chooseCpuMoveWithAnalysis(game, actor, observedCpuDifficulty, {
         enabledComponents: debugScoreComponents,
       })
       pendingCpuMoveRef.current = analyzed.move
@@ -1607,16 +1581,17 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    setCpuDifficulty((prev) => normalizeVisibleCpuDifficulty(prev, isFormerMode, isResearchMode))
-    setPendingCpuDifficulty((prev) => normalizeVisibleCpuDifficulty(prev, isFormerMode, isResearchMode))
-    setCpu1Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, isFormerMode, isResearchMode))
-    setCpu2Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, isFormerMode, isResearchMode))
-    setPendingCpu1Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, isFormerMode, isResearchMode))
-    setPendingCpu2Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, isFormerMode, isResearchMode))
+    const visibilityOptions = { devMode: isDevMode, kobalabMode: isResearchMode }
+    setCpuDifficulty((prev) => normalizeVisibleCpuDifficulty(prev, visibilityOptions))
+    setPendingCpuDifficulty((prev) => normalizeVisibleCpuDifficulty(prev, visibilityOptions))
+    setCpu1Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, visibilityOptions))
+    setCpu2Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, visibilityOptions))
+    setPendingCpu1Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, visibilityOptions))
+    setPendingCpu2Difficulty((prev) => normalizeVisibleCpuDifficulty(prev, visibilityOptions))
     if (!isResearchMode) {
       setLicensesOpen(false)
     }
-  }, [isFormerMode, isResearchMode])
+  }, [isDevMode, isResearchMode])
 
   useEffect(() => {
     if (!isMobileMenuOpen) {
@@ -5214,14 +5189,15 @@ function kobalabBoardOverlayLabel(mode: KobalabDebugOverlayMode): string {
 }
 
 function isOnumaBackedCpu(difficulty: CpuDifficulty): boolean {
-  return difficulty === 'easy' || difficulty === 'normal' || difficulty === 'hard'
+  return getCpuDefinition(difficulty).runtime === 'onuma_hard'
+}
+
+function isSophiaBackedCpu(difficulty: CpuDifficulty): boolean {
+  return getCpuDefinition(difficulty).runtime === 'sophia'
 }
 
 function getOnumaDifficultyForCpu(difficulty: CpuDifficulty): OnumaDifficultyMode {
-  if (difficulty === 'easy') {
-    return 'easy'
-  }
-  if (difficulty === 'hard') {
+  if (getCpuDefinition(difficulty).runtime === 'onuma_hard') {
     return 'hard'
   }
   return 'normal'

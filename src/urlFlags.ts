@@ -5,6 +5,11 @@ export function isKobalabResearchModeEnabled(search: string): boolean {
   return new URLSearchParams(search).get('kobalab') === '1'
 }
 
+export function isDevCpuModeEnabled(search: string): boolean {
+  const params = new URLSearchParams(search)
+  return params.get('dev') === '1' || params.get('former') === '1'
+}
+
 export function isFormerCpuModeEnabled(search: string): boolean {
-  return new URLSearchParams(search).get('former') === '1'
+  return isDevCpuModeEnabled(search)
 }

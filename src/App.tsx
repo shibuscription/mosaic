@@ -462,6 +462,7 @@ export default function App() {
   const [kobalabDebugSource, setKobalabDebugSource] = useState<KobalabDebugAnalysisSource>('lastTurn')
   const [onumaDebugOverlayMode, setOnumaDebugOverlayMode] = useState<OnumaDebugOverlayMode>('final')
   const [onumaDebugSource, setOnumaDebugSource] = useState<OnumaDebugAnalysisSource>('lastTurn')
+  const [onumaDebugDifficulty, setOnumaDebugDifficulty] = useState<OnumaDifficultyMode>('hard')
   const [onumaDebugParams, setOnumaDebugParams] = useState<OnumaTuning>({ ...DEFAULT_ONUMA_TUNING })
   const [selectedDebugMoveKey, setSelectedDebugMoveKey] = useState<string | null>(null)
   const [hoveredDebugMoveKey, setHoveredDebugMoveKey] = useState<string | null>(null)
@@ -610,9 +611,6 @@ export default function App() {
   const displayTurnPlayer: PlayerColor = isPlayback ? playbackTurnPlayer : game.currentTurn
   const observedCpuColor: PlayerColor = cpuMatchType === 'cpu_vs_cpu' ? 'blue' : 'yellow'
   const observedCpuDifficulty: CpuDifficulty = cpuMatchType === 'cpu_vs_cpu' ? cpu1Difficulty : cpuDifficulty
-  const currentOnumaPreviewDifficulty = useMemo(() => {
-    return getOnumaDifficultyForCpu(observedCpuDifficulty)
-  }, [observedCpuDifficulty])
   const observedPreviewState = useMemo(() => {
     if (game.currentTurn === observedCpuColor) {
       return game
@@ -1311,8 +1309,8 @@ export default function App() {
     if (!showOnumaDebugOverlay) {
       return
     }
-    setPreviewOnumaDebugAnalysis(analyzeOnumaMove(observedPreviewState, onumaDebugParams, currentOnumaPreviewDifficulty))
-  }, [currentOnumaPreviewDifficulty, observedPreviewState, onumaDebugParams, showOnumaDebugOverlay])
+    setPreviewOnumaDebugAnalysis(analyzeOnumaMove(observedPreviewState, onumaDebugParams, onumaDebugDifficulty))
+  }, [observedPreviewState, onumaDebugDifficulty, onumaDebugParams, showOnumaDebugOverlay])
 
   useEffect(() => {
     if (!showOnumaDebugOverlay || allowOnumaLastTurnSource) {
@@ -1410,7 +1408,7 @@ export default function App() {
       setLastKobalabDebugAnalysis(null)
       setLastOnumaDebugAnalysis(null)
     } else if (debugMode && isObservedCpuTurn && isOnumaBackedCpu(observedCpuDifficulty) && currentCpuDifficulty === observedCpuDifficulty) {
-      const analyzed = analyzeOnumaMove(game, onumaDebugParams, getOnumaDifficultyForCpu(observedCpuDifficulty))
+      const analyzed = analyzeOnumaMove(game, onumaDebugParams, onumaDebugDifficulty)
       pendingCpuMoveRef.current = analyzed.selected
       setLastOnumaDebugAnalysis(analyzed)
       setHardDebugAnalysis(null)
@@ -1457,6 +1455,7 @@ export default function App() {
     matchMode,
     observedCpuColor,
     observedCpuDifficulty,
+    onumaDebugDifficulty,
     onumaDebugParams,
     setupOpen,
   ])
@@ -3877,10 +3876,10 @@ export default function App() {
               </span>
               <span className="cpu-debug-overlay-chip">Board overlay: {onumaBoardOverlayLabel(onumaDebugOverlayMode)}</span>
               <span className="cpu-debug-overlay-chip">
-                Difficulty: {displayedOnumaDebugAnalysis?.difficulty ?? currentOnumaPreviewDifficulty}
+                Difficulty: {displayedOnumaDebugAnalysis?.difficulty ?? onumaDebugDifficulty}
               </span>
               <span className="cpu-debug-overlay-chip">
-                Active tolerance: {displayedOnumaDebugAnalysis?.activeTolerance ?? resolveOnumaTolerancePreview(currentOnumaPreviewDifficulty, onumaDebugParams)}
+                Active tolerance: {displayedOnumaDebugAnalysis?.activeTolerance ?? resolveOnumaTolerancePreview(onumaDebugDifficulty, onumaDebugParams)}
               </span>
               <span className="cpu-debug-overlay-chip">
                 Candidate count: {displayedOnumaDebugAnalysis?.candidates.length ?? 0}
@@ -3918,6 +3917,19 @@ export default function App() {
                     ))}
                   </div>
                 ) : null}
+                <div className="cpu-debug-radio-list">
+                  {(['easy', 'normal', 'hard'] as OnumaDifficultyMode[]).map((difficulty) => (
+                    <label key={difficulty} className="cpu-debug-radio-row">
+                      <input
+                        type="radio"
+                        name="onuma-debug-difficulty"
+                        checked={onumaDebugDifficulty === difficulty}
+                        onChange={() => setOnumaDebugDifficulty(difficulty)}
+                      />
+                      <span>Onuma {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}</span>
+                    </label>
+                  ))}
+                </div>
                 <div className="cpu-debug-radio-list">
                   {(
                     ['final', 'base', 'adjacent', 'opponentRisk', 'blockBonus', 'selfBonusPenalty', 'mixedBonusReward', 'rank'] as OnumaDebugOverlayMode[]
@@ -3982,8 +3994,8 @@ export default function App() {
                       source: {allowOnumaLastTurnSource ? (onumaDebugSource === 'lastTurn' ? 'Last CPU turn' : 'Current board preview') : 'Current board preview'}
                     </div>
                     <div className="line">
-                      Difficulty: {displayedOnumaDebugAnalysis?.difficulty ?? currentOnumaPreviewDifficulty} / tolerance used:{' '}
-                      {displayedOnumaDebugAnalysis?.activeTolerance ?? resolveOnumaTolerancePreview(currentOnumaPreviewDifficulty, onumaDebugParams)}
+                      Difficulty: {displayedOnumaDebugAnalysis?.difficulty ?? onumaDebugDifficulty} / tolerance used:{' '}
+                      {displayedOnumaDebugAnalysis?.activeTolerance ?? resolveOnumaTolerancePreview(onumaDebugDifficulty, onumaDebugParams)}
                     </div>
                     <div className="line">
                       {onumaDebugHoveredCandidate ? 'Hovering' : 'Selected'}: L{onumaDebugDetailCandidate.move.level} (
@@ -4047,8 +4059,8 @@ export default function App() {
                           L{item.move.level} ({item.move.row + 1},{item.move.col + 1}) final {item.finalScore.toFixed(1)} / base {item.baseWeight}
                         </span>
                         <span>
-                          {displayedOnumaDebugAnalysis?.difficulty ?? currentOnumaPreviewDifficulty} / tol{' '}
-                          {displayedOnumaDebugAnalysis?.activeTolerance ?? resolveOnumaTolerancePreview(currentOnumaPreviewDifficulty, onumaDebugParams)} / a+
+                          {displayedOnumaDebugAnalysis?.difficulty ?? onumaDebugDifficulty} / tol{' '}
+                          {displayedOnumaDebugAnalysis?.activeTolerance ?? resolveOnumaTolerancePreview(onumaDebugDifficulty, onumaDebugParams)} / a+
                           {item.adjacentBonus} r-{item.opponentThreatPenalty} b
                           {item.denyOpponentBonusReward - item.allowOpponentBonusPenalty >= 0 ? '+' : ''}
                           {item.denyOpponentBonusReward - item.allowOpponentBonusPenalty} m+{item.mixedBonusReward}
@@ -5194,13 +5206,6 @@ function isOnumaBackedCpu(difficulty: CpuDifficulty): boolean {
 
 function isSophiaBackedCpu(difficulty: CpuDifficulty): boolean {
   return getCpuDefinition(difficulty).runtime === 'sophia'
-}
-
-function getOnumaDifficultyForCpu(difficulty: CpuDifficulty): OnumaDifficultyMode {
-  if (getCpuDefinition(difficulty).runtime === 'onuma_hard') {
-    return 'hard'
-  }
-  return 'normal'
 }
 
 function resolveOnumaTolerancePreview(difficulty: OnumaDifficultyMode, params: OnumaTuning): number {

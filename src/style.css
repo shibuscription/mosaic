@@ -2802,7 +2802,6 @@ body {
   .language-fixed,
   .load-fixed,
   .licenses-fixed,
-  .undo-fixed,
   .reset-fixed {
     display: none;
   }
@@ -2829,6 +2828,23 @@ body {
     box-shadow: 0 3px 8px #15254526;
   }
 
+  .undo-fixed {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    right: calc(56px + env(safe-area-inset-right));
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    padding: 7px 10px;
+    font-size: 0.74rem;
+    line-height: 1;
+    background: #58657fee;
+    border: 1px solid #9db2d6;
+    border-radius: 10px;
+    color: #fff;
+    box-shadow: 0 3px 8px #15254526;
+  }
+
   .mobile-menu-panel {
     position: absolute;
     right: 0;
@@ -2841,6 +2857,11 @@ body {
     border-radius: 10px;
     padding: 6px;
     box-shadow: 0 10px 24px #0f1b3140;
+  }
+
+  .page.setup-open .mobile-menu,
+  .page.setup-open .undo-fixed {
+    bottom: calc(12px + env(safe-area-inset-bottom));
   }
 
   .utility-menu-panel {
@@ -3228,14 +3249,15 @@ body {
   .setup-modal {
     padding: 12px;
     gap: 10px;
-    max-height: calc(100vh - 12px);
-    min-height: calc(100vh - 12px);
+    max-height: calc(100vh - 72px - env(safe-area-inset-bottom));
+    min-height: calc(100vh - 72px - env(safe-area-inset-bottom));
     border-radius: 18px;
   }
 
   .setup-sheet-body {
     gap: 10px;
     padding-right: 2px;
+    padding-bottom: 10px;
   }
 
   .setup-config-right {
@@ -3346,6 +3368,7 @@ body {
   .setup-actions {
     gap: 6px;
     padding-top: 7px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
   }
 
   .winner-card {

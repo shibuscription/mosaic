@@ -3384,7 +3384,7 @@ export default function App() {
   }
 
   return (
-    <main className={`page mobile-panels-${mobilePanelMode}`} style={themeStyle}>
+    <main className={`page mobile-panels-${mobilePanelMode}${setupOpen ? ' setup-open' : ''}`} style={themeStyle}>
       {!isOnlineMockView ? (
         <section className="advantage-strip" aria-label="advantage bar">
           <div className="advantage-meta">

@@ -62,6 +62,7 @@ export interface SerializedGameState {
 
 export interface RoomDoc {
   roomCode: string
+  boardVariant?: BoardVariant
   status: RoomStatus
   hostStarts: boolean
   players: RoomPlayers
@@ -132,6 +133,7 @@ export function serializeGameState(state: GameState): SerializedGameState {
   })
 
   return {
+    boardVariant: state.boardVariant,
     boardCells,
     currentTurn: state.currentTurn,
     remaining: { ...state.remaining },
@@ -144,7 +146,7 @@ export function serializeGameState(state: GameState): SerializedGameState {
 }
 
 export function deserializeGameState(data: SerializedGameState): GameState {
-  const boardVariant = data.boardVariant ?? DEFAULT_BOARD_VARIANT
+  const boardVariant = normalizeRoomBoardVariant(data.boardVariant)
   const emptyBoard = createInitialGameState(boardVariant).board.map((levelRows) =>
     levelRows.map((rowCells) =>
       rowCells.map(() => null as GameState['board'][number][number][number]),
@@ -172,6 +174,24 @@ export function deserializeGameState(data: SerializedGameState): GameState {
     lastMove: data.lastMove ? { ...data.lastMove } : null,
     lastAutoPlacements: data.lastAutoPlacements.map((item) => ({ ...item })),
     lastActor: data.lastActor,
+  }
+}
+
+export function normalizeRoomBoardVariant(boardVariant: BoardVariant | undefined | null): BoardVariant {
+  return boardVariant === 'mini' || boardVariant === 'pro' || boardVariant === 'standard'
+    ? boardVariant
+    : DEFAULT_BOARD_VARIANT
+}
+
+export function normalizeRoomDoc(room: RoomDoc): RoomDoc {
+  const boardVariant = normalizeRoomBoardVariant(room.boardVariant ?? room.boardState?.boardVariant)
+  return {
+    ...room,
+    boardVariant,
+    boardState: {
+      ...room.boardState,
+      boardVariant,
+    },
   }
 }
 
@@ -207,6 +227,7 @@ function extractBoardCells(data: SerializedGameState): SerializedBoardCell[] {
 
 export async function createRoom(
   playerColors: { blue: string; yellow: string },
+  boardVariant: BoardVariant,
   hostStarts = true,
 ): Promise<{ roomCode: string }> {
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -217,11 +238,12 @@ export async function createRoom(
       continue
     }
 
-    const initial = createInitialGameState()
+    const initial = createInitialGameState(boardVariant)
     initial.currentTurn = hostStarts ? 'blue' : 'yellow'
     initial.message = hostStarts ? "Player 1's turn" : "Player 2's turn"
     const payload: RoomDoc = {
       roomCode,
+      boardVariant,
       status: 'waiting',
       hostStarts,
       players: {
@@ -265,7 +287,7 @@ export async function joinRoom(rawCode: string): Promise<{ roomCode: string }> {
       throw new RoomError('not_found', 'Room not found.')
     }
 
-    const room = snap.data() as RoomDoc
+    const room = normalizeRoomDoc(snap.data() as RoomDoc)
     if (room.status !== 'waiting') {
       throw new RoomError('not_joinable', 'Room is not joinable.')
     }
@@ -275,6 +297,8 @@ export async function joinRoom(rawCode: string): Promise<{ roomCode: string }> {
     }
 
     txn.update(roomRef, {
+      boardVariant: room.boardVariant,
+      'boardState.boardVariant': room.boardVariant,
       status: 'playing',
       'players.player2.joined': true,
       'players.player2.status': 'connected',
@@ -300,7 +324,7 @@ export function subscribeRoom(
         onData(null)
         return
       }
-      onData(snap.data() as RoomDoc)
+      onData(normalizeRoomDoc(snap.data() as RoomDoc))
     },
     (error) => {
       onError(error as Error)
@@ -321,7 +345,7 @@ export async function submitRoomMove(
       throw new RoomError('not_found', 'Room not found.')
     }
 
-    const room = snap.data() as RoomDoc
+    const room = normalizeRoomDoc(snap.data() as RoomDoc)
     if (room.status !== 'playing') {
       throw new RoomError('not_playing', 'Room is not in playing status.')
     }
@@ -337,6 +361,7 @@ export async function submitRoomMove(
 
     const nextState = placeManualPiece(currentState, move.level, move.row, move.col)
     txn.update(roomRef, {
+      boardVariant: nextState.boardVariant,
       boardState: serializeGameState(nextState),
       currentTurn: nextState.currentTurn,
       winner: nextState.winner,

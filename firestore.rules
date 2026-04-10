@@ -18,6 +18,22 @@ service cloud.firestore {
       return value == 'connected' || value == 'left';
     }
 
+    function isBoardVariant(value) {
+      return value == 'mini' || value == 'standard' || value == 'pro';
+    }
+
+    function boardBaseSize(boardVariant) {
+      return boardVariant == 'mini' ? 5 : boardVariant == 'pro' ? 9 : 7;
+    }
+
+    function boardTotalPieces(boardVariant) {
+      return boardVariant == 'mini' ? 27 : boardVariant == 'pro' ? 142 : 50;
+    }
+
+    function boardMaxCells(boardVariant) {
+      return boardVariant == 'mini' ? 55 : boardVariant == 'pro' ? 285 : 140;
+    }
+
     function isDisplayColorId(value) {
       return value in [
         'classic_brown',
@@ -39,35 +55,35 @@ service cloud.firestore {
       ];
     }
 
-    function isMove(value) {
+    function isMove(value, boardVariant) {
       return value is map
         && value.keys().hasAll(['level', 'row', 'col'])
         && value.keys().hasOnly(['level', 'row', 'col'])
         && value.level is int
         && value.level >= 0
-        && value.level <= 6
+        && value.level <= boardBaseSize(boardVariant) - 1
         && value.row is int
         && value.row >= 0
-        && value.row < 7 - value.level
+        && value.row < boardBaseSize(boardVariant) - value.level
         && value.col is int
         && value.col >= 0
-        && value.col < 7 - value.level;
+        && value.col < boardBaseSize(boardVariant) - value.level;
     }
 
-    function isNullableMove(value) {
-      return value == null || isMove(value);
+    function isNullableMove(value, boardVariant) {
+      return value == null || isMove(value, boardVariant);
     }
 
-    function isRemainingMap(value) {
+    function isRemainingMap(value, boardVariant) {
       return value is map
         && value.keys().hasAll(['blue', 'yellow'])
         && value.keys().hasOnly(['blue', 'yellow'])
         && value.blue is int
         && value.blue >= 0
-        && value.blue <= 70
+        && value.blue <= boardTotalPieces(boardVariant)
         && value.yellow is int
         && value.yellow >= 0
-        && value.yellow <= 70;
+        && value.yellow <= boardTotalPieces(boardVariant);
     }
 
     function isRoomSlot(value, role) {
@@ -101,7 +117,7 @@ service cloud.firestore {
         && value.blue != value.yellow;
     }
 
-    function isBoardState(value) {
+    function isBoardState(value, boardVariant) {
       return value is map
         && value.keys().hasAll([
           'boardCells',
@@ -114,6 +130,7 @@ service cloud.firestore {
           'lastActor'
         ])
         && value.keys().hasOnly([
+          'boardVariant',
           'boardCells',
           'currentTurn',
           'remaining',
@@ -123,20 +140,23 @@ service cloud.firestore {
           'lastAutoPlacements',
           'lastActor'
         ])
+        && (!value.keys().hasAny(['boardVariant']) || isBoardVariant(value.boardVariant))
+        && (!value.keys().hasAny(['boardVariant']) || value.boardVariant == boardVariant)
         && value.boardCells is list
-        && value.boardCells.size() <= 140
+        && value.boardCells.size() <= boardMaxCells(boardVariant)
         && isPlayerColor(value.currentTurn)
-        && isRemainingMap(value.remaining)
+        && isRemainingMap(value.remaining, boardVariant)
         && isNullablePlayerColor(value.winner)
         && value.message is string
         && value.message.size() <= 280
-        && isNullableMove(value.lastMove)
+        && isNullableMove(value.lastMove, boardVariant)
         && value.lastAutoPlacements is list
-        && value.lastAutoPlacements.size() <= 70
+        && value.lastAutoPlacements.size() <= boardTotalPieces(boardVariant)
         && isNullablePlayerColor(value.lastActor);
     }
 
     function isValidRoomDocument(roomId, data) {
+      let normalizedBoardVariant = data.keys().hasAny(['boardVariant']) ? data.boardVariant : 'standard';
       return data is map
         && data.keys().hasAll([
           'roomCode',
@@ -152,6 +172,7 @@ service cloud.firestore {
         ])
         && data.keys().hasOnly([
           'roomCode',
+          'boardVariant',
           'status',
           'hostStarts',
           'players',
@@ -164,12 +185,13 @@ service cloud.firestore {
         ])
         && roomId.matches('^[A-Z0-9]{4,8}$')
         && data.roomCode == roomId
+        && (!data.keys().hasAny(['boardVariant']) || isBoardVariant(data.boardVariant))
         && isRoomStatus(data.status)
         && data.hostStarts is bool
         && isPlayersMap(data.players)
         && isPlayerColors(data.playerColors)
         && isPlayerColor(data.currentTurn)
-        && isBoardState(data.boardState)
+        && isBoardState(data.boardState, normalizedBoardVariant)
         && isNullablePlayerColor(data.winner)
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
@@ -191,6 +213,7 @@ service cloud.firestore {
 
       allow update: if isValidRoomDocument(roomId, request.resource.data)
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'boardVariant',
           'status',
           'players',
           'currentTurn',

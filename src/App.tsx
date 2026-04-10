@@ -172,6 +172,7 @@ interface OnlineSessionState {
   phase: OnlinePhase
   roomCode: string
   roomInput: string
+  boardVariant: BoardVariant | null
   role: PlayerColor | null
   isHost: boolean
   connectionState: OnlineConnectionState
@@ -391,6 +392,7 @@ const INITIAL_ONLINE_SESSION: OnlineSessionState = {
   phase: 'create',
   roomCode: '',
   roomInput: '',
+  boardVariant: null,
   role: null,
   isHost: false,
   connectionState: 'idle',
@@ -775,6 +777,7 @@ export default function App() {
   const maxCoordinate = Math.max(1, (gameBoardSpec.baseSize - 1) * BASE_SPACING)
   const currentBoardVariantLabel = boardVariantChipLabel(game.boardVariant, language)
   const boardVariantLabel = boardVariantChipLabel(pendingBoardVariant, language)
+  const onlineBoardVariantLabel = onlineSession.boardVariant ? boardVariantChipLabel(onlineSession.boardVariant, language) : null
   const shouldShowBoardSizeSetup =
     pendingMode !== 'online' || pendingOnlineAction === 'create'
   const shouldShowBoardSizeSummaryChip =
@@ -2342,6 +2345,7 @@ export default function App() {
     }
     const nextRecord: MatchRecord = {
       ...currentRecord,
+      boardVariant: nextGame.boardVariant,
       moves: [...currentRecord.moves, moveRecord],
       winner: nextGame.winner,
     }
@@ -2364,6 +2368,9 @@ export default function App() {
     }
 
     setPlayerColors(nextRoomColors)
+    setBoardVariant(nextGame.boardVariant)
+    setPendingBoardVariant(nextGame.boardVariant)
+    setMatchRecord((prev) => (prev.boardVariant === nextGame.boardVariant ? prev : { ...prev, boardVariant: nextGame.boardVariant }))
     if (boardChanged && nextGame.lastMove && !isPlayback) {
       appendOnlineMoveRecordFromSnapshot(nextGame, prevGame.remaining)
     } else {
@@ -2420,6 +2427,7 @@ export default function App() {
 
       return {
         ...prev,
+        boardVariant: nextGame.boardVariant,
         roomCode: room.roomCode,
         phase: nextPhase,
         connectionState: nextConnectionState,
@@ -2486,6 +2494,7 @@ export default function App() {
       phase: 'waiting',
       roomCode: '',
       roomInput: '',
+      boardVariant: pendingBoardVariant,
       role: 'blue',
       isHost: true,
       connectionState: 'connecting',
@@ -2499,7 +2508,7 @@ export default function App() {
       const { roomCode } = await createRoom({
         blue: pendingColors.blue,
         yellow: pendingColors.yellow,
-      }, hostStarts)
+      }, pendingBoardVariant, hostStarts)
       startOnlineRoomSubscription(roomCode)
       setOnlineSession((prev) => ({
         ...prev,
@@ -2527,6 +2536,7 @@ export default function App() {
       phase: 'join',
       roomCode: '',
       roomInput: '',
+      boardVariant: null,
       role: 'yellow',
       isHost: false,
       connectionState: 'idle',
@@ -3465,6 +3475,7 @@ export default function App() {
           phase={onlineSession.phase}
           roomCode={onlineSession.roomCode}
           roomInput={onlineSession.roomInput}
+          boardVariantLabel={onlineBoardVariantLabel}
           waitMessage={onlineSession.waitMessage}
           errorMessage={onlineSession.errorMessage}
           createColors={onlineSession.createColors}
@@ -5041,6 +5052,7 @@ interface OnlineMockPanelProps {
   phase: OnlinePhase
   roomCode: string
   roomInput: string
+  boardVariantLabel: string | null
   waitMessage: string
   errorMessage: string
   createColors: PlayerColorConfig
@@ -5098,6 +5110,7 @@ function OnlineMockPanel({
   phase,
   roomCode,
   roomInput,
+  boardVariantLabel,
   waitMessage,
   errorMessage,
   createColors,
@@ -5150,6 +5163,7 @@ function OnlineMockPanel({
         </div>
 
         <div className="online-session-meta" aria-live="polite">
+          {boardVariantLabel ? <span>{boardVariantLabel}</span> : null}
           <span>{t('online.you')}: {role === 'blue' ? 'Player 1' : role === 'yellow' ? 'Player 2' : t('status.notAssigned')}</span>
           <span>{isHost ? t('online.host') : t('online.guest')}</span>
           <span>
@@ -5210,6 +5224,7 @@ function OnlineMockPanel({
             </div>
             <p className="online-waiting-copy">{t('online.waitingDescription')}</p>
             <div className="online-status-list">
+              {boardVariantLabel ? <div className="online-status-item">{boardVariantLabel}</div> : null}
               <div className="online-status-item">
                 {t('online.colors')}: {t('online.host')} {colorLabel(createColors.blue)} / {t('online.guest')} {colorLabel(createColors.yellow)}
               </div>

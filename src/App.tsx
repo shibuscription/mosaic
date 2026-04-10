@@ -517,6 +517,7 @@ export default function App() {
 
   const boardStageRef = useRef<HTMLElement | null>(null)
   const mobileMenuRef = useRef<HTMLDivElement | null>(null)
+  const setupMenuRef = useRef<HTMLDivElement | null>(null)
   const recordFileInputRef = useRef<HTMLInputElement | null>(null)
   const timeoutIdsRef = useRef<number[]>([])
   const playbackTimerRef = useRef<number | null>(null)
@@ -1856,10 +1857,12 @@ export default function App() {
 
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Node | null
-      if (!target || !mobileMenuRef.current) {
+      if (!target) {
         return
       }
-      if (!mobileMenuRef.current.contains(target)) {
+      const insidePrimaryMenu = mobileMenuRef.current?.contains(target) ?? false
+      const insideSetupMenu = setupMenuRef.current?.contains(target) ?? false
+      if (!insidePrimaryMenu && !insideSetupMenu) {
         setIsMobileMenuOpen(false)
       }
     }
@@ -4636,13 +4639,27 @@ export default function App() {
                         : t('setup.chooseTurnAndColors')}
                 </p>
               </div>
-              <div className="setup-hero-summary">
+            <div className="setup-hero-summary">
                 {shouldShowBoardSizeSummaryChip ? <span className="setup-summary-chip">{boardVariantLabel}</span> : null}
                 <span className="setup-summary-chip">{setupModeLabel}</span>
                 {setupSubmodeLabel ? <span className="setup-summary-chip">{setupSubmodeLabel}</span> : null}
                 {pendingMode === 'cpu' && pendingCpuMatchType === 'you_vs_cpu' ? (
                   <span className="setup-summary-chip">{t(getCpuDefinition(pendingCpuDifficulty).labelKey)}</span>
                 ) : null}
+                <div className="setup-menu" ref={setupMenuRef}>
+                  <button
+                    type="button"
+                    className={isCompactViewport ? 'mobile-menu-toggle setup-menu-toggle' : 'game-shell-btn ghost desktop-menu-toggle setup-menu-toggle'}
+                    aria-label={t('menu.gameSetup')}
+                    aria-expanded={isMobileMenuOpen}
+                    onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+                  >
+                    <span className="hamburger-line" />
+                    <span className="hamburger-line" />
+                    <span className="hamburger-line" />
+                  </button>
+                  {isMobileMenuOpen ? utilityMenuPanel : null}
+                </div>
               </div>
             </div>
             <div className="setup-sheet-body">

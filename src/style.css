@@ -1700,6 +1700,12 @@ body {
   overflow-y: auto;
 }
 
+.page.setup-open .mobile-menu,
+.page.setup-open .undo-fixed {
+  z-index: 640;
+  pointer-events: none;
+}
+
 .setup-modal {
   width: min(1040px, 100%);
   max-height: min(92vh, calc(100dvh - 24px));
@@ -1771,7 +1777,24 @@ body {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
   gap: 8px;
+}
+
+.setup-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+}
+
+.setup-menu-toggle {
+  flex: 0 0 auto;
+}
+
+.setup-menu .utility-menu-panel {
+  top: calc(100% + 8px);
+  right: 0;
 }
 
 .setup-summary-chip {
@@ -3252,6 +3275,16 @@ body {
     max-height: calc(100vh - 72px - env(safe-area-inset-bottom));
     min-height: calc(100vh - 72px - env(safe-area-inset-bottom));
     border-radius: 18px;
+  }
+
+  .setup-menu {
+    margin-left: auto;
+  }
+
+  .setup-menu .utility-menu-panel {
+    top: auto;
+    bottom: calc(100% + 8px);
+    right: 0;
   }
 
   .setup-sheet-body {

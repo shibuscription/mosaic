@@ -111,11 +111,13 @@ body {
   display: grid;
   gap: 6px;
   justify-items: end;
+  align-items: center;
 }
 
 .game-shell-action-group {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 6px;
 }
@@ -131,10 +133,15 @@ body {
   color: #223a65;
   font-weight: 800;
   font-size: 0.78rem;
+  min-height: 38px;
   padding: 8px 12px;
   cursor: pointer;
   text-decoration: none;
   box-shadow: 0 2px 6px rgba(19, 33, 58, 0.06);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
 }
 
 .game-shell-btn:hover {
@@ -162,10 +169,13 @@ body {
 
 .desktop-menu {
   position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .desktop-menu-toggle {
   min-width: 42px;
+  min-height: 38px;
   padding-inline: 10px;
 }
 
@@ -182,6 +192,42 @@ body {
   padding: 8px;
   box-shadow: 0 10px 24px #0f1b3140;
   z-index: 40;
+}
+
+.utility-menu-panel.desktop {
+  min-width: 264px;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(248, 251, 255, 0.98);
+}
+
+.utility-menu-panel.desktop .mobile-menu-group {
+  margin-bottom: 0;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.utility-menu-panel.desktop .mobile-menu-group-title {
+  font-size: 0.74rem;
+  margin-bottom: 8px;
+}
+
+.utility-menu-panel.desktop .mobile-menu-segment {
+  gap: 6px;
+}
+
+.utility-menu-panel.desktop .mobile-segment-btn {
+  min-height: 34px;
+  font-size: 0.8rem;
+  border-radius: 8px;
+}
+
+.utility-menu-panel.desktop .mobile-menu-item {
+  min-height: 38px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  font-size: 0.84rem;
 }
 
 .game-shell-link-btn {

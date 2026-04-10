@@ -776,7 +776,11 @@ export default function App() {
             : null
         : null
   const utilityMenuPanel = (
-    <div className="utility-menu-panel" role="menu" aria-label={t('menu.gameSetup')}>
+    <div
+      className={['utility-menu-panel', isCompactViewport ? 'mobile' : 'desktop'].join(' ')}
+      role="menu"
+      aria-label={t('menu.gameSetup')}
+    >
       <div className="mobile-menu-group">
         <div className="mobile-menu-group-title">{t('menu.language')}</div>
         <div className="mobile-menu-segment" role="radiogroup" aria-label="language">
@@ -798,27 +802,29 @@ export default function App() {
           </button>
         </div>
       </div>
-      <div className="mobile-menu-group">
-        <div className="mobile-menu-group-title">{t('menu.infoPanel')}</div>
-        <div className="mobile-menu-segment" role="radiogroup" aria-label="info panel mode">
-          <button
-            type="button"
-            className={['mobile-segment-btn', mobilePanelMode === 'standard' ? 'selected' : ''].filter(Boolean).join(' ')}
-            aria-pressed={mobilePanelMode === 'standard'}
-            onClick={() => setMobilePanelMode('standard')}
-          >
-            {t('menu.standard')}
-          </button>
-          <button
-            type="button"
-            className={['mobile-segment-btn', mobilePanelMode === 'faceoff' ? 'selected' : ''].filter(Boolean).join(' ')}
-            aria-pressed={mobilePanelMode === 'faceoff'}
-            onClick={() => setMobilePanelMode('faceoff')}
-          >
-            {t('menu.faceoff')}
-          </button>
+      {isCompactViewport ? (
+        <div className="mobile-menu-group">
+          <div className="mobile-menu-group-title">{t('menu.infoPanel')}</div>
+          <div className="mobile-menu-segment" role="radiogroup" aria-label="info panel mode">
+            <button
+              type="button"
+              className={['mobile-segment-btn', mobilePanelMode === 'standard' ? 'selected' : ''].filter(Boolean).join(' ')}
+              aria-pressed={mobilePanelMode === 'standard'}
+              onClick={() => setMobilePanelMode('standard')}
+            >
+              {t('menu.standard')}
+            </button>
+            <button
+              type="button"
+              className={['mobile-segment-btn', mobilePanelMode === 'faceoff' ? 'selected' : ''].filter(Boolean).join(' ')}
+              aria-pressed={mobilePanelMode === 'faceoff'}
+              onClick={() => setMobilePanelMode('faceoff')}
+            >
+              {t('menu.faceoff')}
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
       <button
         type="button"
         role="menuitem"

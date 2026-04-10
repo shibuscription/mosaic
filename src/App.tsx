@@ -5613,7 +5613,7 @@ function getBoardLayoutMetrics(boardVariant: BoardVariant): {
   }
 
   if (baseSize <= 5) {
-    return buildPackedMetrics(0.28, 0.02)
+    return buildPackedMetrics(0.28, 0.005)
   }
 
   if (baseSize >= 9) {

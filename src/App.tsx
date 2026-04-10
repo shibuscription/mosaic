@@ -5570,17 +5570,33 @@ function moveToBoardPercent(boardVariant: BoardVariant, level: number, row: numb
 }
 
 function getBoardLayoutMetrics(boardVariant: BoardVariant): {
+  centerStepPercent: number
+  edgeSafetyPercent: number
   tokenInsetPercent: number
   tokenSizePercent: number
 } {
   const { baseSize } = getBoardSpec(boardVariant)
-  const buildMetrics = (tokenSizePercent: number, edgeSafetyPercent: number) => ({
-    tokenSizePercent,
-    tokenInsetPercent: tokenSizePercent / 2 + edgeSafetyPercent,
-  })
+  const buildMetrics = (tokenSizePercent: number, edgeSafetyPercent: number) => {
+    const tokenInsetPercent = tokenSizePercent / 2 + edgeSafetyPercent
+    const centerStepPercent =
+      baseSize > 1 ? (100 - tokenInsetPercent * 2) / (baseSize - 1) : 0
+    return {
+      centerStepPercent,
+      edgeSafetyPercent,
+      tokenInsetPercent,
+      tokenSizePercent,
+    }
+  }
+
+  const buildFittedMetrics = (maxFillRatio: number, edgeSafetyPercent: number) => {
+    const safeFillRatio = clamp(maxFillRatio, 0.75, 0.99)
+    const tokenSizePercent =
+      (safeFillRatio * (100 - edgeSafetyPercent * 2)) / ((baseSize - 1) + safeFillRatio)
+    return buildMetrics(tokenSizePercent, edgeSafetyPercent)
+  }
 
   if (baseSize <= 5) {
-    return buildMetrics(22.6, 0.9)
+    return buildFittedMetrics(0.975, 0.35)
   }
 
   if (baseSize >= 9) {

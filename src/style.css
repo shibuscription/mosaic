@@ -268,6 +268,74 @@ body {
   background: #eef4ff;
 }
 
+.hamburger-line {
+  display: block;
+  width: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: #2a3b61;
+}
+
+.desktop-utility-dock {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 980;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.desktop-dock-btn {
+  border: 1px solid #bfd0eb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #223a65;
+  min-height: 40px;
+  padding: 9px 14px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 4px 10px #0f1a3020;
+}
+
+.desktop-dock-btn.primary {
+  border-color: #27497f;
+  background: #27497f;
+  color: #fff;
+}
+
+.desktop-dock-btn.icon {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+  flex-direction: column;
+}
+
+.desktop-dock-btn:hover {
+  background: #eef4ff;
+}
+
+.desktop-dock-btn.primary:hover {
+  background: #1f3c68;
+}
+
+.desktop-dock-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.desktop-utility-dock .utility-menu-panel.desktop {
+  top: auto;
+  right: 0;
+  bottom: calc(100% + 10px);
+}
+
 .game-shell-link-btn {
   display: inline-flex;
   align-items: center;

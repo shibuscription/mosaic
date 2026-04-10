@@ -754,8 +754,6 @@ export default function App() {
   const currentMatchLabel =
     matchMode === 'cpu' ? t('mode.cpuMatch') : matchMode === 'online' ? t('mode.onlineMatch') : t('mode.localMatch')
   const boardViewLabel = boardRenderer === '3d' ? t('action.view3d') : t('action.view2d')
-  const onlineConnectionLabel =
-    matchMode === 'online' ? onlineConnectionStateLabel(onlineSession.connectionState, t) : null
   const headerStatusLabel = isPlayback
     ? `${t('action.playback')} ${playbackMoveCursor} / ${playbackTotalMoves}`
     : game.winner
@@ -3328,59 +3326,46 @@ export default function App() {
       ) : null}
 
       {!isOnlineMockView && !isCompactViewport ? (
-        <header className="game-shell-header" aria-label="game layout header">
-          <div className="game-shell-main">
-            <a
-              className="game-shell-brand game-shell-brand-link"
-              href={OFFICIAL_SITE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={t('menu.officialSite')}
+        <>
+          <a
+            className="official-logo-badge official-logo-link"
+            href={OFFICIAL_SITE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={t('menu.officialSite')}
+          >
+            <img className="official-logo-image" src="/mosaic_logo_white.png" alt="MOSAIC" />
+          </a>
+          <div className="desktop-utility-dock" ref={mobileMenuRef}>
+            <button
+              type="button"
+              className="desktop-dock-btn primary"
+              onClick={requestOpenSetup}
             >
-              <img className="game-shell-logo" src="/mosaic_logo_white.png" alt="MOSAIC" />
-            </a>
-            <div className="game-shell-summary">
-              <div className="game-shell-status">{headerStatusLabel}</div>
-              <div className="game-shell-chip-row">
-                <span className="game-shell-chip">Standard 7×7</span>
-                <span className="game-shell-chip">{currentMatchLabel}</span>
-                <span className="game-shell-chip">{boardViewLabel}</span>
-                {isPlayback ? <span className="game-shell-chip">{t('action.playback')}</span> : null}
-                {onlineConnectionLabel ? <span className="game-shell-chip">{onlineConnectionLabel}</span> : null}
-              </div>
-            </div>
-            <div className="game-shell-actions" aria-label="desktop utilities">
-              <div className="game-shell-action-group primary">
-                <button type="button" className="game-shell-btn primary" onClick={requestOpenSetup}>
-                  {t('action.returnToSetup')}
-                </button>
-                <button
-                  type="button"
-                  className="game-shell-btn"
-                  onClick={handleUndo}
-                  disabled={matchMode === 'online' || history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
-                >
-                  {t('action.undo')}
-                </button>
-                <div className="desktop-menu" ref={mobileMenuRef}>
-                  <button
-                    type="button"
-                    className="game-shell-btn ghost desktop-menu-toggle"
-                    aria-label={t('menu.gameSetup')}
-                    aria-expanded={isMobileMenuOpen}
-                    onClick={() => setIsMobileMenuOpen((prev) => !prev)}
-                  >
-                    <span className="hamburger-line" />
-                    <span className="hamburger-line" />
-                    <span className="hamburger-line" />
-                  </button>
-                  {isMobileMenuOpen ? utilityMenuPanel : null}
-                </div>
-              </div>
-            </div>
-            <div className="game-shell-mobile-actions" />
+              {t('action.returnToSetup')}
+            </button>
+            <button
+              type="button"
+              className="desktop-dock-btn"
+              onClick={handleUndo}
+              disabled={matchMode === 'online' || history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
+            >
+              {t('action.undo')}
+            </button>
+            <button
+              type="button"
+              className="desktop-dock-btn icon"
+              aria-label={t('menu.gameSetup')}
+              aria-expanded={isMobileMenuOpen}
+              onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+            >
+              <span className="hamburger-line" />
+              <span className="hamburger-line" />
+              <span className="hamburger-line" />
+            </button>
+            {isMobileMenuOpen ? utilityMenuPanel : null}
           </div>
-        </header>
+        </>
       ) : null}
 
       {!isOnlineMockView && isCompactViewport ? (
@@ -5391,22 +5376,6 @@ function resolveOnumaTolerancePreview(difficulty: OnumaDifficultyMode, params: O
     return params.toleranceHard
   }
   return params.toleranceNormal
-}
-
-function onlineConnectionStateLabel(connectionState: OnlineConnectionState, t: (key: string) => string): string {
-  if (connectionState === 'connected') {
-    return t('status.connected')
-  }
-  if (connectionState === 'connecting') {
-    return t('status.connecting')
-  }
-  if (connectionState === 'waiting') {
-    return t('status.waiting')
-  }
-  if (connectionState === 'disconnected') {
-    return t('status.disconnected')
-  }
-  return t('status.waiting')
 }
 
 function resolveChainTone(chainCount: number): ChainTone {

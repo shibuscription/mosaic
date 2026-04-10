@@ -779,6 +779,7 @@ export default function App() {
   const currentBoardVariantLabel = boardVariantChipLabel(game.boardVariant, language)
   const boardVariantLabel = boardVariantChipLabel(pendingBoardVariant, language)
   const onlineBoardVariantLabel = onlineSession.boardVariant ? boardVariantChipLabel(onlineSession.boardVariant, language) : null
+  const setupBoardVariantTitle = boardVariantTitleLabel(pendingBoardVariant)
   const shouldShowBoardSizeSetup =
     pendingMode !== 'online' || pendingOnlineAction === 'create'
   const shouldShowBoardSizeSummaryChip =
@@ -4625,7 +4626,7 @@ export default function App() {
           <div className="setup-modal">
             <div className="setup-hero">
               <div className="setup-hero-copy">
-                <span className="setup-hero-kicker">MOSAIC Standard</span>
+                <span className="setup-hero-kicker">{setupBoardVariantTitle}</span>
                 <div className="setup-hero-title">
                   {setupStep === 'mode' ? t('menu.gameSetup') : pendingMode === 'online' ? t('setup.onlineMatchSetup') : t('setup.matchSetup')}
                 </div>
@@ -5549,6 +5550,16 @@ function boardVariantChipLabel(variant: BoardVariant, language: AppLanguage): st
     return language === 'ja' ? '9×9' : '9×9'
   }
   return '7×7'
+}
+
+function boardVariantTitleLabel(variant: BoardVariant): string {
+  if (variant === 'mini') {
+    return 'MOSAIC MINI'
+  }
+  if (variant === 'pro') {
+    return 'MOSAIC PRO'
+  }
+  return 'MOSAIC STANDARD'
 }
 
 function resolveChainTone(chainCount: number): ChainTone {

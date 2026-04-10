@@ -270,10 +270,11 @@ body {
 
 .hamburger-line {
   display: block;
-  width: 16px;
-  height: 2px;
-  border-radius: 2px;
-  background: #2a3b61;
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+  background: #193256;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
 .desktop-utility-dock {
@@ -315,6 +316,7 @@ body {
   min-width: 40px;
   padding: 0;
   flex-direction: column;
+  gap: 5px;
 }
 
 .desktop-dock-btn:hover {
@@ -2793,18 +2795,10 @@ body {
     background: #f7fbffea;
     display: grid;
     place-content: center;
-    gap: 4px;
+    gap: 5px;
     padding: 0;
     cursor: pointer;
     box-shadow: 0 3px 8px #15254526;
-  }
-
-  .hamburger-line {
-    display: block;
-    width: 16px;
-    height: 2px;
-    border-radius: 2px;
-    background: #2a3b61;
   }
 
   .mobile-menu-panel {
@@ -3007,6 +3001,10 @@ body {
       'yellow blue'
       'board board';
     gap: 6px;
+  }
+
+  .page.mobile-panels-standard {
+    padding-top: 52px;
   }
 
   .page.mobile-panels-standard .player-panel.yellow {

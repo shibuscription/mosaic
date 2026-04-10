@@ -998,8 +998,8 @@ body {
 
 .token-visual .guide,
 .token-visual .piece {
-  width: 96%;
-  height: 96%;
+  width: var(--token-visual-size, 96%);
+  height: var(--token-visual-size, 96%);
   display: block;
   border-radius: 999px;
 }

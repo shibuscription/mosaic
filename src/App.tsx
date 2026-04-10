@@ -3541,6 +3541,7 @@ export default function App() {
                   {
                     '--board-hole-map': boardHoleMap,
                     '--token-size': `${boardLayoutMetrics.tokenSizePercent}%`,
+                    '--token-visual-size': `${boardLayoutMetrics.tokenVisualPercent}%`,
                   } as CSSProperties
                 }
               >
@@ -5575,9 +5576,10 @@ function getBoardLayoutMetrics(boardVariant: BoardVariant): {
   tokenRadiusPercent: number
   tokenInsetPercent: number
   tokenSizePercent: number
+  tokenVisualPercent: number
 } {
   const { baseSize } = getBoardSpec(boardVariant)
-  const buildMetrics = (tokenSizePercent: number, edgeSafetyPercent: number) => {
+  const buildMetrics = (tokenSizePercent: number, edgeSafetyPercent: number, tokenVisualPercent = 96) => {
     const tokenRadiusPercent = tokenSizePercent / 2
     const tokenInsetPercent = tokenRadiusPercent + edgeSafetyPercent
     const centerStepPercent =
@@ -5588,18 +5590,19 @@ function getBoardLayoutMetrics(boardVariant: BoardVariant): {
       tokenInsetPercent,
       tokenRadiusPercent,
       tokenSizePercent,
+      tokenVisualPercent,
     }
   }
 
-  const buildPackedMetrics = (edgeSafetyPercent: number, diameterGapPercent: number) => {
+  const buildPackedMetrics = (edgeSafetyPercent: number, diameterGapPercent: number, tokenVisualPercent = 96) => {
     const safeGap = Math.max(0, diameterGapPercent)
     const centerStepPercent =
       baseSize > 0 ? (100 + safeGap - edgeSafetyPercent * 2) / baseSize : 0
     const tokenSizePercent = Math.max(0, centerStepPercent - safeGap)
-    return buildMetrics(tokenSizePercent, edgeSafetyPercent)
+    return buildMetrics(tokenSizePercent, edgeSafetyPercent, tokenVisualPercent)
   }
 
-  const buildFixedMetrics = (tokenSizePercent: number, edgeSafetyPercent: number) => {
+  const buildFixedMetrics = (tokenSizePercent: number, edgeSafetyPercent: number, tokenVisualPercent = 96) => {
     const tokenInsetPercent = tokenSizePercent / 2 + edgeSafetyPercent
     const centerStepPercent =
       baseSize > 1 ? (100 - tokenInsetPercent * 2) / (baseSize - 1) : 0
@@ -5609,11 +5612,12 @@ function getBoardLayoutMetrics(boardVariant: BoardVariant): {
       tokenInsetPercent,
       tokenRadiusPercent: tokenSizePercent / 2,
       tokenSizePercent,
+      tokenVisualPercent,
     }
   }
 
   if (baseSize <= 5) {
-    return buildPackedMetrics(0.28, 0.005)
+    return buildPackedMetrics(0.28, 0.005, 98.8)
   }
 
   if (baseSize >= 9) {

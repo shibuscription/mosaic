@@ -1,25 +1,32 @@
-import { BASE_SIZE, type GameState, type Move } from './types'
+import { getBoardSpec, type BoardVariant, type GameState, type Move } from './types'
 import { canPlaceAt } from './logic'
 
 type KobalabStatus = -1 | 0 | 1 | 2 | null
 
 interface KobalabGameSnapshot {
+  template: TemplateData & { statusLength: number }
   status: KobalabStatus[]
   ball: [number, number, number]
   next: 1 | 2
 }
 
 interface TemplateData {
+  baseSize: number
   child: number[][]
   moves: Move[]
   initialStatus: KobalabStatus[]
 }
 
 const KOBALAB_LEVEL = 3
-const KOBALAB_TEMPLATE = buildTemplate(BASE_SIZE)
-const KOBALAB_WEIGHT = getWeight(KOBALAB_TEMPLATE.child, KOBALAB_TEMPLATE.statusLength)
-const KOBALAB_PRIORITY = makePriorityOfPosition(KOBALAB_WEIGHT)
-const KOBALAB_PRIORITY_RANK = buildPriorityRankMap(KOBALAB_PRIORITY)
+
+interface KobalabRuntime {
+  template: TemplateData & { statusLength: number }
+  weight: number[]
+  priority: number[]
+  priorityRank: number[]
+}
+
+const KOBALAB_RUNTIME_CACHE = new Map<BoardVariant, KobalabRuntime>()
 
 export interface KobalabDebugCandidate {
   move: Move
@@ -61,12 +68,13 @@ export interface KobalabDebugAnalysis {
 }
 
 class KobalabGame {
-  private readonly _size = BASE_SIZE
+  private readonly _template: TemplateData & { statusLength: number }
   private _status: KobalabStatus[]
   private _ball: [number, number, number]
   private _next: 1 | 2
 
   constructor(snapshot: KobalabGameSnapshot) {
+    this._template = snapshot.template
     this._status = snapshot.status
     this._ball = snapshot.ball
     this._next = snapshot.next
@@ -74,6 +82,7 @@ class KobalabGame {
 
   clone(): KobalabGame {
     return new KobalabGame({
+      template: this._template,
       status: this._status.slice(),
       ball: [...this._ball] as [number, number, number],
       next: this._next,
@@ -85,7 +94,7 @@ class KobalabGame {
   }
 
   get size(): number {
-    return this._size
+    return this._template.baseSize
   }
 
   get next(): 1 | 2 | undefined {
@@ -100,7 +109,7 @@ class KobalabGame {
   }
 
   child(position: number): number[] {
-    return KOBALAB_TEMPLATE.child[position]
+    return this._template.child[position]
   }
 
   ball(player: 0 | 1 | 2): number {
@@ -165,18 +174,20 @@ class KobalabGame {
 
 export function chooseKobalabMove(state: GameState): Move | null {
   // Ported from UpperHand's game.js/player.js into MOSAIC's TypeScript runtime.
-  const game = createKobalabGameFromState(state)
-  const player = new KobalabCpu(game, KOBALAB_LEVEL)
+  const runtime = getKobalabRuntime(state.boardVariant)
+  const game = createKobalabGameFromState(state, runtime)
+  const player = new KobalabCpu(game, runtime, KOBALAB_LEVEL)
   const position = player.selectMove()
   if (position == null) {
     return null
   }
-  return KOBALAB_TEMPLATE.moves[position] ?? null
+  return runtime.template.moves[position] ?? null
 }
 
 export function analyzeKobalabMove(state: GameState): KobalabDebugAnalysis {
-  const game = createKobalabGameFromState(state)
-  const player = new KobalabCpu(game, KOBALAB_LEVEL)
+  const runtime = getKobalabRuntime(state.boardVariant)
+  const game = createKobalabGameFromState(state, runtime)
+  const player = new KobalabCpu(game, runtime, KOBALAB_LEVEL)
   const depth = player.depth()
   const currentRv = getValue(game)
   const legalPositions = new Set(game.moves())
@@ -224,7 +235,7 @@ export function analyzeKobalabMove(state: GameState): KobalabDebugAnalysis {
 
   const candidates: KobalabDebugCandidate[] = []
 
-  for (const [index, position] of KOBALAB_PRIORITY.entries()) {
+  for (const [index, position] of runtime.priority.entries()) {
     if (!legalPositions.has(position)) {
       continue
     }
@@ -240,9 +251,9 @@ export function analyzeKobalabMove(state: GameState): KobalabDebugAnalysis {
             leaves: 1,
             prunes: 0,
           }
-        : evaluateWithStats(afterMoveGame, currentPlayer, depth - 1, KOBALAB_PRIORITY, max, game.length)
+        : evaluateWithStats(afterMoveGame, currentPlayer, depth - 1, runtime.priority, max, game.length)
 
-    const bestReply = analyzeBestReply(afterMoveGame, currentPlayer, depth)
+    const bestReply = analyzeBestReply(afterMoveGame, runtime, currentPlayer, depth)
     totalNodes += evaluation.nodes
     totalLeaves += evaluation.leaves
     totalPrunes += evaluation.prunes
@@ -250,16 +261,16 @@ export function analyzeKobalabMove(state: GameState): KobalabDebugAnalysis {
     if (depth === 0) {
       if (selectedPosition == null) {
         selectedPosition = position
-        selectedMove = KOBALAB_TEMPLATE.moves[position] ?? null
+        selectedMove = runtime.template.moves[position] ?? null
       }
     } else if (evaluation.score > max) {
       max = evaluation.score
       selectedPosition = position
-      selectedMove = KOBALAB_TEMPLATE.moves[position] ?? null
+      selectedMove = runtime.template.moves[position] ?? null
     }
 
     candidates.push({
-      move: KOBALAB_TEMPLATE.moves[position],
+      move: runtime.template.moves[position],
       position,
       finalScore: evaluation.score,
       rank: 0,
@@ -267,13 +278,13 @@ export function analyzeKobalabMove(state: GameState): KobalabDebugAnalysis {
       afterMoveRv,
       deltaRv,
       valueScore: afterMoveRv,
-      priorityWeight: KOBALAB_WEIGHT[position] ?? 0,
-      priorityRank: KOBALAB_PRIORITY_RANK[position] ?? index + 1,
+      priorityWeight: runtime.weight[position] ?? 0,
+      priorityRank: runtime.priorityRank[position] ?? index + 1,
       searchedOrder: index + 1,
       legalMoves,
       legalMovesAfterMove: afterMoveGame.moves().length,
       depth,
-      bestReply: bestReply.position != null ? (KOBALAB_TEMPLATE.moves[bestReply.position] ?? null) : null,
+      bestReply: bestReply.position != null ? (runtime.template.moves[bestReply.position] ?? null) : null,
       bestReplyPosition: bestReply.position,
       bestReplyScore: bestReply.score,
       afterReplyRv: bestReply.afterReplyRv,
@@ -320,10 +331,10 @@ class KobalabCpu {
   private readonly level: number
   private readonly position: number[]
 
-  constructor(game: KobalabGame, level = 2) {
+  constructor(game: KobalabGame, runtime: KobalabRuntime, level = 2) {
     this.game = game
     this.level = level
-    this.position = KOBALAB_PRIORITY
+    this.position = runtime.priority
   }
 
   depth(): number {
@@ -376,12 +387,12 @@ class KobalabCpu {
   }
 }
 
-function createKobalabGameFromState(state: GameState): KobalabGame {
+function createKobalabGameFromState(state: GameState, runtime: KobalabRuntime): KobalabGame {
   // Adapter layer: MOSAIC board state -> UpperHand-style flat state representation.
-  const status = KOBALAB_TEMPLATE.initialStatus.slice()
+  const status = runtime.template.initialStatus.slice()
 
-  for (let position = 0; position < KOBALAB_TEMPLATE.moves.length; position += 1) {
-    const move = KOBALAB_TEMPLATE.moves[position]
+  for (let position = 0; position < runtime.template.moves.length; position += 1) {
+    const move = runtime.template.moves[position]
     const piece = state.board[move.level][move.row][move.col]
     if (piece) {
       status[position] = piece.color === 'neutral' ? 0 : piece.color === 'blue' ? 1 : 2
@@ -392,6 +403,7 @@ function createKobalabGameFromState(state: GameState): KobalabGame {
   }
 
   return new KobalabGame({
+    template: runtime.template,
     status,
     ball: [countNeutralPieces(state), state.remaining.blue, state.remaining.yellow],
     next: state.currentTurn === 'blue' ? 1 : 2,
@@ -412,14 +424,14 @@ function countNeutralPieces(state: GameState): number {
   return count
 }
 
-function getWeight(child: number[][], length: number): number[] {
+function getWeight(child: number[][], length: number, baseSize: number): number[] {
   // Reference origin: UpperHand src/js/player.js getWeight()
   const weight: number[] = []
   for (let p = 0; p < length; p += 1) {
     const pos: boolean[] = []
     let w = 0
     pos[p] = true
-    for (let q = BASE_SIZE * BASE_SIZE; q < length; q += 1) {
+    for (let q = baseSize * baseSize; q < length; q += 1) {
       for (const c of child[q]) {
         if (pos[c]) {
           pos[q] = true
@@ -558,6 +570,7 @@ function evaluateWithStats(
 
 function analyzeBestReply(
   game: KobalabGame,
+  runtime: KobalabRuntime,
   player: 1 | 2,
   depth: number,
 ): {
@@ -574,12 +587,12 @@ function analyzeBestReply(
   let bestAfterReplyRv: number | null = null
   const remainingDepth = Math.max(depth - 2, 0)
 
-  for (const candidate of KOBALAB_PRIORITY) {
+  for (const candidate of runtime.priority) {
     if (game.status(candidate) !== -1) {
       continue
     }
     const afterReplyGame = game.clone().makeMove(candidate)
-    const score = evaluateWithStats(afterReplyGame, player, remainingDepth, KOBALAB_PRIORITY, 0, game.length).score
+    const score = evaluateWithStats(afterReplyGame, player, remainingDepth, runtime.priority, 0, game.length).score
     if (score < bestScore) {
       bestScore = score
       bestPosition = candidate
@@ -596,6 +609,20 @@ function analyzeBestReply(
     score: bestScore,
     afterReplyRv: bestAfterReplyRv,
   }
+}
+
+function getKobalabRuntime(boardVariant: BoardVariant): KobalabRuntime {
+  const cached = KOBALAB_RUNTIME_CACHE.get(boardVariant)
+  if (cached) {
+    return cached
+  }
+  const template = buildTemplate(getBoardSpec(boardVariant).baseSize)
+  const weight = getWeight(template.child, template.statusLength, template.baseSize)
+  const priority = makePriorityOfPosition(weight)
+  const priorityRank = buildPriorityRankMap(priority)
+  const runtime = { template, weight, priority, priorityRank }
+  KOBALAB_RUNTIME_CACHE.set(boardVariant, runtime)
+  return runtime
 }
 
 function evaluate(
@@ -667,6 +694,7 @@ function buildTemplate(size: number): TemplateData & { statusLength: number } {
   }
 
   return {
+    baseSize: size,
     child,
     moves,
     initialStatus,

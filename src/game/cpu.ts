@@ -398,9 +398,6 @@ export function chooseCpuMove(state: GameState, cpuColor: PlayerColor, difficult
     return chooseOnumaMove(state, undefined, 'hard')
   }
   if (definition.runtime === 'kobalab') {
-    if (state.boardVariant !== 'standard') {
-      return chooseFormerFallbackMove(state, cpuColor, 'former_normal')
-    }
     return chooseKobalabMove(state)
   }
   if (definition.runtime === 'sophia') {
@@ -1346,17 +1343,6 @@ function pickMoveWithVariance(scoredMoves: ScoredMove[], profile: DifficultyProf
   }
 
   return nearBest[0].move
-}
-
-function chooseFormerFallbackMove(state: GameState, cpuColor: PlayerColor, runtime: 'former_easy' | 'former_normal'): Move | null {
-  const legalMoves = getLegalMoves(state)
-  if (legalMoves.length === 0) {
-    return null
-  }
-  const profile = getProfile(runtime)
-  const scored = legalMoves.map((move) => ({ move, score: scoreMove(state, move, cpuColor, profile) }))
-  scored.sort((a, b) => b.score - a.score)
-  return pickMoveWithVariance(scored, profile)
 }
 
 function getBoardLevelSize(state: GameState, level: number): number {

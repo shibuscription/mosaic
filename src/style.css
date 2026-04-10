@@ -2087,6 +2087,8 @@ body {
 
 .online-setup-modal {
   width: min(760px, 100%);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  align-content: start;
 }
 
 .online-shell {
@@ -2121,6 +2123,9 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  align-content: flex-start;
+  align-items: flex-start;
+  align-self: start;
 }
 
 .online-session-meta span {
@@ -2157,6 +2162,14 @@ body {
 .online-section h3 {
   margin: 0 0 8px;
   color: #1d3258;
+}
+
+.online-section {
+  display: grid;
+  align-content: start;
+  align-items: start;
+  gap: 0;
+  min-height: 0;
 }
 
 .online-actions {
@@ -2249,6 +2262,9 @@ body {
   background: #f2f7ff;
   padding: 10px;
   display: grid;
+  align-content: start;
+  align-items: start;
+  grid-auto-rows: max-content;
   gap: 6px;
   margin-bottom: 10px;
 }
@@ -2256,6 +2272,8 @@ body {
 .online-status-item {
   color: #2f476f;
   font-size: 0.9rem;
+  min-height: 0;
+  align-self: start;
 }
 
 .waiting-room-code {
@@ -2264,6 +2282,7 @@ body {
   background: linear-gradient(180deg, #f7fbff 0%, #e9f2ff 100%);
   padding: 12px;
   margin-bottom: 10px;
+  align-self: start;
 }
 
 .waiting-room-code-head {

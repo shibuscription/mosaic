@@ -179,6 +179,13 @@ body {
   min-width: 40px;
   min-height: 40px;
   padding: 0;
+  border: 1px solid #9db2d6;
+  border-radius: 10px;
+  background: #f7fbffea;
+  display: grid;
+  place-content: center;
+  gap: 5px;
+  box-shadow: 0 3px 8px #15254526;
 }
 
 .utility-menu-panel {

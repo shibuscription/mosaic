@@ -1541,10 +1541,22 @@ export default function App() {
       const viewportWidth = document.documentElement.clientWidth
       const mobileHorizontalPadding = 12
       const faceoffOffset = mobilePanelMode === 'faceoff' && viewportWidth <= 979 ? 24 : 0
+      const isDesktopViewport = viewportWidth > MOBILE_BREAKPOINT_PX
       const widthBasis =
         stage.parentElement instanceof HTMLElement ? stage.parentElement.clientWidth : stage.clientWidth
+      const pageElement = stage.closest('.page')
+      const desktopPageInnerWidth =
+        pageElement instanceof HTMLElement ? pageElement.clientWidth - 16 : viewportWidth - 16
+      const desktopPanelAllowance = 230 * 2
+      const desktopGapAllowance = 16
+      const desktopOuterAllowance = 24
+      const desktopCentralMaxWidth = Math.max(
+        MIN_BOARD_PIXELS,
+        desktopPageInnerWidth - desktopPanelAllowance - desktopGapAllowance - desktopOuterAllowance,
+      )
       const availableWidth = Math.min(
         Math.max(MIN_BOARD_PIXELS, widthBasis - faceoffOffset),
+        isDesktopViewport ? desktopCentralMaxWidth : Number.POSITIVE_INFINITY,
         viewportWidth - mobileHorizontalPadding,
       )
       const availableHeight = window.innerHeight - rect.top - 16

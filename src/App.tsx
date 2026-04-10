@@ -420,6 +420,7 @@ export default function App() {
 
   const [setupOpen, setSetupOpen] = useState(true)
   const [setupExitConfirmOpen, setSetupExitConfirmOpen] = useState(false)
+  const [onlineCancelConfirmOpen, setOnlineCancelConfirmOpen] = useState(false)
   const [setupStep, setSetupStep] = useState<SetupStep>('mode')
   const [playerColors, setPlayerColors] = useState<PlayerColorConfig>({ ...DEFAULT_PLAYER_COLORS })
   const [pendingColors, setPendingColors] = useState<PlayerColorConfig>({ ...DEFAULT_PLAYER_COLORS })
@@ -2610,12 +2611,27 @@ export default function App() {
     setSetupExitConfirmOpen(false)
   }
 
-  function openSetupForOnline(action: OnlineEntryAction): void {
-    if (!openSetup()) {
+  function openSetupForOnline(action: OnlineEntryAction, skipLeavePrompt = false): void {
+    if (!openSetup(skipLeavePrompt)) {
       return
     }
     setPendingMode('online')
     setPendingOnlineAction(action)
+  }
+
+  function requestOnlineCancelWaiting(): void {
+    setOnlineCancelConfirmOpen(true)
+  }
+
+  function cancelOnlineCancelConfirm(): void {
+    setOnlineCancelConfirmOpen(false)
+  }
+
+  function confirmOnlineCancelWaiting(): void {
+    setOnlineCancelConfirmOpen(false)
+    void leaveOnlineRoomExplicitly()
+    stopOnlineRoomSubscription()
+    openSetupForOnline('create', true)
   }
 
   function prepareFreshMatch(
@@ -3439,14 +3455,7 @@ export default function App() {
             stopOnlineRoomSubscription()
             openSetupForOnline('join')
           }}
-          onCancelWaiting={() => {
-            if (!confirmLeaveOnlineIfNeeded()) {
-              return
-            }
-            void leaveOnlineRoomExplicitly()
-            stopOnlineRoomSubscription()
-            openSetupForOnline('create')
-          }}
+          onCancelWaiting={requestOnlineCancelWaiting}
         />
       ) : (
       <section className={['game-surface-card', !isCompactViewport ? 'desktop-board-shell' : ''].filter(Boolean).join(' ')}>
@@ -4527,6 +4536,25 @@ export default function App() {
               </button>
               <button type="button" className="start-button" onClick={confirmOpenSetup}>
                 {t('confirm.returnToSetupAction')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {onlineCancelConfirmOpen ? (
+        <div className="setup-overlay" role="dialog" aria-modal="true" aria-label={t('confirm.leaveOnlineTitle')}>
+          <div className="confirm-sheet">
+            <div className="confirm-sheet-body">
+              <h2>{t('confirm.leaveOnlineTitle')}</h2>
+              <p>{t('confirm.leaveOnlineBody')}</p>
+            </div>
+            <div className="confirm-sheet-actions">
+              <button type="button" className="mode-option" onClick={cancelOnlineCancelConfirm}>
+                {t('confirm.keepPlaying')}
+              </button>
+              <button type="button" className="start-button" onClick={confirmOnlineCancelWaiting}>
+                {t('confirm.leaveOnlineAction')}
               </button>
             </div>
           </div>

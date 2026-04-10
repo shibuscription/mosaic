@@ -372,7 +372,6 @@ const INTERNAL_LABEL: Record<PlayerColor, string> = {
 }
 
 const BASE_SPACING = 1
-const TOKEN_INSET_PERCENT = 7.6
 const MAX_BOARD_PIXELS = 760
 const MIN_BOARD_PIXELS = 170
 
@@ -5575,25 +5574,20 @@ function getBoardLayoutMetrics(boardVariant: BoardVariant): {
   tokenSizePercent: number
 } {
   const { baseSize } = getBoardSpec(boardVariant)
+  const buildMetrics = (tokenSizePercent: number, edgeSafetyPercent: number) => ({
+    tokenSizePercent,
+    tokenInsetPercent: tokenSizePercent / 2 + edgeSafetyPercent,
+  })
 
   if (baseSize <= 5) {
-    return {
-      tokenInsetPercent: 5.2,
-      tokenSizePercent: 22.6,
-    }
+    return buildMetrics(22.6, 0.9)
   }
 
   if (baseSize >= 9) {
-    return {
-      tokenInsetPercent: 6.6,
-      tokenSizePercent: 11.8,
-    }
+    return buildMetrics(11.8, 0.4)
   }
 
-  return {
-    tokenInsetPercent: TOKEN_INSET_PERCENT,
-    tokenSizePercent: 15.2,
-  }
+  return buildMetrics(15.2, 0)
 }
 
 function clamp(value: number, min: number, max: number): number {

@@ -1692,7 +1692,8 @@ body {
   position: fixed;
   inset: 0;
   z-index: 700;
-  background: #10182766;
+  background: rgba(6, 12, 24, 0.82);
+  backdrop-filter: blur(5px);
   display: grid;
   align-items: start;
   justify-items: center;
@@ -1795,6 +1796,10 @@ body {
 .setup-menu .utility-menu-panel {
   top: calc(100% + 8px);
   right: 0;
+  bottom: auto;
+  max-width: min(280px, calc(100vw - 32px));
+  max-height: min(calc(100dvh - 160px - env(safe-area-inset-top, 0px)), calc(100vh - 160px));
+  overflow-y: auto;
 }
 
 .setup-summary-chip {
@@ -3282,9 +3287,11 @@ body {
   }
 
   .setup-menu .utility-menu-panel {
-    top: auto;
-    bottom: calc(100% + 8px);
+    top: calc(100% + 8px);
+    bottom: auto;
     right: 0;
+    max-width: min(260px, calc(100vw - 32px));
+    max-height: min(calc(100dvh - 128px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)), calc(100vh - 128px));
   }
 
   .setup-sheet-body {

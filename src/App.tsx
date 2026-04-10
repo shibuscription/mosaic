@@ -5572,11 +5572,34 @@ function moveToBoardPercent(boardVariant: BoardVariant, level: number, row: numb
 function getBoardLayoutMetrics(boardVariant: BoardVariant): {
   centerStepPercent: number
   edgeSafetyPercent: number
+  tokenRadiusPercent: number
   tokenInsetPercent: number
   tokenSizePercent: number
 } {
   const { baseSize } = getBoardSpec(boardVariant)
   const buildMetrics = (tokenSizePercent: number, edgeSafetyPercent: number) => {
+    const tokenRadiusPercent = tokenSizePercent / 2
+    const tokenInsetPercent = tokenRadiusPercent + edgeSafetyPercent
+    const centerStepPercent =
+      baseSize > 1 ? (100 - tokenInsetPercent * 2) / (baseSize - 1) : 0
+    return {
+      centerStepPercent,
+      edgeSafetyPercent,
+      tokenInsetPercent,
+      tokenRadiusPercent,
+      tokenSizePercent,
+    }
+  }
+
+  const buildPackedMetrics = (edgeSafetyPercent: number, diameterGapPercent: number) => {
+    const safeGap = Math.max(0, diameterGapPercent)
+    const centerStepPercent =
+      baseSize > 0 ? (100 + safeGap - edgeSafetyPercent * 2) / baseSize : 0
+    const tokenSizePercent = Math.max(0, centerStepPercent - safeGap)
+    return buildMetrics(tokenSizePercent, edgeSafetyPercent)
+  }
+
+  const buildFixedMetrics = (tokenSizePercent: number, edgeSafetyPercent: number) => {
     const tokenInsetPercent = tokenSizePercent / 2 + edgeSafetyPercent
     const centerStepPercent =
       baseSize > 1 ? (100 - tokenInsetPercent * 2) / (baseSize - 1) : 0
@@ -5584,26 +5607,20 @@ function getBoardLayoutMetrics(boardVariant: BoardVariant): {
       centerStepPercent,
       edgeSafetyPercent,
       tokenInsetPercent,
+      tokenRadiusPercent: tokenSizePercent / 2,
       tokenSizePercent,
     }
   }
 
-  const buildFittedMetrics = (maxFillRatio: number, edgeSafetyPercent: number) => {
-    const safeFillRatio = clamp(maxFillRatio, 0.75, 0.99)
-    const tokenSizePercent =
-      (safeFillRatio * (100 - edgeSafetyPercent * 2)) / ((baseSize - 1) + safeFillRatio)
-    return buildMetrics(tokenSizePercent, edgeSafetyPercent)
-  }
-
   if (baseSize <= 5) {
-    return buildFittedMetrics(0.975, 0.35)
+    return buildPackedMetrics(0.28, 0.12)
   }
 
   if (baseSize >= 9) {
-    return buildMetrics(11.8, 0.4)
+    return buildFixedMetrics(11.8, 0.4)
   }
 
-  return buildMetrics(15.2, 0)
+  return buildFixedMetrics(15.2, 0)
 }
 
 function clamp(value: number, min: number, max: number): number {

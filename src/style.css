@@ -277,67 +277,6 @@ body {
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
-.desktop-utility-dock {
-  position: fixed;
-  right: 12px;
-  bottom: 12px;
-  z-index: 980;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.desktop-dock-btn {
-  border: 1px solid #bfd0eb;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #223a65;
-  min-height: 40px;
-  padding: 9px 14px;
-  font-size: 0.82rem;
-  font-weight: 800;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  white-space: nowrap;
-  cursor: pointer;
-  box-shadow: 0 4px 10px #0f1a3020;
-}
-
-.desktop-dock-btn.primary {
-  border-color: #27497f;
-  background: #27497f;
-  color: #fff;
-}
-
-.desktop-dock-btn.icon {
-  width: 40px;
-  min-width: 40px;
-  padding: 0;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.desktop-dock-btn:hover {
-  background: #eef4ff;
-}
-
-.desktop-dock-btn.primary:hover {
-  background: #1f3c68;
-}
-
-.desktop-dock-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.desktop-utility-dock .utility-menu-panel.desktop {
-  top: auto;
-  right: 0;
-  bottom: calc(100% + 10px);
-}
-
 .game-shell-link-btn {
   display: inline-flex;
   align-items: center;
@@ -2602,6 +2541,31 @@ body {
 
 
 @media (min-width: 980px) {
+  .desktop-board-shell {
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  .desktop-board-layout {
+    grid-template-columns: minmax(186px, 230px) minmax(420px, auto) minmax(186px, 230px);
+    justify-content: center;
+    align-items: start;
+  }
+
+  .desktop-board-layout .player-panel {
+    height: fit-content;
+    align-self: start;
+    z-index: 1;
+  }
+
+  .desktop-board-layout .board-stage {
+    justify-self: center;
+    align-self: start;
+    z-index: 0;
+  }
+
   .opening-splash.desktop .opening-splash-shell {
     animation: opening-splash-shell-lift 3200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }

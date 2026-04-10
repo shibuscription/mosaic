@@ -754,6 +754,7 @@ export default function App() {
   const currentMatchLabel =
     matchMode === 'cpu' ? t('mode.cpuMatch') : matchMode === 'online' ? t('mode.onlineMatch') : t('mode.localMatch')
   const boardViewLabel = boardRenderer === '3d' ? t('action.view3d') : t('action.view2d')
+  const variantLabel = 'Standard 7x7'
   const headerStatusLabel = isPlayback
     ? `${t('action.playback')} ${playbackMoveCursor} / ${playbackTotalMoves}`
     : game.winner
@@ -3326,46 +3327,58 @@ export default function App() {
       ) : null}
 
       {!isOnlineMockView && !isCompactViewport ? (
-        <>
-          <a
-            className="official-logo-badge official-logo-link"
-            href={OFFICIAL_SITE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={t('menu.officialSite')}
-          >
-            <img className="official-logo-image" src="/mosaic_logo_white.png" alt="MOSAIC" />
-          </a>
-          <div className="desktop-utility-dock" ref={mobileMenuRef}>
-            <button
-              type="button"
-              className="desktop-dock-btn primary"
-              onClick={requestOpenSetup}
+        <header className="game-shell-header" aria-label="game layout header">
+          <div className="game-shell-main">
+            <a
+              className="game-shell-brand game-shell-brand-link"
+              href={OFFICIAL_SITE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={t('menu.officialSite')}
             >
-              {t('action.returnToSetup')}
-            </button>
-            <button
-              type="button"
-              className="desktop-dock-btn"
-              onClick={handleUndo}
-              disabled={matchMode === 'online' || history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
-            >
-              {t('action.undo')}
-            </button>
-            <button
-              type="button"
-              className="desktop-dock-btn icon"
-              aria-label={t('menu.gameSetup')}
-              aria-expanded={isMobileMenuOpen}
-              onClick={() => setIsMobileMenuOpen((prev) => !prev)}
-            >
-              <span className="hamburger-line" />
-              <span className="hamburger-line" />
-              <span className="hamburger-line" />
-            </button>
-            {isMobileMenuOpen ? utilityMenuPanel : null}
+              <img className="game-shell-logo" src="/mosaic_logo_white.png" alt="MOSAIC" />
+            </a>
+            <div className="game-shell-summary">
+              <div className="game-shell-status">{headerStatusLabel}</div>
+              <div className="game-shell-chip-row">
+                <span className="game-shell-chip">{variantLabel}</span>
+                <span className="game-shell-chip">{currentMatchLabel}</span>
+                <span className="game-shell-chip">{boardViewLabel}</span>
+                <span className="game-shell-chip">{turnBadgeLabel}</span>
+              </div>
+            </div>
+            <div className="game-shell-actions" aria-label="desktop utilities">
+              <div className="game-shell-action-group primary" ref={mobileMenuRef}>
+                <button type="button" className="game-shell-btn primary" onClick={requestOpenSetup}>
+                  {t('action.returnToSetup')}
+                </button>
+                <button
+                  type="button"
+                  className="game-shell-btn"
+                  onClick={handleUndo}
+                  disabled={matchMode === 'online' || history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
+                >
+                  {t('action.undo')}
+                </button>
+                <div className="desktop-menu">
+                  <button
+                    type="button"
+                    className="game-shell-btn ghost desktop-menu-toggle"
+                    aria-label={t('menu.gameSetup')}
+                    aria-expanded={isMobileMenuOpen}
+                    onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+                  >
+                    <span className="hamburger-line" />
+                    <span className="hamburger-line" />
+                    <span className="hamburger-line" />
+                  </button>
+                  {isMobileMenuOpen ? utilityMenuPanel : null}
+                </div>
+              </div>
+            </div>
+            <div className="game-shell-mobile-actions" />
           </div>
-        </>
+        </header>
       ) : null}
 
       {!isOnlineMockView && isCompactViewport ? (
@@ -3424,8 +3437,8 @@ export default function App() {
           }}
         />
       ) : (
-      <section className="game-surface-card">
-      <section className="table-layout">
+      <section className={['game-surface-card', !isCompactViewport ? 'desktop-board-shell' : ''].filter(Boolean).join(' ')}>
+      <section className={['table-layout', !isCompactViewport ? 'desktop-board-layout' : ''].filter(Boolean).join(' ')}>
         <PlayerPanel
           playerKey="yellow"
           playerLabel={yellowPlayerLabel}
@@ -3441,17 +3454,6 @@ export default function App() {
         />
 
         <section className="board-stage" aria-label="mosaic board" ref={boardStageRef}>
-          <div className="board-stage-head">
-            <div className="board-stage-copy">
-              <div className="board-stage-kicker">{currentMatchLabel}</div>
-              <div className="board-stage-title">{headerStatusLabel}</div>
-            </div>
-            <div className="board-stage-meta">
-              <span className="board-stage-chip">{turnBadgeLabel}</span>
-              <span className="board-stage-chip">{boardViewLabel}</span>
-              {isPlayback ? <span className="board-stage-chip">{`${playbackMoveCursor} / ${playbackTotalMoves}`}</span> : null}
-            </div>
-          </div>
           {boardRenderer === '3d' ? (
             <div className="board-wrap board-wrap-3d" style={{ width: `${boardSize}px`, height: `${boardSize}px` }}>
               <Board3DViewport

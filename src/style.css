@@ -1600,6 +1600,8 @@ body {
   display: grid;
   gap: 12px;
   padding-right: 4px;
+  align-content: start;
+  align-items: start;
 }
 
 .setup-hero {
@@ -1676,6 +1678,8 @@ body {
   border-radius: 18px;
   background: rgba(250, 252, 255, 0.92);
   padding: 16px;
+  align-content: start;
+  align-items: start;
 }
 
 .setup-modal h2 {
@@ -1695,6 +1699,7 @@ body {
   border-radius: 18px;
   background: rgba(250, 252, 255, 0.92);
   padding: 16px;
+  align-content: start;
 }
 
 .mode-row {
@@ -1704,6 +1709,7 @@ body {
   border-radius: 18px;
   background: rgba(250, 252, 255, 0.92);
   padding: 16px;
+  align-content: start;
 }
 
 .picker-label {
@@ -1715,6 +1721,7 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 8px;
+  align-items: start;
 }
 
 .mode-options.difficulty-options {

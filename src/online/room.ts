@@ -11,7 +11,9 @@ import {
 import { db } from '../firebase'
 import { canPlaceAt, createInitialGameState, placeManualPiece } from '../game/logic'
 import {
+  DEFAULT_BOARD_VARIANT,
   type AutoPlacement,
+  type BoardVariant,
   type GameState,
   type Move,
   type PieceColor,
@@ -47,6 +49,7 @@ export interface SerializedBoardCell extends SerializedPiece {
 }
 
 export interface SerializedGameState {
+  boardVariant?: BoardVariant
   boardCells: SerializedBoardCell[]
   currentTurn: PlayerColor
   remaining: Record<PlayerColor, number>
@@ -141,7 +144,8 @@ export function serializeGameState(state: GameState): SerializedGameState {
 }
 
 export function deserializeGameState(data: SerializedGameState): GameState {
-  const emptyBoard = createInitialGameState().board.map((levelRows) =>
+  const boardVariant = data.boardVariant ?? DEFAULT_BOARD_VARIANT
+  const emptyBoard = createInitialGameState(boardVariant).board.map((levelRows) =>
     levelRows.map((rowCells) =>
       rowCells.map(() => null as GameState['board'][number][number][number]),
     ),
@@ -159,6 +163,7 @@ export function deserializeGameState(data: SerializedGameState): GameState {
   }
 
   return {
+    boardVariant,
     board: emptyBoard,
     currentTurn: data.currentTurn,
     remaining: { ...data.remaining },

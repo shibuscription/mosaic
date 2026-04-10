@@ -1,4 +1,4 @@
-﻿import type { AutoPlacement, Move, PlayerColor } from '../game/types'
+import { normalizeBoardVariant, type AutoPlacement, type BoardVariant, type Move, type PlayerColor } from '../game/types'
 
 export type MosaicRecordMode = 'pvp' | 'cpu' | 'online'
 
@@ -14,6 +14,7 @@ export interface MosaicRecordV1 {
   version: 1
   exportedAt: string
   mode: MosaicRecordMode
+  boardVariant?: BoardVariant
   themeId: string | null
   playerColors: {
     blue: string
@@ -88,6 +89,10 @@ export function parseMosaicRecord(jsonText: string): RecordParseResult {
     return { ok: false, error: 'invalid-mode' }
   }
 
+  if (typeof parsed.boardVariant !== 'undefined' && !isBoardVariant(parsed.boardVariant)) {
+    return { ok: false, error: 'invalid-board-variant' }
+  }
+
   if (!isPlayerColor(parsed.openingTurn)) {
     return { ok: false, error: 'invalid-opening-turn' }
   }
@@ -110,7 +115,13 @@ export function parseMosaicRecord(jsonText: string): RecordParseResult {
     }
   }
 
-  return { ok: true, record: parsed as MosaicRecordV1 }
+  return {
+    ok: true,
+    record: {
+      ...(parsed as MosaicRecordV1),
+      boardVariant: normalizeBoardVariant(parsed.boardVariant),
+    },
+  }
 }
 
 function isRecordMove(value: unknown): value is MosaicRecordMove {
@@ -156,6 +167,10 @@ function isPlayerColorOrNull(value: unknown): value is PlayerColor | null {
 
 function isMosaicRecordMode(value: unknown): value is MosaicRecordMode {
   return value === 'pvp' || value === 'cpu' || value === 'online'
+}
+
+function isBoardVariant(value: unknown): value is BoardVariant {
+  return value === 'mini' || value === 'standard' || value === 'pro'
 }
 
 function isPlainObject(value: unknown): value is Record<string, any> {

@@ -1,4 +1,4 @@
-import { BASE_SIZE, type GameState, type Move, type PlayerColor } from './types'
+import { type GameState, type Move, type PlayerColor } from './types'
 import { evaluateSquareForAutoPlacement, getLegalMoves, placeManualPiece } from './logic'
 
 export interface OnumaTuning {
@@ -199,7 +199,7 @@ function getOnumaToleranceForDifficulty(tuning: OnumaTuning, difficulty: OnumaDi
 function scoreOnumaMove(state: GameState, move: Move, tuning: OnumaTuning): OnumaScoredMove {
   const selfColor = state.currentTurn
   const opponentColor: PlayerColor = selfColor === 'blue' ? 'yellow' : 'blue'
-  const baseWeight = getOnumaBaseWeight(move)
+  const baseWeight = getOnumaBaseWeight(state, move)
   const adjacentCount = countAdjacentOwnPieces(state, move, selfColor)
   const adjacentBonus = adjacentCount * tuning.adjacentBonus
   const beforeThreats = collectThreatSquares(state, move.level, move.row, move.col, opponentColor)
@@ -240,12 +240,14 @@ function scoreOnumaMove(state: GameState, move: Move, tuning: OnumaTuning): Onum
   }
 }
 
-function getOnumaBaseWeight(move: Move): number {
-  return ONUMA_BASE_WEIGHTS[move.level]?.[move.row]?.[move.col] ?? 0
+function getOnumaBaseWeight(state: GameState, move: Move): number {
+  const size = state.board[move.level]?.length ?? 0
+  const levelWeights = ONUMA_BASE_WEIGHTS.find((weights) => weights.length === size)
+  return levelWeights?.[move.row]?.[move.col] ?? 0
 }
 
 function countAdjacentOwnPieces(state: GameState, move: Move, color: PlayerColor): number {
-  const size = BASE_SIZE - move.level
+  const size = state.board[move.level]?.length ?? 0
   let count = 0
   for (let dr = -1; dr <= 1; dr += 1) {
     for (let dc = -1; dc <= 1; dc += 1) {
@@ -288,7 +290,7 @@ function collectThreatSquares(
   opponentColor: PlayerColor,
 ): string[] {
   const keys: string[] = []
-  const size = BASE_SIZE - level
+  const size = state.board[level]?.length ?? 0
   for (let dr = -1; dr <= 0; dr += 1) {
     for (let dc = -1; dc <= 0; dc += 1) {
       const sr = row + dr
@@ -338,7 +340,7 @@ function evaluateSquareEffects(
   let selfOnlyBonusPenalty = 0
   let mixedBonusReward = 0
   let squareEvaluationsCount = 0
-  const size = BASE_SIZE - move.level
+  const size = afterManualState.board[move.level]?.length ?? 0
 
   for (let dr = -1; dr <= 0; dr += 1) {
     for (let dc = -1; dc <= 0; dc += 1) {

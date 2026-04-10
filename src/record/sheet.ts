@@ -1,4 +1,4 @@
-import { BASE_SIZE } from '../game/types'
+import { getBoardSpec, normalizeBoardVariant } from '../game/types'
 import type { MosaicRecordMode, MosaicRecordV1 } from './file'
 
 type ScoreColor = 'first' | 'second'
@@ -18,6 +18,7 @@ interface ScoreSheetLayer {
 interface ScoreSheetData {
   layers: ScoreSheetLayer[]
   totalMoves: number
+  boardVariant: MosaicRecordV1['boardVariant']
 }
 
 export interface ScoreSheetRenderLabels {
@@ -54,9 +55,10 @@ export async function exportMosaicScoreSheetPng(
 }
 
 function buildScoreSheetData(record: MosaicRecordV1): ScoreSheetData {
-  const layers: ScoreSheetLayer[] = Array.from({ length: BASE_SIZE }, (_, index) => {
-    const level = BASE_SIZE - 1 - index
-    const size = BASE_SIZE - level
+  const boardSpec = getBoardSpec(normalizeBoardVariant(record.boardVariant))
+  const layers: ScoreSheetLayer[] = Array.from({ length: boardSpec.baseSize }, (_, index) => {
+    const level = boardSpec.baseSize - 1 - index
+    const size = boardSpec.baseSize - level
     return {
       level,
       size,
@@ -85,6 +87,7 @@ function buildScoreSheetData(record: MosaicRecordV1): ScoreSheetData {
   return {
     layers,
     totalMoves: record.moves.length,
+    boardVariant: record.boardVariant,
   }
 }
 
@@ -120,8 +123,8 @@ function renderScoreSheetCanvas(
   const metaBlockHeight = metaLineHeight * 3
   const boardTop = headerTop + titleHeight + metaBlockHeight + 24
   const footerHeight = 26
-
-  const maxBoardSize = BASE_SIZE * cellSize + (BASE_SIZE - 1) * cellGap
+  const boardSpec = getBoardSpec(normalizeBoardVariant(data.boardVariant))
+  const maxBoardSize = boardSpec.baseSize * cellSize + (boardSpec.baseSize - 1) * cellGap
   const width = paddingX * 2 + maxBoardSize
   const boardsHeight = data.layers.reduce((sum, layer, index) => {
     const boardPx = layer.size * cellSize + (layer.size - 1) * cellGap

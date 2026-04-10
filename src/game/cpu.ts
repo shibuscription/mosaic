@@ -1,4 +1,4 @@
-import { BASE_SIZE, TOTAL_PIECES, type GameState, type Move, type PlayerColor } from './types'
+import { getBoardSpec, type GameState, type Move, type PlayerColor } from './types'
 import { canPlaceAt, evaluateSquareForAutoPlacement, getLegalMoves, placeManualPiece } from './logic'
 import { chooseKobalabMove } from './kobalab'
 import { chooseOnumaMove } from './onuma'
@@ -398,6 +398,9 @@ export function chooseCpuMove(state: GameState, cpuColor: PlayerColor, difficult
     return chooseOnumaMove(state, undefined, 'hard')
   }
   if (definition.runtime === 'kobalab') {
+    if (state.boardVariant !== 'standard') {
+      return chooseFormerFallbackMove(state, cpuColor, 'former_normal')
+    }
     return chooseKobalabMove(state)
   }
   if (definition.runtime === 'sophia') {
@@ -653,7 +656,7 @@ function scoreHardMove(
 }
 
 function resolveImmediateMultiplier(state: GameState): number {
-  const totalInitialPieces = TOTAL_PIECES * 2
+  const totalInitialPieces = getBoardSpec(state.boardVariant).totalPieces * 2
   const remainingTotal = state.remaining.blue + state.remaining.yellow
   const placedProgress = (totalInitialPieces - remainingTotal) / totalInitialPieces
 
@@ -761,7 +764,7 @@ function toMoveKey(move: Move): string {
 function evaluateHardUrgentThreatBlock(state: GameState, move: Move, cpuColor: PlayerColor): number {
   const enemyColor: PlayerColor = cpuColor === 'blue' ? 'yellow' : 'blue'
   const level = move.level
-  const size = BASE_SIZE - level
+  const size = getBoardLevelSize(state, level)
 
   let threeBreak = 0
   let twoOneBreak = 0
@@ -983,7 +986,7 @@ function evaluateHardSelfCompletionRiskPenalty(
   selfReservedCompletionCount: number
 } {
   const level = move.level
-  const size = BASE_SIZE - level
+  const size = getBoardLevelSize(state, level)
 
   let selfReserved = 0
 
@@ -1051,7 +1054,7 @@ function evaluateHardChainBackfirePenalty(outcome: HardMoveOutcome, cpuColor: Pl
 function evaluateHardLocalPatternDelta(state: GameState, move: Move, cpuColor: PlayerColor): number {
   const enemyColor: PlayerColor = cpuColor === 'blue' ? 'yellow' : 'blue'
   const level = move.level
-  const size = BASE_SIZE - level
+  const size = getBoardLevelSize(state, level)
 
   let selfOneToTwo = 0
   let selfTwoToThree = 0
@@ -1128,8 +1131,8 @@ function countPatternPotential(state: GameState, color: PlayerColor): PatternPot
   let neutralBacked = 0
   const positions: Array<{ level: number; row: number; col: number }> = []
 
-  for (let level = 0; level < BASE_SIZE - 1; level += 1) {
-    const size = BASE_SIZE - level
+  for (let level = 0; level < state.board.length - 1; level += 1) {
+    const size = getBoardLevelSize(state, level)
     for (let row = 0; row < size - 1; row += 1) {
       for (let col = 0; col < size - 1; col += 1) {
         if (!canPlaceAt(state.board, level + 1, row, col)) {
@@ -1221,7 +1224,7 @@ function evaluateMoveCore(
   score += estimateBlockBonus(state, move, enemyColor, profile)
 
   score += move.level * profile.levelWeight
-  score += centerPreference(move) * profile.centerWeight
+  score += centerPreference(state, move) * profile.centerWeight
 
   const enemyThreatBefore = countImmediateThreats(state, enemyColor)
   const enemyThreatAfter = countImmediateThreats(resolved, enemyColor)
@@ -1236,7 +1239,7 @@ function evaluateMoveCore(
 function estimateLocalShapeBonus(state: GameState, move: Move, color: PlayerColor, profile: DifficultyProfile): number {
   let bonus = 0
   const level = move.level
-  const size = BASE_SIZE - level
+  const size = getBoardLevelSize(state, level)
 
   for (let dr = -1; dr <= 0; dr += 1) {
     for (let dc = -1; dc <= 0; dc += 1) {
@@ -1279,8 +1282,8 @@ function estimateBlockBonus(state: GameState, move: Move, enemyColor: PlayerColo
 function countImmediateThreats(state: GameState, color: PlayerColor): number {
   let count = 0
 
-  for (let level = 0; level < BASE_SIZE - 1; level += 1) {
-    const size = BASE_SIZE - level
+  for (let level = 0; level < state.board.length - 1; level += 1) {
+    const size = getBoardLevelSize(state, level)
     for (let row = 0; row < size - 1; row += 1) {
       for (let col = 0; col < size - 1; col += 1) {
         const upperLevel = level + 1
@@ -1307,8 +1310,8 @@ function countImmediateThreats(state: GameState, color: PlayerColor): number {
   return count
 }
 
-function centerPreference(move: Move): number {
-  const size = BASE_SIZE - move.level
+function centerPreference(state: GameState, move: Move): number {
+  const size = getBoardLevelSize(state, move.level)
   const center = (size - 1) / 2
   const distance = Math.abs(move.row - center) + Math.abs(move.col - center)
   return Math.max(0, 8 - distance * 2)
@@ -1343,6 +1346,21 @@ function pickMoveWithVariance(scoredMoves: ScoredMove[], profile: DifficultyProf
   }
 
   return nearBest[0].move
+}
+
+function chooseFormerFallbackMove(state: GameState, cpuColor: PlayerColor, runtime: 'former_easy' | 'former_normal'): Move | null {
+  const legalMoves = getLegalMoves(state)
+  if (legalMoves.length === 0) {
+    return null
+  }
+  const profile = getProfile(runtime)
+  const scored = legalMoves.map((move) => ({ move, score: scoreMove(state, move, cpuColor, profile) }))
+  scored.sort((a, b) => b.score - a.score)
+  return pickMoveWithVariance(scored, profile)
+}
+
+function getBoardLevelSize(state: GameState, level: number): number {
+  return state.board[level]?.length ?? 0
 }
 
 function getProfile(runtime: CpuDefinition['runtime']): DifficultyProfile {

@@ -1,5 +1,15 @@
 ﻿import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { BASE_SIZE, MAX_LEVEL, TOTAL_PIECES, type AutoPlacement, type GameState, type Move, type PieceColor, type PlayerColor } from './game/types'
+import {
+  DEFAULT_BOARD_VARIANT,
+  getBoardSpec,
+  normalizeBoardVariant,
+  type AutoPlacement,
+  type BoardVariant,
+  type GameState,
+  type Move,
+  type PieceColor,
+  type PlayerColor,
+} from './game/types'
 import { createInitialGameState, getLegalMoves, getLevelSize, getPiece, placeManualPiece } from './game/logic'
 import {
   chooseCpuMove,
@@ -111,7 +121,6 @@ type OnlineEntryAction = 'create' | 'join' | null
 type CpuTurnOrder = 'you_first' | 'you_second'
 type HostTurnOrder = 'host_first' | 'host_second'
 type CpuMatchType = 'you_vs_cpu' | 'cpu_vs_cpu'
-type BoardVariant = 'mini' | 'standard' | 'pro'
 type MobilePanelMode = 'standard' | 'faceoff'
 type BoardRendererMode = '2d' | '3d'
 type PlaybackStatus = 'playing' | 'paused'
@@ -127,6 +136,7 @@ interface MoveRecord {
 }
 
 interface MatchRecord {
+  boardVariant: BoardVariant
   players: PlayerColorConfig
   moves: MoveRecord[]
   winner: PlayerColor | null
@@ -362,11 +372,9 @@ const INTERNAL_LABEL: Record<PlayerColor, string> = {
 }
 
 const BASE_SPACING = 1
-const MAX_COORDINATE = (BASE_SIZE - 1) * BASE_SPACING
 const TOKEN_INSET_PERCENT = 7.6
 const MAX_BOARD_PIXELS = 760
 const MIN_BOARD_PIXELS = 170
-const DEFAULT_BOARD_VARIANT: BoardVariant = 'standard'
 
 const MANUAL_ANIM_MS = 220
 const AUTO_STEP_MS = 190
@@ -394,7 +402,7 @@ const INITIAL_ONLINE_SESSION: OnlineSessionState = {
 }
 
 export default function App() {
-  const initialGame = useMemo(() => createInitialGameState(), [])
+  const initialGame = useMemo(() => createInitialGameState(DEFAULT_BOARD_VARIANT), [])
   const [language, setLanguage] = useState<AppLanguage>(() => {
     if (typeof window === 'undefined') {
       return 'en'
@@ -489,6 +497,7 @@ export default function App() {
   const [revealedAutoCount, setRevealedAutoCount] = useState(0)
   const [animatingKey, setAnimatingKey] = useState<string | null>(null)
   const [matchRecord, setMatchRecord] = useState<MatchRecord>({
+    boardVariant: DEFAULT_BOARD_VARIANT,
     players: { ...DEFAULT_PLAYER_COLORS },
     moves: [],
     winner: null,
@@ -497,6 +506,7 @@ export default function App() {
     {
       game: cloneGameState(initialGame),
       matchRecord: cloneMatchRecord({
+        boardVariant: DEFAULT_BOARD_VARIANT,
         players: { ...DEFAULT_PLAYER_COLORS },
         moves: [],
         winner: null,
@@ -532,6 +542,7 @@ export default function App() {
   const onlineBeforeUnloadPromptRef = useRef(false)
   const gameRef = useRef<GameState>(initialGame)
   const matchRecordRef = useRef<MatchRecord>({
+    boardVariant: DEFAULT_BOARD_VARIANT,
     players: { ...DEFAULT_PLAYER_COLORS },
     moves: [],
     winner: null,
@@ -540,6 +551,7 @@ export default function App() {
     {
       game: cloneGameState(initialGame),
       matchRecord: cloneMatchRecord({
+        boardVariant: DEFAULT_BOARD_VARIANT,
         players: { ...DEFAULT_PLAYER_COLORS },
         moves: [],
         winner: null,
@@ -759,7 +771,9 @@ export default function App() {
   const currentMatchLabel =
     matchMode === 'cpu' ? t('mode.cpuMatch') : matchMode === 'online' ? t('mode.onlineMatch') : t('mode.localMatch')
   const boardViewLabel = boardRenderer === '3d' ? t('action.view3d') : t('action.view2d')
-  const currentBoardVariantLabel = boardVariantChipLabel(boardVariant, language)
+  const gameBoardSpec = getBoardSpec(game.boardVariant)
+  const maxCoordinate = Math.max(1, (gameBoardSpec.baseSize - 1) * BASE_SPACING)
+  const currentBoardVariantLabel = boardVariantChipLabel(game.boardVariant, language)
   const boardVariantLabel = boardVariantChipLabel(pendingBoardVariant, language)
   const shouldShowBoardSizeSetup =
     pendingMode !== 'online' || pendingOnlineAction === 'create'
@@ -1891,16 +1905,16 @@ export default function App() {
       isAnimatingSpawn: boolean
     }> = []
 
-    for (let level = 0; level <= MAX_LEVEL; level += 1) {
-      const size = getLevelSize(level)
+    for (let level = 0; level < game.board.length; level += 1) {
+      const size = getLevelSize(level, game.boardVariant)
       for (let row = 0; row < size; row += 1) {
         for (let col = 0; col < size; col += 1) {
           const key = toMoveKey(level, row, col)
           const x = col * BASE_SPACING + level * (BASE_SPACING / 2)
           const y = row * BASE_SPACING + level * (BASE_SPACING / 2)
           const piece = getPiece(game.board, level, row, col)
-          const normalizedX = x / MAX_COORDINATE
-          const normalizedY = y / MAX_COORDINATE
+          const normalizedX = x / maxCoordinate
+          const normalizedY = y / maxCoordinate
           const left = TOKEN_INSET_PERCENT + normalizedX * (100 - TOKEN_INSET_PERCENT * 2)
           const top = TOKEN_INSET_PERCENT + normalizedY * (100 - TOKEN_INSET_PERCENT * 2)
           const hiddenAuto = hiddenAutoKeySet.has(key)
@@ -1922,7 +1936,7 @@ export default function App() {
     }
 
     return cells
-  }, [game.board, game.lastMove, legalSet, hiddenAutoKeySet, animatingKey])
+  }, [animatingKey, game.board, game.boardVariant, game.lastMove, hiddenAutoKeySet, legalSet, maxCoordinate])
 
   const boardHoleMap = useMemo(() => {
     const baseLayerGradients = positions
@@ -1965,7 +1979,7 @@ export default function App() {
     }
     chainBannerSeqRef.current += 1
     const bannerId = chainBannerSeqRef.current
-    const anchor = resolveChainAnchorPosition(anchorMoves)
+    const anchor = resolveChainAnchorPosition(anchorMoves, game.boardVariant)
     setChainBanners((prev) => [
       ...prev,
       {
@@ -2681,10 +2695,11 @@ export default function App() {
     setCpu1Difficulty(pendingCpu1Difficulty)
     setCpu2Difficulty(pendingCpu2Difficulty)
     resetOnlineSessionState()
-    const freshGame = createInitialGameState()
+    const freshGame = createInitialGameState(pendingBoardVariant)
     freshGame.currentTurn = startingTurn
     freshGame.message = startingTurn === 'blue' ? "Player 1's turn" : "Player 2's turn"
     const freshRecord = {
+      boardVariant: pendingBoardVariant,
       players: nextColors,
       moves: [],
       winner: null,
@@ -2755,7 +2770,7 @@ export default function App() {
     const moveStartFrameIndices: number[] = []
     const moveEndFrameIndices: number[] = []
     const frameToMoveCursor: number[] = []
-    let state = createInitialGameState()
+    let state = createInitialGameState(baseRecord.boardVariant)
     const openingTurn: PlayerColor = baseRecord.moves[0]?.player ?? 'blue'
     state.currentTurn = openingTurn
     state.message = openingTurn === 'blue' ? "Player 1's turn" : "Player 2's turn"
@@ -2999,6 +3014,7 @@ export default function App() {
       version: 1,
       exportedAt: new Date().toISOString(),
       mode: matchMode,
+      boardVariant: matchRecord.boardVariant,
       themeId: getThemeByAssignedColors(playerColors)?.key ?? null,
       playerColors: { ...matchRecord.players },
       openingTurn: matchRecord.moves[0]?.player ?? 'blue',
@@ -3094,6 +3110,7 @@ export default function App() {
       yellow: isDisplayColorId(record.playerColors.yellow) ? record.playerColors.yellow : DEFAULT_PLAYER_COLORS.yellow,
     }
     const importedMatchRecord: MatchRecord = {
+      boardVariant: normalizeBoardVariant(record.boardVariant),
       players: importedColors,
       moves: record.moves.map((move) => ({
         turn: move.turn,
@@ -3149,10 +3166,12 @@ export default function App() {
     })
     setPlayerColors(importedColors)
     setPendingColors(importedColors)
+    setBoardVariant(importedMatchRecord.boardVariant)
+    setPendingBoardVariant(importedMatchRecord.boardVariant)
     setMatchRecord(importedMatchRecord)
     setHistory([
       {
-        game: cloneGameState(createInitialGameState()),
+        game: cloneGameState(createInitialGameState(importedMatchRecord.boardVariant)),
         matchRecord: cloneMatchRecord(importedMatchRecord),
       },
     ])
@@ -3477,6 +3496,7 @@ export default function App() {
           colorHex={yellowTheme.hex}
           colorSoft={hexToRgba(yellowTheme.hex, 0.28)}
           remaining={displayRemaining.yellow}
+          totalPieces={gameBoardSpec.totalPieces}
           isTurn={!game.winner && displayTurnPlayer === 'yellow'}
           isWinner={game.winner === 'yellow'}
           isThinking={matchMode === 'cpu' && !game.winner && game.currentTurn === 'yellow' && isCpuThinking}
@@ -3745,6 +3765,7 @@ export default function App() {
           colorHex={blueTheme.hex}
           colorSoft={hexToRgba(blueTheme.hex, 0.28)}
           remaining={displayRemaining.blue}
+          totalPieces={gameBoardSpec.totalPieces}
           isTurn={!game.winner && displayTurnPlayer === 'blue'}
           isWinner={game.winner === 'blue'}
           isThinking={matchMode === 'cpu' && cpuMatchType === 'cpu_vs_cpu' && !game.winner && game.currentTurn === 'blue' && isCpuThinking}
@@ -4771,8 +4792,10 @@ export default function App() {
                         aria-disabled="true"
                         title={t('setup.preparing')}
                       >
-                        <span className="board-size-option-main">{t('setup.boardSizePro')}</span>
-                        <span className="board-size-option-note">{t('setup.preparing')}</span>
+                        <span className="board-size-option-main board-size-option-main-inline">
+                          <span>{t('setup.boardSizePro')}</span>
+                          <span className="board-size-option-note">{t('setup.preparing')}</span>
+                        </span>
                       </button>
                     </div>
                   </div>
@@ -4991,6 +5014,7 @@ interface PlayerPanelProps {
   colorHex: string
   colorSoft: string
   remaining: number
+  totalPieces: number
   isTurn: boolean
   isWinner: boolean
   isThinking: boolean
@@ -5245,6 +5269,7 @@ function PlayerPanel({
   colorHex,
   colorSoft,
   remaining,
+  totalPieces,
   isTurn,
   isWinner,
   isThinking,
@@ -5252,8 +5277,9 @@ function PlayerPanel({
   winnerLabel,
   turnLabel,
 }: PlayerPanelProps) {
-  const percentage = Math.max(0, Math.min(100, (remaining / TOTAL_PIECES) * 100))
-  const columns = Array.from({ length: 7 }, (_, col) => {
+  const percentage = Math.max(0, Math.min(100, (remaining / totalPieces) * 100))
+  const stackColumnCount = Math.max(1, Math.ceil(totalPieces / 10))
+  const columns = Array.from({ length: stackColumnCount }, (_, col) => {
     const remainingInColumn = Math.max(0, Math.min(10, remaining - col * 10))
     return Array.from({ length: 10 }, (_, row) => ({
       key: `${col}-${row}`,
@@ -5280,7 +5306,7 @@ function PlayerPanel({
       </div>
 
       <div className="remaining-text">
-        {remaining} / {TOTAL_PIECES}
+        {remaining} / {totalPieces}
       </div>
 
       <div className="remaining-stack-grid" aria-hidden="true">
@@ -5496,7 +5522,7 @@ function resolveChainTone(chainCount: number): ChainTone {
   return 'hot'
 }
 
-function resolveChainAnchorPosition(moves: Move[]): { left: number; top: number } {
+function resolveChainAnchorPosition(moves: Move[], boardVariant: BoardVariant): { left: number; top: number } {
   if (moves.length === 0) {
     return { left: 50, top: 22 }
   }
@@ -5504,7 +5530,7 @@ function resolveChainAnchorPosition(moves: Move[]): { left: number; top: number 
   let sumLeft = 0
   let sumTop = 0
   for (const move of moves) {
-    const point = moveToBoardPercent(move.level, move.row, move.col)
+    const point = moveToBoardPercent(boardVariant, move.level, move.row, move.col)
     sumLeft += point.left
     sumTop += point.top
   }
@@ -5518,11 +5544,12 @@ function resolveChainAnchorPosition(moves: Move[]): { left: number; top: number 
   }
 }
 
-function moveToBoardPercent(level: number, row: number, col: number): { left: number; top: number } {
+function moveToBoardPercent(boardVariant: BoardVariant, level: number, row: number, col: number): { left: number; top: number } {
   const x = col * BASE_SPACING + level * (BASE_SPACING / 2)
   const y = row * BASE_SPACING + level * (BASE_SPACING / 2)
-  const normalizedX = x / MAX_COORDINATE
-  const normalizedY = y / MAX_COORDINATE
+  const maxCoordinate = Math.max(1, (getBoardSpec(boardVariant).baseSize - 1) * BASE_SPACING)
+  const normalizedX = x / maxCoordinate
+  const normalizedY = y / maxCoordinate
   return {
     left: TOKEN_INSET_PERCENT + normalizedX * (100 - TOKEN_INSET_PERCENT * 2),
     top: TOKEN_INSET_PERCENT + normalizedY * (100 - TOKEN_INSET_PERCENT * 2),
@@ -5564,6 +5591,7 @@ function cloneGameState(state: GameState): GameState {
 
 function cloneMatchRecord(record: MatchRecord): MatchRecord {
   return {
+    boardVariant: record.boardVariant,
     players: { ...record.players },
     moves: record.moves.map((move) => ({
       ...move,

@@ -1883,21 +1883,30 @@ body {
 }
 
 .board-size-option {
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 3px;
-  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
   text-align: center;
+  white-space: nowrap;
 }
 
 .board-size-option-main {
   font-size: 0.96rem;
   font-weight: 800;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  line-height: 1.2;
+}
+
+.board-size-option-main-inline {
+  gap: 5px;
 }
 
 .board-size-option-note {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   color: #667997;
 }
 
@@ -3275,8 +3284,17 @@ body {
   }
 
   .board-size-option {
-    min-height: 58px;
+    min-height: 54px;
     padding-inline: 6px;
+  }
+
+  .board-size-option-main {
+    gap: 4px;
+    font-size: 0.92rem;
+  }
+
+  .board-size-option-note {
+    font-size: 0.64rem;
   }
 
   .mode-options.difficulty-options .mode-option {

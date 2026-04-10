@@ -1,14 +1,13 @@
 import {
-  BASE_SIZE,
-  MAX_LEVEL,
-  TOTAL_PIECES,
   type AutoPlacement,
   type Board,
+  type BoardVariant,
   type GameState,
   type Move,
   type Piece,
   type PieceColor,
   type PlayerColor,
+  getBoardSpec,
 } from './types'
 
 const TURN_LABEL: Record<PlayerColor, string> = {
@@ -16,14 +15,17 @@ const TURN_LABEL: Record<PlayerColor, string> = {
   yellow: 'Yellow',
 }
 
-export function createInitialGameState(): GameState {
-  const board = createEmptyBoard()
-  board[0][3][3] = { color: 'neutral', source: 'initial' }
+export function createInitialGameState(boardVariant: BoardVariant = 'standard'): GameState {
+  const spec = getBoardSpec(boardVariant)
+  const board = createEmptyBoard(boardVariant)
+  const center = Math.floor(spec.baseSize / 2)
+  board[0][center][center] = { color: 'neutral', source: 'initial' }
 
   return {
+    boardVariant,
     board,
     currentTurn: 'blue',
-    remaining: { blue: TOTAL_PIECES, yellow: TOTAL_PIECES },
+    remaining: { blue: spec.totalPieces, yellow: spec.totalPieces },
     winner: null,
     message: 'Blue to move. Place one piece on a legal position.',
     lastMove: null,
@@ -33,14 +35,14 @@ export function createInitialGameState(): GameState {
 }
 
 export function isCellFilled(board: Board, level: number, row: number, col: number): boolean {
-  if (!isInsideBoard(level, row, col)) {
+  if (!isInsideBoard(board, level, row, col)) {
     return false
   }
   return board[level][row][col] !== null
 }
 
 export function canPlaceAt(board: Board, level: number, row: number, col: number): boolean {
-  if (!isInsideBoard(level, row, col) || isCellFilled(board, level, row, col)) {
+  if (!isInsideBoard(board, level, row, col) || isCellFilled(board, level, row, col)) {
     return false
   }
 
@@ -58,9 +60,10 @@ export function canPlaceAt(board: Board, level: number, row: number, col: number
 
 export function getLegalMoves(state: GameState): Move[] {
   const moves: Move[] = []
+  const maxLevel = state.board.length - 1
 
-  for (let level = 0; level <= MAX_LEVEL; level += 1) {
-    const size = getLevelSize(level)
+  for (let level = 0; level <= maxLevel; level += 1) {
+    const size = getLevelSize(level, state.boardVariant)
     for (let row = 0; row < size; row += 1) {
       for (let col = 0; col < size; col += 1) {
         if (canPlaceAt(state.board, level, row, col)) {
@@ -141,12 +144,12 @@ export function evaluateSquareForAutoPlacement(
   row: number,
   col: number,
 ): AutoPlacement | null {
-  if (level < 0 || level >= MAX_LEVEL) {
+  if (level < 0 || level >= state.board.length - 1) {
     return null
   }
 
   const upperLevel = level + 1
-  if (!isInsideBoard(upperLevel, row, col) || isCellFilled(state.board, upperLevel, row, col)) {
+  if (!isInsideBoard(state.board, upperLevel, row, col) || isCellFilled(state.board, upperLevel, row, col)) {
     return null
   }
 
@@ -176,9 +179,10 @@ export function evaluateSquareForAutoPlacement(
 
 export function findAutoPlacementCandidates(state: GameState): AutoPlacement[] {
   const candidates: AutoPlacement[] = []
+  const maxLevel = state.board.length - 1
 
-  for (let level = 0; level < MAX_LEVEL; level += 1) {
-    const size = getLevelSize(level)
+  for (let level = 0; level < maxLevel; level += 1) {
+    const size = getLevelSize(level, state.boardVariant)
     for (let row = 0; row < size - 1; row += 1) {
       for (let col = 0; col < size - 1; col += 1) {
         const candidate = evaluateSquareForAutoPlacement(state, level, row, col)
@@ -248,19 +252,20 @@ export function getWinner(state: GameState): PlayerColor | null {
 }
 
 export function getPiece(board: Board, level: number, row: number, col: number): Piece | null {
-  if (!isInsideBoard(level, row, col)) {
+  if (!isInsideBoard(board, level, row, col)) {
     return null
   }
   return board[level][row][col]
 }
 
-export function getLevelSize(level: number): number {
-  return BASE_SIZE - level
+export function getLevelSize(level: number, boardVariant: BoardVariant = 'standard'): number {
+  return getBoardSpec(boardVariant).baseSize - level
 }
 
-function createEmptyBoard(): Board {
-  return Array.from({ length: BASE_SIZE }, (_, level) => {
-    const size = getLevelSize(level)
+function createEmptyBoard(boardVariant: BoardVariant): Board {
+  const spec = getBoardSpec(boardVariant)
+  return Array.from({ length: spec.baseSize }, (_, level) => {
+    const size = getLevelSize(level, boardVariant)
     return Array.from({ length: size }, () => Array.from({ length: size }, () => null))
   })
 }
@@ -269,11 +274,14 @@ function cloneBoard(board: Board): Board {
   return board.map((levelRows) => levelRows.map((row) => row.map((cell) => (cell ? { ...cell } : null))))
 }
 
-function isInsideBoard(level: number, row: number, col: number): boolean {
-  if (level < 0 || level > MAX_LEVEL) {
+function isInsideBoard(board: Board, level: number, row: number, col: number): boolean {
+  if (level < 0) {
     return false
   }
-
-  const size = getLevelSize(level)
+  const levelRows = board[level]
+  if (!levelRows) {
+    return false
+  }
+  const size = levelRows.length
   return row >= 0 && row < size && col >= 0 && col < size
 }

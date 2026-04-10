@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { BASE_SIZE, type Board, type PieceColor } from '../game/types'
+import { type Board, type PieceColor } from '../game/types'
 
 interface Board3DViewportProps {
   board: Board
@@ -98,7 +98,8 @@ export function Board3DViewport({
     const diskHeight = 0.115
     const gridSpacing = 0.7
     const levelHeight = 0.19
-    const boardSpan = (BASE_SIZE - 1) * gridSpacing + diskRadius * 2
+    const boardBaseSize = Math.max(1, boardRef.current.length)
+    const boardSpan = (boardBaseSize - 1) * gridSpacing + diskRadius * 2
     const boardPadding = 0.22
     const boardPlateSize = boardSpan + boardPadding
     const boardPlateThickness = 0.12
@@ -107,7 +108,7 @@ export function Board3DViewport({
     const baseHoleDepth = 0.012
     const baseHoleRimRadius = 0.072
     const baseHoleRimHeight = 0.0035
-    const centerOffset = ((BASE_SIZE - 1) * gridSpacing) / 2
+    const centerOffset = ((boardBaseSize - 1) * gridSpacing) / 2
     const diskGeometry = new THREE.CylinderGeometry(diskRadius, diskRadius, diskHeight, 40)
     const baseHoleGeometry = new THREE.CylinderGeometry(baseHoleRadius, baseHoleRadius, baseHoleDepth, 28)
     const baseHoleRimGeometry = new THREE.CylinderGeometry(baseHoleRimRadius, baseHoleRimRadius, baseHoleRimHeight, 28)
@@ -227,8 +228,8 @@ export function Board3DViewport({
       metalness: 0.01,
     })
 
-    for (let row = 0; row < BASE_SIZE; row += 1) {
-      for (let col = 0; col < BASE_SIZE; col += 1) {
+    for (let row = 0; row < boardBaseSize; row += 1) {
+      for (let col = 0; col < boardBaseSize; col += 1) {
         const x = col * gridSpacing - centerOffset
         const z = row * gridSpacing - centerOffset
 
@@ -298,7 +299,7 @@ export function Board3DViewport({
       textureCache.clear()
       renderer.dispose()
     }
-  }, [colors, pieceTextures])
+  }, [colors, pieceTextures, board.length])
 
   return (
     <div className="inline-3d-shell">

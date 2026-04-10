@@ -775,12 +775,8 @@ export default function App() {
             ? t('mode.createRoom')
             : null
         : null
-  const utilityMenuPanel = (
-    <div
-      className={['utility-menu-panel', isCompactViewport ? 'mobile' : 'desktop'].join(' ')}
-      role="menu"
-      aria-label={t('menu.gameSetup')}
-    >
+  const utilityMenuPanel = isCompactViewport ? (
+    <div className="utility-menu-panel mobile" role="menu" aria-label={t('menu.gameSetup')}>
       <div className="mobile-menu-group">
         <div className="mobile-menu-group-title">{t('menu.language')}</div>
         <div className="mobile-menu-segment" role="radiogroup" aria-label="language">
@@ -802,29 +798,27 @@ export default function App() {
           </button>
         </div>
       </div>
-      {isCompactViewport ? (
-        <div className="mobile-menu-group">
-          <div className="mobile-menu-group-title">{t('menu.infoPanel')}</div>
-          <div className="mobile-menu-segment" role="radiogroup" aria-label="info panel mode">
-            <button
-              type="button"
-              className={['mobile-segment-btn', mobilePanelMode === 'standard' ? 'selected' : ''].filter(Boolean).join(' ')}
-              aria-pressed={mobilePanelMode === 'standard'}
-              onClick={() => setMobilePanelMode('standard')}
-            >
-              {t('menu.standard')}
-            </button>
-            <button
-              type="button"
-              className={['mobile-segment-btn', mobilePanelMode === 'faceoff' ? 'selected' : ''].filter(Boolean).join(' ')}
-              aria-pressed={mobilePanelMode === 'faceoff'}
-              onClick={() => setMobilePanelMode('faceoff')}
-            >
-              {t('menu.faceoff')}
-            </button>
-          </div>
+      <div className="mobile-menu-group">
+        <div className="mobile-menu-group-title">{t('menu.infoPanel')}</div>
+        <div className="mobile-menu-segment" role="radiogroup" aria-label="info panel mode">
+          <button
+            type="button"
+            className={['mobile-segment-btn', mobilePanelMode === 'standard' ? 'selected' : ''].filter(Boolean).join(' ')}
+            aria-pressed={mobilePanelMode === 'standard'}
+            onClick={() => setMobilePanelMode('standard')}
+          >
+            {t('menu.standard')}
+          </button>
+          <button
+            type="button"
+            className={['mobile-segment-btn', mobilePanelMode === 'faceoff' ? 'selected' : ''].filter(Boolean).join(' ')}
+            aria-pressed={mobilePanelMode === 'faceoff'}
+            onClick={() => setMobilePanelMode('faceoff')}
+          >
+            {t('menu.faceoff')}
+          </button>
         </div>
-      ) : null}
+      </div>
       <button
         type="button"
         role="menuitem"
@@ -874,6 +868,73 @@ export default function App() {
       >
         {t('action.returnToSetup')}
       </button>
+    </div>
+  ) : (
+    <div className="utility-menu-panel desktop" role="menu" aria-label={t('menu.gameSetup')}>
+      <div className="desktop-utility-section">
+        <div className="desktop-utility-title">{t('menu.language')}</div>
+        <div className="desktop-utility-segment" role="radiogroup" aria-label="language">
+          <button
+            type="button"
+            className={['desktop-utility-segment-btn', language === 'en' ? 'selected' : ''].filter(Boolean).join(' ')}
+            aria-pressed={language === 'en'}
+            onClick={() => setLanguage('en')}
+          >
+            {t('menu.english')}
+          </button>
+          <button
+            type="button"
+            className={['desktop-utility-segment-btn', language === 'ja' ? 'selected' : ''].filter(Boolean).join(' ')}
+            aria-pressed={language === 'ja'}
+            onClick={() => setLanguage('ja')}
+          >
+            {t('menu.japanese')}
+          </button>
+        </div>
+      </div>
+      <div className="desktop-utility-actions">
+        <button
+          type="button"
+          role="menuitem"
+          className="desktop-utility-item"
+          onClick={() => {
+            setSoundOn((prev) => !prev)
+          }}
+        >
+          {soundOn ? t('action.soundOn') : t('action.soundOff')}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="desktop-utility-item"
+          onClick={handleLoadRecordClick}
+        >
+          {t('action.loadRecord')}
+        </button>
+        {showResearchUi ? (
+          <button
+            type="button"
+            role="menuitem"
+            className="desktop-utility-item"
+            onClick={() => {
+              setLicensesOpen(true)
+              setIsMobileMenuOpen(false)
+            }}
+          >
+            {t('menu.licenses')}
+          </button>
+        ) : null}
+      </div>
+      <a
+        role="menuitem"
+        className="desktop-utility-link"
+        href={OFFICIAL_SITE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => setIsMobileMenuOpen(false)}
+      >
+        {t('menu.officialSite')}
+      </a>
     </div>
   )
 

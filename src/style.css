@@ -108,10 +108,10 @@ body {
 }
 
 .game-shell-actions {
-  display: grid;
-  gap: 6px;
-  justify-items: end;
+  display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
 }
 
 .game-shell-action-group {
@@ -119,7 +119,8 @@ body {
   flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 8px;
+  min-width: max-content;
 }
 
 .game-shell-mobile-actions {
@@ -132,9 +133,9 @@ body {
   background: #ffffff;
   color: #223a65;
   font-weight: 800;
-  font-size: 0.78rem;
-  min-height: 38px;
-  padding: 8px 12px;
+  font-size: 0.82rem;
+  min-height: 40px;
+  padding: 9px 14px;
   cursor: pointer;
   text-decoration: none;
   box-shadow: 0 2px 6px rgba(19, 33, 58, 0.06);
@@ -174,60 +175,97 @@ body {
 }
 
 .desktop-menu-toggle {
-  min-width: 42px;
-  min-height: 38px;
-  padding-inline: 10px;
+  width: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
 }
 
 .utility-menu-panel {
   position: absolute;
   right: 0;
   top: calc(100% + 8px);
-  min-width: 220px;
   display: grid;
-  gap: 5px;
   background: #f5f9ffed;
   border: 1px solid #b2c5e3;
-  border-radius: 12px;
-  padding: 8px;
   box-shadow: 0 10px 24px #0f1b3140;
   z-index: 40;
 }
 
 .utility-menu-panel.desktop {
-  min-width: 264px;
-  gap: 8px;
+  min-width: 240px;
+  gap: 10px;
   padding: 12px;
   border-radius: 14px;
   background: rgba(248, 251, 255, 0.98);
+  border-color: #c3d3ea;
 }
 
-.utility-menu-panel.desktop .mobile-menu-group {
-  margin-bottom: 0;
-  padding: 10px;
-  border-radius: 10px;
+.desktop-utility-section {
+  display: grid;
+  gap: 8px;
 }
 
-.utility-menu-panel.desktop .mobile-menu-group-title {
+.desktop-utility-title {
   font-size: 0.74rem;
-  margin-bottom: 8px;
+  font-weight: 800;
+  color: #4c638e;
 }
 
-.utility-menu-panel.desktop .mobile-menu-segment {
+.desktop-utility-segment {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
 
-.utility-menu-panel.desktop .mobile-segment-btn {
-  min-height: 34px;
+.desktop-utility-segment-btn {
+  border: 1px solid #c8d6eb;
+  background: #ffffff;
+  color: #263f6a;
+  border-radius: 9px;
+  min-height: 36px;
+  padding: 7px 10px;
   font-size: 0.8rem;
-  border-radius: 8px;
+  font-weight: 800;
+  cursor: pointer;
 }
 
-.utility-menu-panel.desktop .mobile-menu-item {
+.desktop-utility-segment-btn.selected {
+  border-color: #6f8fc3;
+  background: #dfeaff;
+}
+
+.desktop-utility-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.desktop-utility-item,
+.desktop-utility-link {
+  border: 1px solid #c8d6eb;
+  background: #ffffff;
+  color: #20345f;
+  border-radius: 10px;
   min-height: 38px;
   padding: 9px 10px;
-  border-radius: 10px;
-  font-size: 0.84rem;
+  font-size: 0.83rem;
+  font-weight: 800;
+  text-align: left;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.desktop-utility-link {
+  justify-content: center;
+  background: #f6faff;
+}
+
+.desktop-utility-item:hover,
+.desktop-utility-link:hover,
+.desktop-utility-segment-btn:hover {
+  background: #eef4ff;
 }
 
 .game-shell-link-btn {

@@ -94,6 +94,10 @@ const en: Messages = {
   'action.loadRecord': 'Load Record',
   'action.exportScoreSheet': 'Export Score Sheet',
   'action.close': 'Close',
+  'confirm.returnToSetupTitle': 'Return to Game Setup?',
+  'confirm.returnToSetupDescription': 'End the current match and go back to the game setup screen.',
+  'confirm.keepPlaying': 'Keep Playing',
+  'confirm.returnToSetupAction': 'Return to Setup',
 
   'license.title': 'Open Source Licenses',
   'license.description': 'kobalab CPU includes logic ported from UpperHand under the MIT License.',
@@ -284,6 +288,10 @@ const ja: Messages = {
   'action.loadRecord': '棋譜を読み込む',
   'action.exportScoreSheet': '棋譜シートを保存',
   'action.close': '閉じる',
+  'confirm.returnToSetupTitle': 'ゲーム設定に戻りますか？',
+  'confirm.returnToSetupDescription': '現在の対局を終了して、ゲーム設定画面へ戻ります。',
+  'confirm.keepPlaying': '対局を続ける',
+  'confirm.returnToSetupAction': 'ゲーム設定へ戻る',
 
   'license.title': 'オープンソースライセンス',
   'license.description': 'kobalab CPU には UpperHand 由来ロジックの TypeScript 移植版が含まれ、MIT License の対象です。',

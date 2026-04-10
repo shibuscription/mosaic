@@ -419,6 +419,7 @@ export default function App() {
   })
 
   const [setupOpen, setSetupOpen] = useState(true)
+  const [setupExitConfirmOpen, setSetupExitConfirmOpen] = useState(false)
   const [setupStep, setSetupStep] = useState<SetupStep>('mode')
   const [playerColors, setPlayerColors] = useState<PlayerColorConfig>({ ...DEFAULT_PLAYER_COLORS })
   const [pendingColors, setPendingColors] = useState<PlayerColorConfig>({ ...DEFAULT_PLAYER_COLORS })
@@ -624,6 +625,8 @@ export default function App() {
   const isOnlineMyTurn = isOnlineMode && onlineSession.role === game.currentTurn
   const shouldWarnOnlineLeave =
     isOnlineMode && (onlineSession.phase === 'waiting' || onlineSession.phase === 'playing')
+  const shouldConfirmSetupReturn =
+    !setupOpen && !game.winner && !isPlayback && (history.length > 1 || shouldWarnOnlineLeave)
   const isOnlineMockView =
     !setupOpen && isOnlineMode && onlineSession.phase !== 'playing' && onlineSession.phase !== 'finished'
   const showHardDebugOverlay =
@@ -2366,8 +2369,8 @@ export default function App() {
     }
   }
 
-  function openSetup(): boolean {
-    if (!confirmLeaveOnlineIfNeeded()) {
+  function openSetup(skipLeavePrompt = false): boolean {
+    if (!skipLeavePrompt && !confirmLeaveOnlineIfNeeded()) {
       return false
     }
     if (shouldWarnOnlineLeave) {
@@ -2405,6 +2408,24 @@ export default function App() {
     setSetupStep('mode')
     setSetupOpen(true)
     return true
+  }
+
+  function requestOpenSetup(): void {
+    if (shouldConfirmSetupReturn) {
+      setSetupExitConfirmOpen(true)
+      setIsMobileMenuOpen(false)
+      return
+    }
+    openSetup()
+  }
+
+  function confirmOpenSetup(): void {
+    setSetupExitConfirmOpen(false)
+    openSetup(true)
+  }
+
+  function cancelOpenSetupConfirm(): void {
+    setSetupExitConfirmOpen(false)
   }
 
   function openSetupForOnline(action: OnlineEntryAction): void {
@@ -3165,7 +3186,7 @@ export default function App() {
             </div>
             <div className="game-shell-actions" aria-label="desktop utilities">
               <div className="game-shell-action-group primary">
-                <button type="button" className="game-shell-btn primary" onClick={openSetup}>
+                <button type="button" className="game-shell-btn primary" onClick={requestOpenSetup}>
                   {t('menu.gameSetup')}
                 </button>
                 <button
@@ -3208,7 +3229,7 @@ export default function App() {
               </div>
             </div>
             <div className="game-shell-mobile-actions">
-              <button type="button" className="game-shell-btn primary" onClick={openSetup}>
+              <button type="button" className="game-shell-btn primary" onClick={requestOpenSetup}>
                 {t('menu.gameSetup')}
               </button>
             </div>
@@ -3665,7 +3686,7 @@ export default function App() {
               type="button"
               role="menuitem"
               className="mobile-menu-item danger"
-              onClick={openSetup}
+              onClick={requestOpenSetup}
             >
               {t('action.reset')}
             </button>
@@ -4413,7 +4434,7 @@ export default function App() {
                 <button type="button" className="winner-btn playback" onClick={handlePlayback2D}>
                   {t('action.playback')}
                 </button>
-                <button type="button" className="winner-btn restart" onClick={openSetup}>
+                <button type="button" className="winner-btn restart" onClick={() => openSetup()}>
                   {t('action.restart')}
                 </button>
               </div>
@@ -4430,6 +4451,25 @@ export default function App() {
               {Array.from({ length: 14 }, (_, i) => (
                 <span key={i} style={{ '--i': i } as CSSProperties} />
               ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {setupExitConfirmOpen ? (
+        <div className="setup-overlay" role="dialog" aria-modal="true" aria-label={t('confirm.returnToSetupTitle')}>
+          <div className="confirm-sheet">
+            <div className="confirm-sheet-body">
+              <h2>{t('confirm.returnToSetupTitle')}</h2>
+              <p>{t('confirm.returnToSetupDescription')}</p>
+            </div>
+            <div className="confirm-sheet-actions">
+              <button type="button" className="mode-option" onClick={cancelOpenSetupConfirm}>
+                {t('confirm.keepPlaying')}
+              </button>
+              <button type="button" className="start-button" onClick={confirmOpenSetup}>
+                {t('confirm.returnToSetupAction')}
+              </button>
             </div>
           </div>
         </div>
@@ -4463,6 +4503,7 @@ export default function App() {
                 ) : null}
               </div>
             </div>
+            <div className="setup-sheet-body">
             {setupStep === 'mode' ? (
               <>
                 <div className="mode-row">
@@ -4600,15 +4641,6 @@ export default function App() {
                     </div>
                   </div>
                 ) : null}
-
-                <button
-                  type="button"
-                  className="start-button"
-                  onClick={proceedFromGameSetup}
-                  disabled={pendingMode === 'online' && !pendingOnlineAction}
-                >
-                  {t('action.continue')}
-                </button>
               </>
             ) : (
               <>
@@ -4769,26 +4801,36 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-
-                <div className="setup-actions">
-                  <button
-                    type="button"
-                    className="mode-option"
-                    onClick={() => setSetupStep('mode')}
-                  >
-                    {t('action.back')}
-                  </button>
-                  <button
-                    type="button"
-                    className="start-button"
-                    onClick={startWithColorSetup}
-                    disabled={pendingColors.blue === pendingColors.yellow}
-                  >
-                    {pendingMode === 'online' ? t('action.createRoom') : t('action.startMatch')}
-                  </button>
-                </div>
               </>
             )}
+            </div>
+            <div className="setup-actions">
+              {setupStep === 'color' ? (
+                <button
+                  type="button"
+                  className="mode-option"
+                  onClick={() => setSetupStep('mode')}
+                >
+                  {t('action.back')}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="start-button"
+                onClick={setupStep === 'mode' ? proceedFromGameSetup : startWithColorSetup}
+                disabled={
+                  setupStep === 'mode'
+                    ? pendingMode === 'online' && !pendingOnlineAction
+                    : pendingColors.blue === pendingColors.yellow
+                }
+              >
+                {setupStep === 'mode'
+                  ? t('action.continue')
+                  : pendingMode === 'online'
+                    ? t('action.createRoom')
+                    : t('action.startMatch')}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

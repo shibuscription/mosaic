@@ -17,19 +17,19 @@ const BOARD_SPECS: Record<BoardVariant, BoardSpec> = {
     variant: 'mini',
     baseSize: 5,
     maxLevel: 4,
-    totalPieces: 50,
+    totalPieces: 27,
   },
   standard: {
     variant: 'standard',
     baseSize: 7,
     maxLevel: 6,
-    totalPieces: 70,
+    totalPieces: 50,
   },
   pro: {
     variant: 'pro',
     baseSize: 9,
     maxLevel: 8,
-    totalPieces: 90,
+    totalPieces: 142,
   },
 }
 

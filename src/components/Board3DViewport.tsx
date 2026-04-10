@@ -94,19 +94,20 @@ export function Board3DViewport({
     const boardGroup = new THREE.Group()
     scene.add(boardGroup)
 
-    const diskRadius = 0.36
-    const diskHeight = 0.115
-    const gridSpacing = 0.7
-    const levelHeight = 0.19
     const boardBaseSize = Math.max(1, boardRef.current.length)
+    const boardMetrics = getBoard3DLayoutMetrics(boardBaseSize)
+    const diskRadius = boardMetrics.diskRadius
+    const diskHeight = 0.115
+    const gridSpacing = boardMetrics.gridSpacing
+    const levelHeight = boardMetrics.levelHeight
     const boardSpan = (boardBaseSize - 1) * gridSpacing + diskRadius * 2
-    const boardPadding = 0.22
+    const boardPadding = boardMetrics.boardPadding
     const boardPlateSize = boardSpan + boardPadding
     const boardPlateThickness = 0.12
     const boardCornerRadius = 0.13
-    const baseHoleRadius = 0.05
+    const baseHoleRadius = boardMetrics.baseHoleRadius
     const baseHoleDepth = 0.012
-    const baseHoleRimRadius = 0.072
+    const baseHoleRimRadius = boardMetrics.baseHoleRimRadius
     const baseHoleRimHeight = 0.0035
     const centerOffset = ((boardBaseSize - 1) * gridSpacing) / 2
     const diskGeometry = new THREE.CylinderGeometry(diskRadius, diskRadius, diskHeight, 40)
@@ -339,4 +340,44 @@ function createRoundedSquareShape(size: number, radius: number): THREE.Shape {
   shape.quadraticCurveTo(-half, -half, -half + r, -half)
 
   return shape
+}
+
+function getBoard3DLayoutMetrics(baseSize: number): {
+  diskRadius: number
+  gridSpacing: number
+  levelHeight: number
+  boardPadding: number
+  baseHoleRadius: number
+  baseHoleRimRadius: number
+} {
+  if (baseSize <= 5) {
+    return {
+      diskRadius: 0.4,
+      gridSpacing: 0.8,
+      levelHeight: 0.21,
+      boardPadding: 0.24,
+      baseHoleRadius: 0.056,
+      baseHoleRimRadius: 0.08,
+    }
+  }
+
+  if (baseSize >= 9) {
+    return {
+      diskRadius: 0.34,
+      gridSpacing: 0.64,
+      levelHeight: 0.18,
+      boardPadding: 0.2,
+      baseHoleRadius: 0.046,
+      baseHoleRimRadius: 0.068,
+    }
+  }
+
+  return {
+    diskRadius: 0.36,
+    gridSpacing: 0.7,
+    levelHeight: 0.19,
+    boardPadding: 0.22,
+    baseHoleRadius: 0.05,
+    baseHoleRimRadius: 0.072,
+  }
 }

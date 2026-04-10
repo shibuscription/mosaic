@@ -929,8 +929,8 @@ body {
 .token-visual,
 .token-hit {
   position: absolute;
-  width: 15.2%;
-  height: 15.2%;
+  width: var(--token-size, 15.2%);
+  height: var(--token-size, 15.2%);
   transform: translate(-50%, -50%);
   border-radius: 999px;
 }
@@ -3119,8 +3119,8 @@ body {
 
   .token-visual,
   .token-hit {
-    width: 15.8%;
-    height: 15.8%;
+    width: max(var(--token-size, 15.2%), 15.8%);
+    height: max(var(--token-size, 15.2%), 15.8%);
   }
 
   .board-thinking-chip {

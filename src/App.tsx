@@ -772,6 +772,7 @@ export default function App() {
     matchMode === 'cpu' ? t('mode.cpuMatch') : matchMode === 'online' ? t('mode.onlineMatch') : t('mode.localMatch')
   const boardViewLabel = boardRenderer === '3d' ? t('action.view3d') : t('action.view2d')
   const gameBoardSpec = getBoardSpec(game.boardVariant)
+  const boardLayoutMetrics = getBoardLayoutMetrics(game.boardVariant)
   const maxCoordinate = Math.max(1, (gameBoardSpec.baseSize - 1) * BASE_SPACING)
   const currentBoardVariantLabel = boardVariantChipLabel(game.boardVariant, language)
   const boardVariantLabel = boardVariantChipLabel(pendingBoardVariant, language)
@@ -1915,8 +1916,8 @@ export default function App() {
           const piece = getPiece(game.board, level, row, col)
           const normalizedX = x / maxCoordinate
           const normalizedY = y / maxCoordinate
-          const left = TOKEN_INSET_PERCENT + normalizedX * (100 - TOKEN_INSET_PERCENT * 2)
-          const top = TOKEN_INSET_PERCENT + normalizedY * (100 - TOKEN_INSET_PERCENT * 2)
+          const left = boardLayoutMetrics.tokenInsetPercent + normalizedX * (100 - boardLayoutMetrics.tokenInsetPercent * 2)
+          const top = boardLayoutMetrics.tokenInsetPercent + normalizedY * (100 - boardLayoutMetrics.tokenInsetPercent * 2)
           const hiddenAuto = hiddenAutoKeySet.has(key)
 
           cells.push({
@@ -1936,17 +1937,21 @@ export default function App() {
     }
 
     return cells
-  }, [animatingKey, game.board, game.boardVariant, game.lastMove, hiddenAutoKeySet, legalSet, maxCoordinate])
+  }, [animatingKey, boardLayoutMetrics.tokenInsetPercent, game.board, game.boardVariant, game.lastMove, hiddenAutoKeySet, legalSet, maxCoordinate])
 
   const boardHoleMap = useMemo(() => {
+    const holeCore = (boardLayoutMetrics.tokenSizePercent * 0.056).toFixed(2)
+    const holeMid = (boardLayoutMetrics.tokenSizePercent * 0.076).toFixed(2)
+    const holeGlow = (boardLayoutMetrics.tokenSizePercent * 0.103).toFixed(2)
+    const holeFade = (boardLayoutMetrics.tokenSizePercent * 0.165).toFixed(2)
     const baseLayerGradients = positions
       .filter((cell) => cell.level === 0)
       .map(
         (cell) =>
-          `radial-gradient(circle at ${cell.left}% ${cell.top}%, rgba(55, 34, 18, 0.2) 0 0.72%, rgba(116, 82, 50, 0.14) 0.95%, rgba(245, 232, 211, 0.08) 1.32%, transparent 2.2%)`,
+          `radial-gradient(circle at ${cell.left}% ${cell.top}%, rgba(55, 34, 18, 0.2) 0 ${holeCore}%, rgba(116, 82, 50, 0.14) ${holeMid}%, rgba(245, 232, 211, 0.08) ${holeGlow}%, transparent ${holeFade}%)`,
       )
     return baseLayerGradients.join(', ')
-  }, [positions])
+  }, [boardLayoutMetrics.tokenSizePercent, positions])
 
   function commitResolvedMove(
     level: number,
@@ -3531,7 +3536,15 @@ export default function App() {
             </div>
           ) : (
             <div className="board-wrap" style={{ width: `${boardSize}px`, height: `${boardSize}px` }}>
-              <div className="board" style={{ '--board-hole-map': boardHoleMap } as CSSProperties}>
+              <div
+                className="board"
+                style={
+                  {
+                    '--board-hole-map': boardHoleMap,
+                    '--token-size': `${boardLayoutMetrics.tokenSizePercent}%`,
+                  } as CSSProperties
+                }
+              >
                 {positions.map((cell) => {
                   const visibleLegal = cell.legal && !(suppressDeeperCpuLegalIndicators && cell.level > 0)
 
@@ -5548,11 +5561,38 @@ function moveToBoardPercent(boardVariant: BoardVariant, level: number, row: numb
   const x = col * BASE_SPACING + level * (BASE_SPACING / 2)
   const y = row * BASE_SPACING + level * (BASE_SPACING / 2)
   const maxCoordinate = Math.max(1, (getBoardSpec(boardVariant).baseSize - 1) * BASE_SPACING)
+  const { tokenInsetPercent } = getBoardLayoutMetrics(boardVariant)
   const normalizedX = x / maxCoordinate
   const normalizedY = y / maxCoordinate
   return {
-    left: TOKEN_INSET_PERCENT + normalizedX * (100 - TOKEN_INSET_PERCENT * 2),
-    top: TOKEN_INSET_PERCENT + normalizedY * (100 - TOKEN_INSET_PERCENT * 2),
+    left: tokenInsetPercent + normalizedX * (100 - tokenInsetPercent * 2),
+    top: tokenInsetPercent + normalizedY * (100 - tokenInsetPercent * 2),
+  }
+}
+
+function getBoardLayoutMetrics(boardVariant: BoardVariant): {
+  tokenInsetPercent: number
+  tokenSizePercent: number
+} {
+  const { baseSize } = getBoardSpec(boardVariant)
+
+  if (baseSize <= 5) {
+    return {
+      tokenInsetPercent: 5.2,
+      tokenSizePercent: 22.6,
+    }
+  }
+
+  if (baseSize >= 9) {
+    return {
+      tokenInsetPercent: 6.6,
+      tokenSizePercent: 11.8,
+    }
+  }
+
+  return {
+    tokenInsetPercent: TOKEN_INSET_PERCENT,
+    tokenSizePercent: 15.2,
   }
 }
 

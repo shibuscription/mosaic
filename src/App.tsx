@@ -111,6 +111,7 @@ type OnlineEntryAction = 'create' | 'join' | null
 type CpuTurnOrder = 'you_first' | 'you_second'
 type HostTurnOrder = 'host_first' | 'host_second'
 type CpuMatchType = 'you_vs_cpu' | 'cpu_vs_cpu'
+type BoardVariant = 'mini' | 'standard' | 'pro'
 type MobilePanelMode = 'standard' | 'faceoff'
 type BoardRendererMode = '2d' | '3d'
 type PlaybackStatus = 'playing' | 'paused'
@@ -365,6 +366,7 @@ const MAX_COORDINATE = (BASE_SIZE - 1) * BASE_SPACING
 const TOKEN_INSET_PERCENT = 7.6
 const MAX_BOARD_PIXELS = 760
 const MIN_BOARD_PIXELS = 170
+const DEFAULT_BOARD_VARIANT: BoardVariant = 'standard'
 
 const MANUAL_ANIM_MS = 220
 const AUTO_STEP_MS = 190
@@ -422,6 +424,8 @@ export default function App() {
   const [setupExitConfirmOpen, setSetupExitConfirmOpen] = useState(false)
   const [onlineCancelConfirmOpen, setOnlineCancelConfirmOpen] = useState(false)
   const [setupStep, setSetupStep] = useState<SetupStep>('mode')
+  const [boardVariant, setBoardVariant] = useState<BoardVariant>(DEFAULT_BOARD_VARIANT)
+  const [pendingBoardVariant, setPendingBoardVariant] = useState<BoardVariant>(DEFAULT_BOARD_VARIANT)
   const [playerColors, setPlayerColors] = useState<PlayerColorConfig>({ ...DEFAULT_PLAYER_COLORS })
   const [pendingColors, setPendingColors] = useState<PlayerColorConfig>({ ...DEFAULT_PLAYER_COLORS })
   const [matchMode, setMatchMode] = useState<MatchMode>('pvp')
@@ -755,7 +759,12 @@ export default function App() {
   const currentMatchLabel =
     matchMode === 'cpu' ? t('mode.cpuMatch') : matchMode === 'online' ? t('mode.onlineMatch') : t('mode.localMatch')
   const boardViewLabel = boardRenderer === '3d' ? t('action.view3d') : t('action.view2d')
-  const variantLabel = 'Standard 7x7'
+  const currentBoardVariantLabel = boardVariantChipLabel(boardVariant, language)
+  const boardVariantLabel = boardVariantChipLabel(pendingBoardVariant, language)
+  const shouldShowBoardSizeSetup =
+    pendingMode !== 'online' || pendingOnlineAction === 'create'
+  const shouldShowBoardSizeSummaryChip =
+    pendingMode !== 'online' || pendingOnlineAction === 'create'
   const headerStatusLabel = isPlayback
     ? `${t('action.playback')} ${playbackMoveCursor} / ${playbackTotalMoves}`
     : game.winner
@@ -2579,6 +2588,7 @@ export default function App() {
     setAnimatingKey(null)
     setRevealedAutoCount(0)
     setDisplayRemaining({ ...game.remaining })
+    setPendingBoardVariant(boardVariant)
     setPendingColors(playerColors)
     setPendingMode(matchMode)
     setPendingOnlineAction(null)
@@ -2664,6 +2674,7 @@ export default function App() {
     lastWinnerRef.current = null
     setBoardRenderer('2d')
     setPlayerColors(nextColors)
+    setBoardVariant(pendingBoardVariant)
     setMatchMode(nextMode)
     setCpuMatchType(pendingCpuMatchType)
     setCpuDifficulty(pendingCpuDifficulty)
@@ -3369,7 +3380,7 @@ export default function App() {
             <div className="game-shell-summary">
               <div className="game-shell-status">{headerStatusLabel}</div>
               <div className="game-shell-chip-row">
-                <span className="game-shell-chip">{variantLabel}</span>
+                <span className="game-shell-chip">{currentBoardVariantLabel}</span>
                 <span className="game-shell-chip">{currentMatchLabel}</span>
                 <span className="game-shell-chip">{boardViewLabel}</span>
                 <span className="game-shell-chip">{turnBadgeLabel}</span>
@@ -4581,7 +4592,7 @@ export default function App() {
                 </p>
               </div>
               <div className="setup-hero-summary">
-                <span className="setup-summary-chip">7×7</span>
+                {shouldShowBoardSizeSummaryChip ? <span className="setup-summary-chip">{boardVariantLabel}</span> : null}
                 <span className="setup-summary-chip">{setupModeLabel}</span>
                 {setupSubmodeLabel ? <span className="setup-summary-chip">{setupSubmodeLabel}</span> : null}
                 {pendingMode === 'cpu' && pendingCpuMatchType === 'you_vs_cpu' ? (
@@ -4723,6 +4734,45 @@ export default function App() {
                         aria-pressed={pendingOnlineAction === 'join'}
                       >
                         {t('mode.joinRoom')}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                {shouldShowBoardSizeSetup ? (
+                  <div className="mode-row">
+                    <div className="picker-label">{t('setup.boardSize')}</div>
+                    <div className="mode-options board-size-options" role="radiogroup" aria-label="board size">
+                      <button
+                        type="button"
+                        className={['mode-option', 'board-size-option', pendingBoardVariant === 'mini' ? 'selected' : '']
+                          .filter(Boolean)
+                          .join(' ')}
+                        onClick={() => setPendingBoardVariant('mini')}
+                        aria-pressed={pendingBoardVariant === 'mini'}
+                      >
+                        <span className="board-size-option-main">{t('setup.boardSizeMini')}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={['mode-option', 'board-size-option', pendingBoardVariant === 'standard' ? 'selected' : '']
+                          .filter(Boolean)
+                          .join(' ')}
+                        onClick={() => setPendingBoardVariant('standard')}
+                        aria-pressed={pendingBoardVariant === 'standard'}
+                      >
+                        <span className="board-size-option-main">{t('setup.boardSizeStandard')}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={['mode-option', 'board-size-option', 'disabled']
+                          .filter(Boolean)
+                          .join(' ')}
+                        disabled
+                        aria-disabled="true"
+                        title={t('setup.preparing')}
+                      >
+                        <span className="board-size-option-main">{t('setup.boardSizePro')}</span>
+                        <span className="board-size-option-note">{t('setup.preparing')}</span>
                       </button>
                     </div>
                   </div>
@@ -5418,6 +5468,16 @@ function resolveOnumaTolerancePreview(difficulty: OnumaDifficultyMode, params: O
     return params.toleranceHard
   }
   return params.toleranceNormal
+}
+
+function boardVariantChipLabel(variant: BoardVariant, language: AppLanguage): string {
+  if (variant === 'mini') {
+    return '5×5'
+  }
+  if (variant === 'pro') {
+    return language === 'ja' ? '9×9' : '9×9'
+  }
+  return '7×7'
 }
 
 function resolveChainTone(chainCount: number): ChainTone {

@@ -1852,6 +1852,10 @@ body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.mode-options.board-size-options {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .cpu-select {
   width: 100%;
   border: 1px solid #9fb3d4;
@@ -1878,6 +1882,25 @@ body {
   cursor: pointer;
 }
 
+.board-size-option {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 3px;
+  min-height: 62px;
+  text-align: center;
+}
+
+.board-size-option-main {
+  font-size: 0.96rem;
+  font-weight: 800;
+}
+
+.board-size-option-note {
+  font-size: 0.72rem;
+  color: #667997;
+}
+
 .mode-option.selected {
   border-color: #355c9a;
   background: #dce9ff;
@@ -1890,6 +1913,12 @@ body {
   cursor: not-allowed;
   background: #eef2fb;
   color: #55627d;
+}
+
+.mode-option.disabled:hover,
+.mode-option:disabled:hover {
+  background: #eef2fb;
+  box-shadow: none;
 }
 
 .theme-grid {
@@ -3238,6 +3267,16 @@ body {
   .mode-options.difficulty-options {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
+  }
+
+  .mode-options.board-size-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .board-size-option {
+    min-height: 58px;
+    padding-inline: 6px;
   }
 
   .mode-options.difficulty-options .mode-option {

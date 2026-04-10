@@ -775,6 +775,101 @@ export default function App() {
             ? t('mode.createRoom')
             : null
         : null
+  const utilityMenuPanel = (
+    <div className="utility-menu-panel" role="menu" aria-label={t('menu.gameSetup')}>
+      <div className="mobile-menu-group">
+        <div className="mobile-menu-group-title">{t('menu.language')}</div>
+        <div className="mobile-menu-segment" role="radiogroup" aria-label="language">
+          <button
+            type="button"
+            className={['mobile-segment-btn', language === 'en' ? 'selected' : ''].filter(Boolean).join(' ')}
+            aria-pressed={language === 'en'}
+            onClick={() => setLanguage('en')}
+          >
+            {t('menu.english')}
+          </button>
+          <button
+            type="button"
+            className={['mobile-segment-btn', language === 'ja' ? 'selected' : ''].filter(Boolean).join(' ')}
+            aria-pressed={language === 'ja'}
+            onClick={() => setLanguage('ja')}
+          >
+            {t('menu.japanese')}
+          </button>
+        </div>
+      </div>
+      <div className="mobile-menu-group">
+        <div className="mobile-menu-group-title">{t('menu.infoPanel')}</div>
+        <div className="mobile-menu-segment" role="radiogroup" aria-label="info panel mode">
+          <button
+            type="button"
+            className={['mobile-segment-btn', mobilePanelMode === 'standard' ? 'selected' : ''].filter(Boolean).join(' ')}
+            aria-pressed={mobilePanelMode === 'standard'}
+            onClick={() => setMobilePanelMode('standard')}
+          >
+            {t('menu.standard')}
+          </button>
+          <button
+            type="button"
+            className={['mobile-segment-btn', mobilePanelMode === 'faceoff' ? 'selected' : ''].filter(Boolean).join(' ')}
+            aria-pressed={mobilePanelMode === 'faceoff'}
+            onClick={() => setMobilePanelMode('faceoff')}
+          >
+            {t('menu.faceoff')}
+          </button>
+        </div>
+      </div>
+      <button
+        type="button"
+        role="menuitem"
+        className="mobile-menu-item"
+        onClick={() => {
+          setSoundOn((prev) => !prev)
+        }}
+      >
+        {soundOn ? t('action.soundOn') : t('action.soundOff')}
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        className="mobile-menu-item"
+        onClick={handleLoadRecordClick}
+      >
+        {t('action.loadRecord')}
+      </button>
+      <a
+        role="menuitem"
+        className="mobile-menu-item mobile-menu-link"
+        href={OFFICIAL_SITE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => setIsMobileMenuOpen(false)}
+      >
+        {t('menu.officialSite')}
+      </a>
+      {showResearchUi ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="mobile-menu-item"
+          onClick={() => {
+            setLicensesOpen(true)
+            setIsMobileMenuOpen(false)
+          }}
+        >
+          {t('menu.licenses')}
+        </button>
+      ) : null}
+      <button
+        type="button"
+        role="menuitem"
+        className="mobile-menu-item danger"
+        onClick={requestOpenSetup}
+      >
+        {t('action.returnToSetup')}
+      </button>
+    </div>
+  )
 
   const legalSet = useMemo(() => {
     if (game.winner) {
@@ -1380,7 +1475,12 @@ export default function App() {
       const viewportWidth = document.documentElement.clientWidth
       const mobileHorizontalPadding = 12
       const faceoffOffset = mobilePanelMode === 'faceoff' && viewportWidth <= 979 ? 24 : 0
-      const availableWidth = Math.min(stage.clientWidth - faceoffOffset, viewportWidth - mobileHorizontalPadding)
+      const widthBasis =
+        stage.parentElement instanceof HTMLElement ? stage.parentElement.clientWidth : stage.clientWidth
+      const availableWidth = Math.min(
+        Math.max(MIN_BOARD_PIXELS, widthBasis - faceoffOffset),
+        viewportWidth - mobileHorizontalPadding,
+      )
       const availableHeight = window.innerHeight - rect.top - 16
       const next = Math.floor(Math.max(MIN_BOARD_PIXELS, Math.min(availableWidth, availableHeight, MAX_BOARD_PIXELS)))
       setBoardSize(next)
@@ -1389,7 +1489,11 @@ export default function App() {
     updateBoardSize()
 
     const resizeObserver = new ResizeObserver(updateBoardSize)
-    resizeObserver.observe(stage)
+    if (stage.parentElement instanceof HTMLElement) {
+      resizeObserver.observe(stage.parentElement)
+    } else {
+      resizeObserver.observe(stage)
+    }
     window.addEventListener('resize', updateBoardSize)
 
     return () => {
@@ -3156,24 +3260,18 @@ export default function App() {
         </section>
       ) : null}
 
-      {!isOnlineMockView ? (
+      {!isOnlineMockView && !isCompactViewport ? (
         <header className="game-shell-header" aria-label="game layout header">
           <div className="game-shell-main">
-            {isCompactViewport ? (
-              <div className="game-shell-brand" aria-hidden="true">
-                <img className="game-shell-logo" src="/mosaic_logo_white.png" alt="MOSAIC" />
-              </div>
-            ) : (
-              <a
-                className="game-shell-brand game-shell-brand-link"
-                href={OFFICIAL_SITE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={t('menu.officialSite')}
-              >
-                <img className="game-shell-logo" src="/mosaic_logo_white.png" alt="MOSAIC" />
-              </a>
-            )}
+            <a
+              className="game-shell-brand game-shell-brand-link"
+              href={OFFICIAL_SITE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={t('menu.officialSite')}
+            >
+              <img className="game-shell-logo" src="/mosaic_logo_white.png" alt="MOSAIC" />
+            </a>
             <div className="game-shell-summary">
               <div className="game-shell-status">{headerStatusLabel}</div>
               <div className="game-shell-chip-row">
@@ -3187,7 +3285,7 @@ export default function App() {
             <div className="game-shell-actions" aria-label="desktop utilities">
               <div className="game-shell-action-group primary">
                 <button type="button" className="game-shell-btn primary" onClick={requestOpenSetup}>
-                  {t('menu.gameSetup')}
+                  {t('action.returnToSetup')}
                 </button>
                 <button
                   type="button"
@@ -3197,44 +3295,41 @@ export default function App() {
                 >
                   {t('action.undo')}
                 </button>
-                <button type="button" className="game-shell-btn" onClick={handleLoadRecordClick}>
-                  {t('action.loadRecord')}
-                </button>
-              </div>
-              <div className="game-shell-action-group secondary">
-                <button type="button" className="game-shell-btn ghost" onClick={() => setSoundOn((prev) => !prev)}>
-                  {soundOn ? t('action.soundOn') : t('action.soundOff')}
-                </button>
-                <button
-                  type="button"
-                  className="game-shell-btn ghost"
-                  onClick={() => setLanguage((prev) => (prev === 'en' ? 'ja' : 'en'))}
-                  aria-label={t('menu.language')}
-                >
-                  {language === 'en' ? t('menu.english') : t('menu.japanese')}
-                </button>
-                {showResearchUi ? (
-                  <button type="button" className="game-shell-btn ghost" onClick={() => setLicensesOpen(true)}>
-                    {t('menu.licenses')}
+                <div className="desktop-menu" ref={mobileMenuRef}>
+                  <button
+                    type="button"
+                    className="game-shell-btn ghost desktop-menu-toggle"
+                    aria-label={t('menu.gameSetup')}
+                    aria-expanded={isMobileMenuOpen}
+                    onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+                  >
+                    <span className="hamburger-line" />
+                    <span className="hamburger-line" />
+                    <span className="hamburger-line" />
                   </button>
-                ) : null}
-                <a
-                  className="game-shell-btn ghost game-shell-link-btn"
-                  href={OFFICIAL_SITE_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {t('menu.officialSite')}
-                </a>
+                  {isMobileMenuOpen ? utilityMenuPanel : null}
+                </div>
               </div>
             </div>
-            <div className="game-shell-mobile-actions">
-              <button type="button" className="game-shell-btn primary" onClick={requestOpenSetup}>
-                {t('menu.gameSetup')}
-              </button>
-            </div>
+            <div className="game-shell-mobile-actions" />
           </div>
         </header>
+      ) : null}
+
+      {!isOnlineMockView && isCompactViewport ? (
+        <>
+          <div className="official-logo-badge" aria-hidden="true">
+            <img className="official-logo-image" src="/mosaic_logo_white.png" alt="MOSAIC" />
+          </div>
+          <button
+            type="button"
+            className="undo-fixed"
+            onClick={handleUndo}
+            disabled={matchMode === 'online' || history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
+          >
+            {t('action.undo')}
+          </button>
+        </>
       ) : null}
 
       {isOnlineMockView ? (
@@ -3575,7 +3670,7 @@ export default function App() {
       </section>
       )}
 
-      {!isOnlineMockView ? (
+      {!isOnlineMockView && isCompactViewport ? (
       <div className="mobile-menu" ref={mobileMenuRef}>
         <button
           type="button"
@@ -3588,110 +3683,7 @@ export default function App() {
           <span className="hamburger-line" />
           <span className="hamburger-line" />
         </button>
-        {isMobileMenuOpen ? (
-          <div className="mobile-menu-panel" role="menu" aria-label={t('menu.gameSetup')}>
-            <div className="mobile-menu-group">
-              <div className="mobile-menu-group-title">{t('menu.language')}</div>
-              <div className="mobile-menu-segment" role="radiogroup" aria-label="language">
-                <button
-                  type="button"
-                  className={['mobile-segment-btn', language === 'en' ? 'selected' : ''].filter(Boolean).join(' ')}
-                  aria-pressed={language === 'en'}
-                  onClick={() => setLanguage('en')}
-                >
-                  {t('menu.english')}
-                </button>
-                <button
-                  type="button"
-                  className={['mobile-segment-btn', language === 'ja' ? 'selected' : ''].filter(Boolean).join(' ')}
-                  aria-pressed={language === 'ja'}
-                  onClick={() => setLanguage('ja')}
-                >
-                  {t('menu.japanese')}
-                </button>
-              </div>
-            </div>
-            <div className="mobile-menu-group">
-              <div className="mobile-menu-group-title">{t('menu.infoPanel')}</div>
-              <div className="mobile-menu-segment" role="radiogroup" aria-label="info panel mode">
-                <button
-                  type="button"
-                  className={['mobile-segment-btn', mobilePanelMode === 'standard' ? 'selected' : ''].filter(Boolean).join(' ')}
-                  aria-pressed={mobilePanelMode === 'standard'}
-                  onClick={() => setMobilePanelMode('standard')}
-                >
-                  {t('menu.standard')}
-                </button>
-                <button
-                  type="button"
-                  className={['mobile-segment-btn', mobilePanelMode === 'faceoff' ? 'selected' : ''].filter(Boolean).join(' ')}
-                  aria-pressed={mobilePanelMode === 'faceoff'}
-                  onClick={() => setMobilePanelMode('faceoff')}
-                >
-                  {t('menu.faceoff')}
-                </button>
-              </div>
-            </div>
-            <button
-              type="button"
-              role="menuitem"
-              className="mobile-menu-item"
-              onClick={() => {
-                setSoundOn((prev) => !prev)
-              }}
-            >
-              {soundOn ? t('action.soundOn') : t('action.soundOff')}
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              className="mobile-menu-item"
-              onClick={handleLoadRecordClick}
-            >
-              {t('action.loadRecord')}
-            </button>
-            <a
-              role="menuitem"
-              className="mobile-menu-item mobile-menu-link"
-              href={OFFICIAL_SITE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              {t('menu.officialSite')}
-            </a>
-            {showResearchUi ? (
-              <button
-                type="button"
-                role="menuitem"
-                className="mobile-menu-item"
-                onClick={() => {
-                  setLicensesOpen(true)
-                  setIsMobileMenuOpen(false)
-                }}
-              >
-                {t('menu.licenses')}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              role="menuitem"
-              className="mobile-menu-item"
-              onClick={handleUndo}
-              disabled={matchMode === 'online' || history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
-            >
-              {t('action.undo')}
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              className="mobile-menu-item danger"
-              onClick={requestOpenSetup}
-            >
-              {t('action.reset')}
-            </button>
-          </div>
-        ) : null}
+        {isMobileMenuOpen ? utilityMenuPanel : null}
       </div>
       ) : null}
 

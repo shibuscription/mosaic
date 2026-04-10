@@ -160,6 +160,30 @@ body {
   cursor: not-allowed;
 }
 
+.desktop-menu {
+  position: relative;
+}
+
+.desktop-menu-toggle {
+  min-width: 42px;
+  padding-inline: 10px;
+}
+
+.utility-menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 220px;
+  display: grid;
+  gap: 5px;
+  background: #f5f9ffed;
+  border: 1px solid #b2c5e3;
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 10px 24px #0f1b3140;
+  z-index: 40;
+}
+
 .game-shell-link-btn {
   display: inline-flex;
   align-items: center;
@@ -2474,6 +2498,10 @@ body {
 }
 
 @media (max-width: 979px) {
+  .game-shell-header {
+    display: none;
+  }
+
   .game-shell-main {
     grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 8px;
@@ -2580,7 +2608,7 @@ body {
   }
 
   .page {
-    padding-top: 44px;
+    padding-top: 6px;
   }
 
   .table-layout {
@@ -2639,6 +2667,15 @@ body {
     border-radius: 10px;
     padding: 6px;
     box-shadow: 0 10px 24px #0f1b3140;
+  }
+
+  .utility-menu-panel {
+    top: auto;
+    right: 0;
+    bottom: calc(44px + env(safe-area-inset-bottom));
+    min-width: 152px;
+    padding: 6px;
+    border-radius: 10px;
   }
 
   .mobile-menu-group {
@@ -2722,6 +2759,12 @@ body {
     width: 70px;
   }
 
+  .undo-fixed {
+    right: calc(56px + env(safe-area-inset-right));
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    padding: 7px 10px;
+  }
+
   .remaining-stack-grid {
     display: none;
   }
@@ -2743,7 +2786,7 @@ body {
     align-items: start;
     order: 2;
     justify-content: center;
-    width: fit-content;
+    width: 100%;
     max-width: 100%;
   }
 
@@ -2864,7 +2907,7 @@ body {
   }
 
   .page {
-    padding: 44px 4px 4px;
+    padding: 6px 4px 4px;
     gap: 4px;
   }
 
@@ -2988,8 +3031,8 @@ body {
   }
 
   .undo-fixed {
-    right: 92px;
-    bottom: 10px;
+    right: calc(56px + env(safe-area-inset-right));
+    bottom: calc(10px + env(safe-area-inset-bottom));
     padding: 9px 11px;
   }
 

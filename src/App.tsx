@@ -698,7 +698,7 @@ export default function App() {
   const isOnumaDebugReviewPosition =
     showOnumaDebugOverlay && !isPlayback && boardRenderer === '2d' && Boolean(game.winner)
   const isOnumaDebugLiveCpuTurn =
-    showOnumaDebugOverlay &&
+      showOnumaDebugOverlay &&
     !isPlayback &&
     matchMode === 'cpu'
   const isKobalabDebugPlaybackPaused =
@@ -727,6 +727,51 @@ export default function App() {
     !game.winner
   const playbackAtStart = playbackMoveCursor <= 0
   const playbackAtEnd = playbackMoveCursor >= playbackTotalMoves
+  const yellowPlayerLabel =
+    matchMode === 'cpu'
+      ? cpuMatchType === 'cpu_vs_cpu'
+        ? `CPU 2 (${cpuDifficultyLabel(cpu2Difficulty, language)})`
+        : `CPU (${cpuDifficultyLabel(cpuDifficulty, language)})`
+      : matchMode === 'online'
+        ? onlineSession.role === 'yellow'
+          ? 'Player 2 (You)'
+          : 'Player 2'
+        : INTERNAL_LABEL.yellow
+  const bluePlayerLabel =
+    matchMode === 'cpu'
+      ? cpuMatchType === 'cpu_vs_cpu'
+        ? `CPU 1 (${cpuDifficultyLabel(cpu1Difficulty, language)})`
+        : INTERNAL_LABEL.blue
+      : matchMode === 'online'
+        ? onlineSession.role === 'blue'
+          ? 'Player 1 (You)'
+          : 'Player 1'
+        : INTERNAL_LABEL.blue
+  const currentTurnOwnerLabel = displayTurnPlayer === 'blue' ? bluePlayerLabel : yellowPlayerLabel
+  const currentMatchLabel =
+    matchMode === 'cpu' ? t('mode.cpuMatch') : matchMode === 'online' ? t('mode.onlineMatch') : t('mode.localMatch')
+  const boardViewLabel = boardRenderer === '3d' ? t('action.view3d') : t('action.view2d')
+  const onlineConnectionLabel =
+    matchMode === 'online' ? onlineConnectionStateLabel(onlineSession.connectionState, t) : null
+  const headerStatusLabel = isPlayback
+    ? `${t('action.playback')} ${playbackMoveCursor} / ${playbackTotalMoves}`
+    : game.winner
+      ? winnerHeadline(game.winner, matchMode, onlineSession.role, cpuMatchType, language)
+      : `${t('status.turn')}: ${currentTurnOwnerLabel}`
+  const setupModeLabel =
+    pendingMode === 'cpu' ? t('mode.cpuMatch') : pendingMode === 'online' ? t('mode.onlineMatch') : t('mode.localMatch')
+  const setupSubmodeLabel =
+    pendingMode === 'cpu'
+      ? pendingCpuMatchType === 'cpu_vs_cpu'
+        ? t('mode.cpuVsCpu')
+        : t('mode.youVsCpu')
+      : pendingMode === 'online'
+        ? pendingOnlineAction === 'join'
+          ? t('mode.joinRoom')
+          : pendingOnlineAction === 'create'
+            ? t('mode.createRoom')
+            : null
+        : null
 
   const legalSet = useMemo(() => {
     if (game.winner) {
@@ -3090,6 +3135,87 @@ export default function App() {
         </section>
       ) : null}
 
+      {!isOnlineMockView ? (
+        <header className="game-shell-header" aria-label="game layout header">
+          <div className="game-shell-main">
+            {isCompactViewport ? (
+              <div className="game-shell-brand" aria-hidden="true">
+                <img className="game-shell-logo" src="/mosaic_logo_white.png" alt="MOSAIC" />
+              </div>
+            ) : (
+              <a
+                className="game-shell-brand game-shell-brand-link"
+                href={OFFICIAL_SITE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={t('menu.officialSite')}
+              >
+                <img className="game-shell-logo" src="/mosaic_logo_white.png" alt="MOSAIC" />
+              </a>
+            )}
+            <div className="game-shell-summary">
+              <div className="game-shell-status">{headerStatusLabel}</div>
+              <div className="game-shell-chip-row">
+                <span className="game-shell-chip">Standard 7×7</span>
+                <span className="game-shell-chip">{currentMatchLabel}</span>
+                <span className="game-shell-chip">{boardViewLabel}</span>
+                {isPlayback ? <span className="game-shell-chip">{t('action.playback')}</span> : null}
+                {onlineConnectionLabel ? <span className="game-shell-chip">{onlineConnectionLabel}</span> : null}
+              </div>
+            </div>
+            <div className="game-shell-actions" aria-label="desktop utilities">
+              <div className="game-shell-action-group primary">
+                <button type="button" className="game-shell-btn primary" onClick={openSetup}>
+                  {t('menu.gameSetup')}
+                </button>
+                <button
+                  type="button"
+                  className="game-shell-btn"
+                  onClick={handleUndo}
+                  disabled={matchMode === 'online' || history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
+                >
+                  {t('action.undo')}
+                </button>
+                <button type="button" className="game-shell-btn" onClick={handleLoadRecordClick}>
+                  {t('action.loadRecord')}
+                </button>
+              </div>
+              <div className="game-shell-action-group secondary">
+                <button type="button" className="game-shell-btn ghost" onClick={() => setSoundOn((prev) => !prev)}>
+                  {soundOn ? t('action.soundOn') : t('action.soundOff')}
+                </button>
+                <button
+                  type="button"
+                  className="game-shell-btn ghost"
+                  onClick={() => setLanguage((prev) => (prev === 'en' ? 'ja' : 'en'))}
+                  aria-label={t('menu.language')}
+                >
+                  {language === 'en' ? t('menu.english') : t('menu.japanese')}
+                </button>
+                {showResearchUi ? (
+                  <button type="button" className="game-shell-btn ghost" onClick={() => setLicensesOpen(true)}>
+                    {t('menu.licenses')}
+                  </button>
+                ) : null}
+                <a
+                  className="game-shell-btn ghost game-shell-link-btn"
+                  href={OFFICIAL_SITE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {t('menu.officialSite')}
+                </a>
+              </div>
+            </div>
+            <div className="game-shell-mobile-actions">
+              <button type="button" className="game-shell-btn primary" onClick={openSetup}>
+                {t('menu.gameSetup')}
+              </button>
+            </div>
+          </div>
+        </header>
+      ) : null}
+
       {isOnlineMockView ? (
         <OnlineMockPanel
           t={t}
@@ -3130,20 +3256,11 @@ export default function App() {
           }}
         />
       ) : (
+      <section className="game-surface-card">
       <section className="table-layout">
         <PlayerPanel
           playerKey="yellow"
-          playerLabel={
-            matchMode === 'cpu'
-              ? cpuMatchType === 'cpu_vs_cpu'
-                ? `CPU 2 (${cpuDifficultyLabel(cpu2Difficulty, language)})`
-                : `CPU (${cpuDifficultyLabel(cpuDifficulty, language)})`
-              : matchMode === 'online'
-                ? onlineSession.role === 'yellow'
-                  ? 'Player 2 (You)'
-                  : 'Player 2'
-                : INTERNAL_LABEL.yellow
-          }
+          playerLabel={yellowPlayerLabel}
           colorHex={yellowTheme.hex}
           colorSoft={hexToRgba(yellowTheme.hex, 0.28)}
           remaining={displayRemaining.yellow}
@@ -3156,6 +3273,17 @@ export default function App() {
         />
 
         <section className="board-stage" aria-label="mosaic board" ref={boardStageRef}>
+          <div className="board-stage-head">
+            <div className="board-stage-copy">
+              <div className="board-stage-kicker">{currentMatchLabel}</div>
+              <div className="board-stage-title">{headerStatusLabel}</div>
+            </div>
+            <div className="board-stage-meta">
+              <span className="board-stage-chip">{turnBadgeLabel}</span>
+              <span className="board-stage-chip">{boardViewLabel}</span>
+              {isPlayback ? <span className="board-stage-chip">{`${playbackMoveCursor} / ${playbackTotalMoves}`}</span> : null}
+            </div>
+          </div>
           {boardRenderer === '3d' ? (
             <div className="board-wrap board-wrap-3d" style={{ width: `${boardSize}px`, height: `${boardSize}px` }}>
               <Board3DViewport
@@ -3411,17 +3539,7 @@ export default function App() {
 
         <PlayerPanel
           playerKey="blue"
-          playerLabel={
-            matchMode === 'cpu'
-              ? cpuMatchType === 'cpu_vs_cpu'
-                ? `CPU 1 (${cpuDifficultyLabel(cpu1Difficulty, language)})`
-                : INTERNAL_LABEL.blue
-              : matchMode === 'online'
-              ? onlineSession.role === 'blue'
-                ? 'Player 1 (You)'
-                : 'Player 1'
-              : INTERNAL_LABEL.blue
-          }
+          playerLabel={bluePlayerLabel}
           colorHex={blueTheme.hex}
           colorSoft={hexToRgba(blueTheme.hex, 0.28)}
           remaining={displayRemaining.blue}
@@ -3432,6 +3550,7 @@ export default function App() {
           winnerLabel={t('status.winner')}
           turnLabel={turnBadgeLabel}
         />
+      </section>
       </section>
       )}
 
@@ -3555,48 +3674,6 @@ export default function App() {
       </div>
       ) : null}
 
-      {!isOnlineMockView ? (
-      <button type="button" className="sound-fixed" onClick={() => setSoundOn((prev) => !prev)}>
-        {soundOn ? t('action.soundOn') : t('action.soundOff')}
-      </button>
-      ) : null}
-      {!isOnlineMockView ? (
-      <button
-        type="button"
-        className="language-fixed"
-        onClick={() => setLanguage((prev) => (prev === 'en' ? 'ja' : 'en'))}
-        aria-label={t('menu.language')}
-      >
-        {t('menu.language')}: {language === 'en' ? t('menu.english') : t('menu.japanese')}
-      </button>
-      ) : null}
-      {!isOnlineMockView ? (
-      <button type="button" className="load-fixed" onClick={handleLoadRecordClick}>
-        {t('action.loadRecord')}
-      </button>
-      ) : null}
-      {!isOnlineMockView ? (
-      showResearchUi ? (
-      <button type="button" className="licenses-fixed" onClick={() => setLicensesOpen(true)}>
-        {t('menu.licenses')}
-      </button>
-      ) : null
-      ) : null}
-      {!isOnlineMockView ? (
-      <button
-        type="button"
-        className="undo-fixed"
-        onClick={handleUndo}
-        disabled={matchMode === 'online' || history.length <= 1 || isAnimating || isPlayback || setupOpen || isCpuThinking}
-      >
-        {t('action.undo')}
-      </button>
-      ) : null}
-      {!isOnlineMockView ? (
-      <button type="button" className="reset-fixed" onClick={openSetup}>
-        {t('action.reset')}
-      </button>
-      ) : null}
       <input
         ref={recordFileInputRef}
         type="file"
@@ -3611,23 +3688,6 @@ export default function App() {
         <div className={['record-notice', recordNotice.kind].join(' ')} role="status" aria-live="polite">
           {recordNotice.message}
         </div>
-      ) : null}
-      {!isOnlineMockView ? (
-      isCompactViewport ? (
-        <div className="official-logo-badge" aria-hidden="true">
-          <img className="official-logo-image" src="/mosaic_logo_white.png" alt="MOSAIC" />
-        </div>
-      ) : (
-        <a
-          className="official-logo-badge official-logo-link"
-          href={OFFICIAL_SITE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={t('menu.officialSite')}
-        >
-          <img className="official-logo-image" src="/mosaic_logo_white.png" alt="MOSAIC" />
-        </a>
-      )
       ) : null}
       {showResearchUi && licensesOpen ? (
         <div className="setup-overlay" role="dialog" aria-modal="true" aria-label={t('license.title')}>
@@ -4378,10 +4438,33 @@ export default function App() {
       {setupOpen ? (
         <div className="setup-overlay" role="dialog" aria-modal="true">
           <div className="setup-modal">
+            <div className="setup-hero">
+              <div className="setup-hero-copy">
+                <span className="setup-hero-kicker">MOSAIC Standard</span>
+                <div className="setup-hero-title">
+                  {setupStep === 'mode' ? t('menu.gameSetup') : pendingMode === 'online' ? t('setup.onlineMatchSetup') : t('setup.matchSetup')}
+                </div>
+                <p className="setup-hero-text">
+                  {setupStep === 'mode'
+                    ? t('menu.choosePlayStyle')
+                    : pendingMode === 'online'
+                      ? t('setup.chooseOnlineTurnAndColors')
+                      : pendingMode === 'cpu' && pendingCpuMatchType === 'cpu_vs_cpu'
+                        ? t('setup.chooseCpuVsCpuColors')
+                        : t('setup.chooseTurnAndColors')}
+                </p>
+              </div>
+              <div className="setup-hero-summary">
+                <span className="setup-summary-chip">7×7</span>
+                <span className="setup-summary-chip">{setupModeLabel}</span>
+                {setupSubmodeLabel ? <span className="setup-summary-chip">{setupSubmodeLabel}</span> : null}
+                {pendingMode === 'cpu' && pendingCpuMatchType === 'you_vs_cpu' ? (
+                  <span className="setup-summary-chip">{t(getCpuDefinition(pendingCpuDifficulty).labelKey)}</span>
+                ) : null}
+              </div>
+            </div>
             {setupStep === 'mode' ? (
               <>
-                <h2>{t('menu.gameSetup')}</h2>
-                <p>{t('menu.choosePlayStyle')}</p>
                 <div className="mode-row">
                   <div className="picker-label">{t('mode.gameMode')}</div>
                   <div className="mode-options" role="radiogroup" aria-label="game mode">
@@ -4529,15 +4612,6 @@ export default function App() {
               </>
             ) : (
               <>
-                <h2>{pendingMode === 'online' ? t('setup.onlineMatchSetup') : t('setup.matchSetup')}</h2>
-                <p>
-                  {pendingMode === 'online'
-                    ? t('setup.chooseOnlineTurnAndColors')
-                    : pendingMode === 'cpu' && pendingCpuMatchType === 'cpu_vs_cpu'
-                      ? t('setup.chooseCpuVsCpuColors')
-                      : t('setup.chooseTurnAndColors')}
-                </p>
-
                 <div className="setup-config-grid">
                   <div className="setup-config-left">
                     <div className="picker-label">{t('setup.turnOrder')}</div>
@@ -5216,6 +5290,22 @@ function resolveOnumaTolerancePreview(difficulty: OnumaDifficultyMode, params: O
     return params.toleranceHard
   }
   return params.toleranceNormal
+}
+
+function onlineConnectionStateLabel(connectionState: OnlineConnectionState, t: (key: string) => string): string {
+  if (connectionState === 'connected') {
+    return t('status.connected')
+  }
+  if (connectionState === 'connecting') {
+    return t('status.connecting')
+  }
+  if (connectionState === 'waiting') {
+    return t('status.waiting')
+  }
+  if (connectionState === 'disconnected') {
+    return t('status.disconnected')
+  }
+  return t('status.waiting')
 }
 
 function resolveChainTone(chainCount: number): ChainTone {

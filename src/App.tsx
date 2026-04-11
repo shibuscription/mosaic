@@ -3387,6 +3387,8 @@ export default function App() {
     setIsOpeningSplashVisible(false)
   }
 
+  const showSetupModal = setupOpen && !isOpeningSplashVisible
+
   return (
     <main className={`page mobile-panels-${mobilePanelMode}${setupOpen ? ' setup-open' : ''}`} style={themeStyle}>
       {!isOnlineMockView ? (
@@ -4621,8 +4623,8 @@ export default function App() {
         </div>
       ) : null}
 
-      {setupOpen ? (
-        <div className="setup-overlay" role="dialog" aria-modal="true">
+      {showSetupModal ? (
+        <div className="setup-overlay setup-main-overlay" role="dialog" aria-modal="true">
           <div className="setup-modal">
             <div className="setup-hero">
               <div className="setup-hero-copy">

@@ -1701,6 +1701,10 @@ body {
   overflow-y: auto;
 }
 
+.setup-main-overlay {
+  animation: setup-overlay-fade-in 260ms ease-out;
+}
+
 .page.setup-open .mobile-menu,
 .page.setup-open .undo-fixed {
   z-index: 640;
@@ -1723,6 +1727,10 @@ body {
   gap: 14px;
   overflow: hidden;
   overscroll-behavior: contain;
+}
+
+.setup-main-overlay .setup-modal {
+  animation: setup-modal-rise-in 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .setup-sheet-body {
@@ -2628,6 +2636,26 @@ body {
   }
   100% {
     opacity: 0.12;
+  }
+}
+
+@keyframes setup-overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes setup-modal-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 

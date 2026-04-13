@@ -3218,14 +3218,15 @@ body {
 
   .playback-chip {
     left: 10px;
-    right: calc(58px + env(safe-area-inset-right));
+    right: 10px;
     top: auto;
-    bottom: calc(10px + env(safe-area-inset-bottom));
+    bottom: calc(58px + env(safe-area-inset-bottom));
     transform: none;
     width: auto;
-    max-width: min(420px, calc(100vw - 68px - env(safe-area-inset-right)));
+    max-width: calc(100vw - 20px);
     border-radius: 12px;
     padding: 6px 8px;
+    z-index: 990;
   }
 
   .playback-row-meta {

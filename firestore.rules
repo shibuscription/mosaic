@@ -10,6 +10,14 @@ service cloud.firestore {
       return value == null || isPlayerColor(value);
     }
 
+    function isGameWinner(value) {
+      return value == 'draw' || isPlayerColor(value);
+    }
+
+    function isNullableGameWinner(value) {
+      return value == null || isGameWinner(value);
+    }
+
     function isRoomStatus(value) {
       return value == 'waiting' || value == 'playing' || value == 'finished';
     }
@@ -146,7 +154,7 @@ service cloud.firestore {
         && value.boardCells.size() <= boardMaxCells(boardVariant)
         && isPlayerColor(value.currentTurn)
         && isRemainingMap(value.remaining, boardVariant)
-        && isNullablePlayerColor(value.winner)
+        && isNullableGameWinner(value.winner)
         && value.message is string
         && value.message.size() <= 280
         && isNullableMove(value.lastMove, boardVariant)
@@ -192,7 +200,7 @@ service cloud.firestore {
         && isPlayerColors(data.playerColors)
         && isPlayerColor(data.currentTurn)
         && isBoardState(data.boardState, normalizedBoardVariant)
-        && isNullablePlayerColor(data.winner)
+        && isNullableGameWinner(data.winner)
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
         && data.currentTurn == data.boardState.currentTurn
@@ -200,7 +208,7 @@ service cloud.firestore {
         && (
           (data.status == 'waiting' && data.players.player2.joined == false && data.winner == null) ||
           (data.status == 'playing' && data.players.player2.joined == true && data.winner == null) ||
-          (data.status == 'finished' && data.players.player2.joined == true && isPlayerColor(data.winner))
+          (data.status == 'finished' && data.players.player2.joined == true && isGameWinner(data.winner))
         );
     }
 

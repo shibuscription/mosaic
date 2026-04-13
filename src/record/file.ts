@@ -1,4 +1,4 @@
-import { normalizeBoardVariant, type AutoPlacement, type BoardVariant, type Move, type PlayerColor } from '../game/types'
+import { normalizeBoardVariant, type AutoPlacement, type BoardVariant, type GameWinner, type Move, type PlayerColor } from '../game/types'
 
 export type MosaicRecordMode = 'pvp' | 'cpu' | 'online'
 
@@ -22,7 +22,7 @@ export interface MosaicRecordV1 {
   }
   openingTurn: PlayerColor
   moves: MosaicRecordMove[]
-  winner: PlayerColor | null
+  winner: GameWinner | null
   cpuSettings?: {
     matchType?: string
     cpuDifficulty?: string
@@ -97,7 +97,7 @@ export function parseMosaicRecord(jsonText: string): RecordParseResult {
     return { ok: false, error: 'invalid-opening-turn' }
   }
 
-  if (!isPlayerColorOrNull(parsed.winner)) {
+  if (!isGameWinnerOrNull(parsed.winner)) {
     return { ok: false, error: 'invalid-winner' }
   }
 
@@ -161,8 +161,8 @@ function isPlayerColor(value: unknown): value is PlayerColor {
   return value === 'blue' || value === 'yellow'
 }
 
-function isPlayerColorOrNull(value: unknown): value is PlayerColor | null {
-  return value === null || isPlayerColor(value)
+function isGameWinnerOrNull(value: unknown): value is GameWinner | null {
+  return value === null || value === 'draw' || isPlayerColor(value)
 }
 
 function isMosaicRecordMode(value: unknown): value is MosaicRecordMode {

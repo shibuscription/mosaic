@@ -121,6 +121,7 @@ const en: Messages = {
 
   'winner.youWin': 'YOU WIN!',
   'winner.youLose': 'YOU LOSE',
+  'winner.draw': 'DRAW',
   'winner.player1Wins': 'PLAYER 1 WINS!',
   'winner.player2Wins': 'PLAYER 2 WINS!',
   'winner.cpu1Wins': 'CPU 1 WINS!',
@@ -322,6 +323,7 @@ const ja: Messages = {
 
   'winner.youWin': 'YOU WIN!',
   'winner.youLose': 'YOU LOSE',
+  'winner.draw': '引き分け',
   'winner.player1Wins': 'PLAYER 1 WINS!',
   'winner.player2Wins': 'PLAYER 2 WINS!',
   'winner.cpu1Wins': 'CPU 1 WINS!',

@@ -5,6 +5,7 @@ import {
   normalizeBoardVariant,
   type AutoPlacement,
   type BoardVariant,
+  type GameWinner,
   type GameState,
   type Move,
   type PieceColor,
@@ -139,7 +140,7 @@ interface MatchRecord {
   boardVariant: BoardVariant
   players: PlayerColorConfig
   moves: MoveRecord[]
-  winner: PlayerColor | null
+  winner: GameWinner | null
 }
 
 interface UndoSnapshot {
@@ -561,7 +562,7 @@ export default function App() {
     },
   ])
   const audioCtxRef = useRef<AudioContext | null>(null)
-  const lastWinnerRef = useRef<PlayerColor | null>(null)
+  const lastWinnerRef = useRef<GameWinner | null>(null)
 
   const colorById = useMemo(() => {
     const map = new Map<DisplayColorId, ColorOption>()
@@ -3073,8 +3074,11 @@ export default function App() {
   }
 
   function scoreSheetWinnerLabel(record: MosaicRecordV1): string {
-    if (!record.winner) {
+    if (record.winner === 'draw') {
       return t('sheet.winnerDraw')
+    }
+    if (!record.winner) {
+      return '-'
     }
     return record.winner === record.openingTurn ? t('sheet.winnerFirst') : t('sheet.winnerSecond')
   }
@@ -4543,11 +4547,13 @@ export default function App() {
         <div className="winner-overlay" aria-live="polite">
           <div className="winner-card">
             <div className="winner-title">{winnerHeadline(game.winner, matchMode, onlineSession.role, cpuMatchType, language)}</div>
-            <div
-              className="winner-color-dot"
-              style={{ background: colorById.get(playerColors[game.winner])?.hex ?? '#8f9aae' }}
-              aria-label={t('status.winner')}
-            />
+            {game.winner !== 'draw' ? (
+              <div
+                className="winner-color-dot"
+                style={{ background: colorById.get(playerColors[game.winner])?.hex ?? '#8f9aae' }}
+                aria-label={t('status.winner')}
+              />
+            ) : null}
             <div className="winner-actions">
               <div className="winner-actions-row winner-actions-row-primary">
                 <button
@@ -5737,12 +5743,15 @@ function hardEndgamePhaseLabel(phase: 'normal' | 'endgame' | 'late_endgame'): st
 }
 
 function winnerHeadline(
-  winner: PlayerColor,
+  winner: GameWinner,
   mode: MatchMode,
   onlineRole: PlayerColor | null,
   cpuMatchType: CpuMatchType,
   language: AppLanguage,
 ): string {
+  if (winner === 'draw') {
+    return translate(language, 'winner.draw')
+  }
   if (mode === 'cpu') {
     if (cpuMatchType === 'cpu_vs_cpu') {
       return winner === 'blue' ? translate(language, 'winner.cpu1Wins') : translate(language, 'winner.cpu2Wins')

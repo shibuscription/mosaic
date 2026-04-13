@@ -3,6 +3,7 @@ import {
   type Board,
   type BoardVariant,
   type GameState,
+  type GameWinner,
   type Move,
   type Piece,
   type PieceColor,
@@ -124,10 +125,14 @@ export function placeManualPiece(state: GameState, level: number, row: number, c
       : ''
 
   if (winner) {
+    const winnerMessage =
+      winner === 'draw'
+        ? 'Draw game (both players reached 0 remaining pieces).'
+        : `${TURN_LABEL[winner]} wins (remaining reached 0).`
     return {
       ...afterAuto,
       winner,
-      message: `${baseMessage}${autoMessage} ${TURN_LABEL[winner]} wins (remaining reached 0).`,
+      message: `${baseMessage}${autoMessage} ${winnerMessage}`,
     }
   }
 
@@ -235,12 +240,12 @@ export function resolveAutoChains(state: GameState): GameState {
   }
 }
 
-export function getWinner(state: GameState): PlayerColor | null {
+export function getWinner(state: GameState): GameWinner | null {
   const blueZero = state.remaining.blue <= 0
   const yellowZero = state.remaining.yellow <= 0
 
   if (blueZero && yellowZero) {
-    return state.lastActor ?? 'blue'
+    return 'draw'
   }
   if (blueZero) {
     return 'blue'

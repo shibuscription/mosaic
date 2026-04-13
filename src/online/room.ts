@@ -14,6 +14,7 @@ import {
   DEFAULT_BOARD_VARIANT,
   type AutoPlacement,
   type BoardVariant,
+  type GameWinner,
   type GameState,
   type Move,
   type PieceColor,
@@ -53,7 +54,7 @@ export interface SerializedGameState {
   boardCells: SerializedBoardCell[]
   currentTurn: PlayerColor
   remaining: Record<PlayerColor, number>
-  winner: PlayerColor | null
+  winner: GameWinner | null
   message: string
   lastMove: Move | null
   lastAutoPlacements: AutoPlacement[]
@@ -72,7 +73,7 @@ export interface RoomDoc {
   }
   currentTurn: PlayerColor
   boardState: SerializedGameState
-  winner: PlayerColor | null
+  winner: GameWinner | null
   createdAt?: unknown
   updatedAt?: unknown
 }

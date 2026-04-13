@@ -49,6 +49,7 @@ export function getLevelSizeForVariant(variant: BoardVariant, level: number): nu
 }
 
 export type PlayerColor = 'blue' | 'yellow'
+export type GameWinner = PlayerColor | 'draw'
 export type PieceColor = PlayerColor | 'neutral'
 export type PieceSource = 'initial' | 'manual' | 'auto'
 
@@ -76,7 +77,7 @@ export interface GameState {
   board: Board
   currentTurn: PlayerColor
   remaining: Record<PlayerColor, number>
-  winner: PlayerColor | null
+  winner: GameWinner | null
   message: string
   lastMove: Move | null
   lastAutoPlacements: AutoPlacement[]

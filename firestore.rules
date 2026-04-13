@@ -27,7 +27,7 @@ service cloud.firestore {
     }
 
     function boardTotalPieces(boardVariant) {
-      return boardVariant == 'mini' ? 27 : boardVariant == 'pro' ? 142 : 50;
+      return boardVariant == 'mini' ? 27 : boardVariant == 'pro' ? 142 : 70;
     }
 
     function boardMaxCells(boardVariant) {

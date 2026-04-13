@@ -23,7 +23,7 @@ const BOARD_SPECS: Record<BoardVariant, BoardSpec> = {
     variant: 'standard',
     baseSize: 7,
     maxLevel: 6,
-    totalPieces: 50,
+    totalPieces: 70,
   },
   pro: {
     variant: 'pro',

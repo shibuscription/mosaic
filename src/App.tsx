@@ -781,6 +781,7 @@ export default function App() {
   const boardVariantLabel = boardVariantChipLabel(pendingBoardVariant, language)
   const onlineBoardVariantLabel = onlineSession.boardVariant ? boardVariantChipLabel(onlineSession.boardVariant, language) : null
   const setupBoardVariantTitle = boardVariantTitleLabel(pendingBoardVariant)
+  const canSelectProInSetup = pendingMode === 'pvp'
   const shouldShowBoardSizeSetup =
     pendingMode !== 'online' || pendingOnlineAction === 'create'
   const shouldShowBoardSizeSummaryChip =
@@ -1815,6 +1816,12 @@ export default function App() {
     }
     window.localStorage.setItem(MOBILE_PANEL_MODE_KEY, mobilePanelMode)
   }, [mobilePanelMode])
+
+  useEffect(() => {
+    if (pendingBoardVariant === 'pro' && !canSelectProInSetup) {
+      setPendingBoardVariant('standard')
+    }
+  }, [canSelectProInSetup, pendingBoardVariant])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -4835,17 +4842,28 @@ export default function App() {
                       </button>
                       <button
                         type="button"
-                        className={['mode-option', 'board-size-option', 'disabled']
+                        className={[
+                          'mode-option',
+                          'board-size-option',
+                          pendingBoardVariant === 'pro' ? 'selected' : '',
+                          !canSelectProInSetup ? 'disabled' : '',
+                        ]
                           .filter(Boolean)
                           .join(' ')}
-                        disabled
-                        aria-disabled="true"
-                        title={t('setup.preparing')}
+                        onClick={canSelectProInSetup ? () => setPendingBoardVariant('pro') : undefined}
+                        disabled={!canSelectProInSetup}
+                        aria-disabled={!canSelectProInSetup ? 'true' : undefined}
+                        aria-pressed={pendingBoardVariant === 'pro'}
+                        title={!canSelectProInSetup ? t('setup.preparing') : undefined}
                       >
-                        <span className="board-size-option-main board-size-option-main-inline">
-                          <span>{t('setup.boardSizePro')}</span>
-                          <span className="board-size-option-note">{t('setup.preparing')}</span>
-                        </span>
+                        {canSelectProInSetup ? (
+                          <span className="board-size-option-main">{t('setup.boardSizePro')}</span>
+                        ) : (
+                          <span className="board-size-option-main board-size-option-main-inline">
+                            <span>{t('setup.boardSizePro')}</span>
+                            <span className="board-size-option-note">{t('setup.preparing')}</span>
+                          </span>
+                        )}
                       </button>
                     </div>
                   </div>

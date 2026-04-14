@@ -776,6 +776,10 @@ export default function App() {
   const boardViewLabel = boardRenderer === '3d' ? t('action.view3d') : t('action.view2d')
   const gameBoardSpec = getBoardSpec(game.boardVariant)
   const boardLayoutMetrics = getBoardLayoutMetrics(game.boardVariant)
+  const currentBoardTokenVisualPercent =
+    isCompactViewport && game.boardVariant === 'pro'
+      ? boardLayoutMetrics.tokenVisualPercent * 0.95
+      : boardLayoutMetrics.tokenVisualPercent
   const maxCoordinate = Math.max(1, (gameBoardSpec.baseSize - 1) * BASE_SPACING)
   const currentBoardVariantLabel = boardVariantChipLabel(game.boardVariant, language)
   const boardVariantLabel = boardVariantChipLabel(pendingBoardVariant, language)
@@ -3569,7 +3573,7 @@ export default function App() {
                   {
                     '--board-hole-map': boardHoleMap,
                     '--token-size': `${boardLayoutMetrics.tokenSizePercent}%`,
-                    '--token-visual-size': `${boardLayoutMetrics.tokenVisualPercent}%`,
+                    '--token-visual-size': `${currentBoardTokenVisualPercent}%`,
                   } as CSSProperties
                 }
               >

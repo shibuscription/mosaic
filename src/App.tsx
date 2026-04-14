@@ -778,7 +778,7 @@ export default function App() {
   const boardLayoutMetrics = getBoardLayoutMetrics(game.boardVariant)
   const currentBoardTokenVisualPercent =
     isCompactViewport && game.boardVariant === 'pro'
-      ? boardLayoutMetrics.tokenVisualPercent * 0.95
+      ? boardLayoutMetrics.tokenVisualPercent * 0.9
       : boardLayoutMetrics.tokenVisualPercent
   const maxCoordinate = Math.max(1, (gameBoardSpec.baseSize - 1) * BASE_SPACING)
   const currentBoardVariantLabel = boardVariantChipLabel(game.boardVariant, language)

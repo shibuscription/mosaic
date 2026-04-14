@@ -781,7 +781,7 @@ export default function App() {
   const boardVariantLabel = boardVariantChipLabel(pendingBoardVariant, language)
   const onlineBoardVariantLabel = onlineSession.boardVariant ? boardVariantChipLabel(onlineSession.boardVariant, language) : null
   const setupBoardVariantTitle = boardVariantTitleLabel(pendingBoardVariant)
-  const canSelectProInSetup = pendingMode !== 'online'
+  const canSelectProInSetup = pendingMode !== 'online' || pendingOnlineAction === 'create'
   const shouldShowBoardSizeSetup =
     pendingMode !== 'online' || pendingOnlineAction === 'create'
   const shouldShowBoardSizeSummaryChip =

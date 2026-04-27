@@ -50,6 +50,14 @@ https://mosaic-game-bef28.web.app
 
 今後、これらの駒数を変更する想定は基本的にありません。
 
+## Tile Pattern Variants
+
+- `Iki` and `Miyabi` now use 5 PNG variants per side (`*_1` to `*_5`).
+- The variant is chosen once at match start and remains fixed during that match.
+- A new draw happens only when starting a new match (including reset/restart/import/new setup flow).
+- In online play, variant selection is currently visual-only per client (not synchronized between players).
+- These variants are visual-only and do not affect game logic, legal moves, result, or record data.
+
 ## CPU Status
 
 公開向け CPU 選択肢は次の 3 つです。

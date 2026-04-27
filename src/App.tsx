@@ -213,6 +213,20 @@ interface ChainBannerState {
 
 const CENTER_PLAIN_IMAGE_URL = '/center-plain.png'
 const CENTER_PATTERN_IMAGE_URL = '/center-pattern.png'
+const IKI_VARIANTS = {
+  player1: ['/iki-1_1.png', '/iki-1_2.png', '/iki-1_3.png', '/iki-1_4.png', '/iki-1_5.png'],
+  player2: ['/iki-2_1.png', '/iki-2_2.png', '/iki-2_3.png', '/iki-2_4.png', '/iki-2_5.png'],
+} as const
+const MIYABI_VARIANTS = {
+  player1: ['/miyabi-1_1.png', '/miyabi-1_2.png', '/miyabi-1_3.png', '/miyabi-1_4.png', '/miyabi-1_5.png'],
+  player2: ['/miyabi-2_1.png', '/miyabi-2_2.png', '/miyabi-2_3.png', '/miyabi-2_4.png', '/miyabi-2_5.png'],
+} as const
+const THEME_PIECE_VARIANTS_BY_COLOR: Partial<Record<DisplayColorId, readonly string[]>> = {
+  iki_blue: IKI_VARIANTS.player1,
+  iki_white: IKI_VARIANTS.player2,
+  miyabi_teal: MIYABI_VARIANTS.player1,
+  miyabi_vermilion: MIYABI_VARIANTS.player2,
+}
 const THEME_IMAGE_CONFIGS = {
   milkyway: {
     player1ColorId: 'milkyway_white',
@@ -253,8 +267,8 @@ const THEME_IMAGE_CONFIGS = {
   miyabi: {
     player1ColorId: 'miyabi_teal',
     player2ColorId: 'miyabi_vermilion',
-    player1Image: '/miyabi-1.png',
-    player2Image: '/miyabi-2.png',
+    player1Image: MIYABI_VARIANTS.player1[0],
+    player2Image: MIYABI_VARIANTS.player2[0],
     centerImage: CENTER_PATTERN_IMAGE_URL,
     player1Label: 'Miyabi Teal',
     player2Label: 'Miyabi Vermilion',
@@ -262,8 +276,8 @@ const THEME_IMAGE_CONFIGS = {
   iki: {
     player1ColorId: 'iki_blue',
     player2ColorId: 'iki_white',
-    player1Image: '/iki-1.png',
-    player2Image: '/iki-2.png',
+    player1Image: IKI_VARIANTS.player1[0],
+    player2Image: IKI_VARIANTS.player2[0],
     centerImage: CENTER_PATTERN_IMAGE_URL,
     player1Label: 'Iki Blue',
     player2Label: 'Iki White',
@@ -437,6 +451,9 @@ export default function App() {
   const [boardVariant, setBoardVariant] = useState<BoardVariant>(DEFAULT_BOARD_VARIANT)
   const [pendingBoardVariant, setPendingBoardVariant] = useState<BoardVariant>(DEFAULT_BOARD_VARIANT)
   const [playerColors, setPlayerColors] = useState<PlayerColorConfig>({ ...DEFAULT_PLAYER_COLORS })
+  const [pieceImageOverrides, setPieceImageOverrides] = useState<Partial<Record<DisplayColorId, string>>>(() =>
+    createPieceImageOverrides(DEFAULT_PLAYER_COLORS),
+  )
   const [pendingColors, setPendingColors] = useState<PlayerColorConfig>({ ...DEFAULT_PLAYER_COLORS })
   const [matchMode, setMatchMode] = useState<MatchMode>('pvp')
   const [pendingMode, setPendingMode] = useState<MatchMode>('pvp')
@@ -624,7 +641,10 @@ export default function App() {
     return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`).matches
   })
   const showResearchUi = isResearchMode
-  const activePieceVisuals = useMemo(() => getPieceVisualsForColors(playerColors), [playerColors])
+  const activePieceVisuals = useMemo(
+    () => getPieceVisualsForColors(playerColors, pieceImageOverrides),
+    [pieceImageOverrides, playerColors],
+  )
   const t = (key: string): string => translate(language, key)
   const nextTurnNumber = getNextTurnNumber(isPlayback, playbackMoveCursor, playbackTotalMoves, matchRecord.moves.length)
   const turnBadgeLabel = language === 'ja' ? `${nextTurnNumber}${t('status.moveSuffix')}` : `${t('status.turn')} ${nextTurnNumber}`
@@ -2383,6 +2403,7 @@ export default function App() {
       yellow: isDisplayColorId(room.playerColors?.yellow) ? room.playerColors.yellow : DEFAULT_PLAYER_COLORS.yellow,
     }
 
+    setPieceImageOverrides((prev) => ensurePieceImageOverridesForColors(prev, nextRoomColors))
     setPlayerColors(nextRoomColors)
     setBoardVariant(nextGame.boardVariant)
     setPendingBoardVariant(nextGame.boardVariant)
@@ -2717,6 +2738,7 @@ export default function App() {
     setRevealedAutoCount(0)
     lastWinnerRef.current = null
     setBoardRenderer('2d')
+    setPieceImageOverrides(createPieceImageOverrides(nextColors))
     setPlayerColors(nextColors)
     setBoardVariant(pendingBoardVariant)
     setMatchMode(nextMode)
@@ -3197,6 +3219,7 @@ export default function App() {
       isHost: record.mode === 'online' ? Boolean(record.onlinePlayers?.isHost) : false,
       createColors: importedColors,
     })
+    setPieceImageOverrides(createPieceImageOverrides(importedColors))
     setPlayerColors(importedColors)
     setPendingColors(importedColors)
     setBoardVariant(importedMatchRecord.boardVariant)
@@ -5419,11 +5442,14 @@ function colorLabel(id: DisplayColorId): string {
   return found ? found.label : id
 }
 
-function getPieceVisualsForColors(colors: PlayerColorConfig): Record<PieceColor, PieceVisual> {
+function getPieceVisualsForColors(
+  colors: PlayerColorConfig,
+  imageOverrides: Partial<Record<DisplayColorId, string>>,
+): Record<PieceColor, PieceVisual> {
   const activeTheme = getThemeByAssignedColors(colors)
   const centerPieceImage = getCenterPieceImage(activeTheme?.key ?? null)
-  const blueImage = getPieceImageForColorId(colors.blue)
-  const yellowImage = getPieceImageForColorId(colors.yellow)
+  const blueImage = getPieceImageForColorId(colors.blue, imageOverrides)
+  const yellowImage = getPieceImageForColorId(colors.yellow, imageOverrides)
   return {
     blue: {
       imageUrl: blueImage,
@@ -5469,12 +5495,46 @@ function getThemeImageConfigByColorId(id: DisplayColorId): ThemeImageConfig | nu
   )
 }
 
-function getPieceImageForColorId(id: DisplayColorId): string | null {
+function getPieceImageForColorId(
+  id: DisplayColorId,
+  imageOverrides: Partial<Record<DisplayColorId, string>> = {},
+): string | null {
+  const overridden = imageOverrides[id]
+  if (typeof overridden === 'string' && overridden.length > 0) {
+    return overridden
+  }
   const themeImageConfig = getThemeImageConfigByColorId(id)
   if (themeImageConfig === null) {
     return null
   }
   return themeImageConfig.player1ColorId === id ? themeImageConfig.player1Image : themeImageConfig.player2Image
+}
+
+function createPieceImageOverrides(colors: PlayerColorConfig): Partial<Record<DisplayColorId, string>> {
+  return ensurePieceImageOverridesForColors({}, colors)
+}
+
+function ensurePieceImageOverridesForColors(
+  current: Partial<Record<DisplayColorId, string>>,
+  colors: PlayerColorConfig,
+): Partial<Record<DisplayColorId, string>> {
+  let next = current
+  for (const id of [colors.blue, colors.yellow]) {
+    const variants = THEME_PIECE_VARIANTS_BY_COLOR[id]
+    if (!variants || variants.length === 0 || next[id]) {
+      continue
+    }
+    if (next === current) {
+      next = { ...current }
+    }
+    next[id] = pickRandomVariantImage(variants)
+  }
+  return next
+}
+
+function pickRandomVariantImage(images: readonly string[]): string {
+  const index = Math.floor(Math.random() * images.length)
+  return images[index]
 }
 
 function getThemeByAssignedColors(colors: PlayerColorConfig): ColorPairTheme | null {

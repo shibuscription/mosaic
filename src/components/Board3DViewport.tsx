@@ -32,6 +32,9 @@ export function Board3DViewport({
   const [autoRotate, setAutoRotate] = useState(true)
   const autoRotateRef = useRef(true)
   const boardRef = useRef<Board>(board)
+  const colorsRef = useRef(colors)
+  const pieceTexturesRef = useRef(pieceTextures)
+  const pieceTextureOverridesRef = useRef(pieceTextureOverrides)
   const renderBoardRef = useRef<(targetBoard: Board) => void>(() => undefined)
 
   useEffect(() => {
@@ -42,6 +45,21 @@ export function Board3DViewport({
     boardRef.current = board
     renderBoardRef.current(board)
   }, [board])
+
+  useEffect(() => {
+    colorsRef.current = colors
+    renderBoardRef.current(boardRef.current)
+  }, [colors])
+
+  useEffect(() => {
+    pieceTexturesRef.current = pieceTextures
+    renderBoardRef.current(boardRef.current)
+  }, [pieceTextures])
+
+  useEffect(() => {
+    pieceTextureOverridesRef.current = pieceTextureOverrides
+    renderBoardRef.current(boardRef.current)
+  }, [pieceTextureOverrides])
 
   useEffect(() => {
     const mount = mountRef.current
@@ -118,6 +136,7 @@ export function Board3DViewport({
     const pieceMeshes = new Map<string, THREE.Mesh>()
     const textureLoader = new THREE.TextureLoader()
     const textureCache = new Map<string, THREE.Texture>()
+    const materialCache = new Map<string, THREE.Material | THREE.Material[]>()
 
     const getPieceTexture = (url: string): THREE.Texture => {
       const cached = textureCache.get(url)
@@ -140,14 +159,18 @@ export function Board3DViewport({
       const x = col * gridSpacing + level * (gridSpacing / 2) - centerOffset
       const z = row * gridSpacing + level * (gridSpacing / 2) - centerOffset
       const y = level * levelHeight
-      const pieceTexture = pieceTextures?.[color]
-      const pieceTextureOverride = pieceTextureOverrides?.[key]
+      const currentColors = colorsRef.current
+      const pieceTexture = pieceTexturesRef.current?.[color]
+      const pieceTextureOverride = pieceTextureOverridesRef.current?.[key]
       const textureUrl = pieceTextureOverride ?? pieceTexture?.imageUrl ?? null
+      const materialKey = textureUrl ? `${color}|textured|${textureUrl}` : `${color}|solid|${currentColors[color]}`
+      const cachedMaterial = materialCache.get(materialKey)
       const material =
-        textureUrl
+        cachedMaterial ??
+        (textureUrl
           ? [
               new THREE.MeshStandardMaterial({
-                color: colors[color],
+                color: currentColors[color],
                 roughness: 0.42,
                 metalness: 0.04,
               }),
@@ -165,10 +188,13 @@ export function Board3DViewport({
               }),
             ]
           : new THREE.MeshStandardMaterial({
-              color: colors[color],
+              color: currentColors[color],
               roughness: 0.33,
               metalness: 0.06,
-            })
+            }))
+      if (!cachedMaterial) {
+        materialCache.set(materialKey, material)
+      }
       const mesh = new THREE.Mesh(diskGeometry, material)
       mesh.position.set(x, y, z)
       mesh.castShadow = true
@@ -179,11 +205,6 @@ export function Board3DViewport({
 
     const disposePieceMeshes = () => {
       pieceMeshes.forEach((mesh) => {
-        if (Array.isArray(mesh.material)) {
-          mesh.material.forEach((m: THREE.Material) => m.dispose())
-        } else {
-          mesh.material.dispose()
-        }
         boardGroup.remove(mesh)
       })
       pieceMeshes.clear()
@@ -300,11 +321,19 @@ export function Board3DViewport({
       baseHoleMaterial.dispose()
       baseHoleRimMaterial.dispose()
       disposePieceMeshes()
+      materialCache.forEach((material) => {
+        if (Array.isArray(material)) {
+          material.forEach((entry) => entry.dispose())
+          return
+        }
+        material.dispose()
+      })
+      materialCache.clear()
       textureCache.forEach((texture) => texture.dispose())
       textureCache.clear()
       renderer.dispose()
     }
-  }, [colors, pieceTextureOverrides, pieceTextures, board.length])
+  }, [board.length])
 
   return (
     <div className="inline-3d-shell">

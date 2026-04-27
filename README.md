@@ -58,6 +58,7 @@ https://mosaic-game-bef28.web.app
 - Once a piece is placed, its selected variant stays fixed while that piece remains on the board.
 - Record save/load and playback do not preserve exact historical variant assignments.
 - In online play, these visuals are client-side effects and may differ between players.
+- 3D rendering reuses cached textures/materials per image source to stabilize playback performance.
 - Variant images are presentation-only and do not affect legal moves, resolution, win/loss, or game logic.
 
 ## CPU Status

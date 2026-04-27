@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+﻿import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import {
   DEFAULT_BOARD_VARIANT,
   getBoardSpec,
@@ -451,9 +451,7 @@ export default function App() {
   const [boardVariant, setBoardVariant] = useState<BoardVariant>(DEFAULT_BOARD_VARIANT)
   const [pendingBoardVariant, setPendingBoardVariant] = useState<BoardVariant>(DEFAULT_BOARD_VARIANT)
   const [playerColors, setPlayerColors] = useState<PlayerColorConfig>({ ...DEFAULT_PLAYER_COLORS })
-  const [pieceImageOverrides, setPieceImageOverrides] = useState<Partial<Record<DisplayColorId, string>>>(() =>
-    createPieceImageOverrides(DEFAULT_PLAYER_COLORS),
-  )
+  const [pieceVariantByCell, setPieceVariantByCell] = useState<Record<string, string>>({})
   const [pendingColors, setPendingColors] = useState<PlayerColorConfig>({ ...DEFAULT_PLAYER_COLORS })
   const [matchMode, setMatchMode] = useState<MatchMode>('pvp')
   const [pendingMode, setPendingMode] = useState<MatchMode>('pvp')
@@ -641,10 +639,7 @@ export default function App() {
     return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`).matches
   })
   const showResearchUi = isResearchMode
-  const activePieceVisuals = useMemo(
-    () => getPieceVisualsForColors(playerColors, pieceImageOverrides),
-    [pieceImageOverrides, playerColors],
-  )
+  const activePieceVisuals = useMemo(() => getPieceVisualsForColors(playerColors), [playerColors])
   const t = (key: string): string => translate(language, key)
   const nextTurnNumber = getNextTurnNumber(isPlayback, playbackMoveCursor, playbackTotalMoves, matchRecord.moves.length)
   const turnBadgeLabel = language === 'ja' ? `${nextTurnNumber}${t('status.moveSuffix')}` : `${t('status.turn')} ${nextTurnNumber}`
@@ -1930,6 +1925,10 @@ export default function App() {
     }
   }, [isOpeningSplashVisible])
 
+  useLayoutEffect(() => {
+    setPieceVariantByCell((prev) => reconcilePieceVariantByCell(prev, game.board, playerColors))
+  }, [game.board, playerColors])
+
   const positions = useMemo(() => {
     const cells: Array<{
       level: number
@@ -2403,7 +2402,6 @@ export default function App() {
       yellow: isDisplayColorId(room.playerColors?.yellow) ? room.playerColors.yellow : DEFAULT_PLAYER_COLORS.yellow,
     }
 
-    setPieceImageOverrides((prev) => ensurePieceImageOverridesForColors(prev, nextRoomColors))
     setPlayerColors(nextRoomColors)
     setBoardVariant(nextGame.boardVariant)
     setPendingBoardVariant(nextGame.boardVariant)
@@ -2738,7 +2736,6 @@ export default function App() {
     setRevealedAutoCount(0)
     lastWinnerRef.current = null
     setBoardRenderer('2d')
-    setPieceImageOverrides(createPieceImageOverrides(nextColors))
     setPlayerColors(nextColors)
     setBoardVariant(pendingBoardVariant)
     setMatchMode(nextMode)
@@ -3219,7 +3216,6 @@ export default function App() {
       isHost: record.mode === 'online' ? Boolean(record.onlinePlayers?.isHost) : false,
       createColors: importedColors,
     })
-    setPieceImageOverrides(createPieceImageOverrides(importedColors))
     setPlayerColors(importedColors)
     setPendingColors(importedColors)
     setBoardVariant(importedMatchRecord.boardVariant)
@@ -3571,6 +3567,7 @@ export default function App() {
                 board={game.board}
                 colors={pieceColorMap}
                 pieceTextures={activePieceVisuals}
+                pieceTextureOverrides={pieceVariantByCell}
                 onStartPlayback={game.winner && !isPlayback ? handlePlayback3D : undefined}
                 playbackLabel={t('action.playback')}
                 rotateOnLabel={t('action.rotateOn')}
@@ -3756,18 +3753,19 @@ export default function App() {
                         {cell.pieceColor ? (
                           (() => {
                             const pieceVisual = activePieceVisuals[cell.pieceColor]
+                            const pieceImage = pieceVariantByCell[cell.key] ?? pieceVisual.imageUrl
                             return (
                               <span
                                 className={[
                                   'piece',
                                   cell.pieceColor,
-                                  pieceVisual.useRealImage ? 'piece-real-image' : '',
+                                  pieceImage ? 'piece-real-image' : '',
                                 ]
                                   .filter(Boolean)
                                   .join(' ')}
                                 style={
-                                  pieceVisual.imageUrl
-                                    ? { background: `transparent center / 100% 100% no-repeat url(${pieceVisual.imageUrl})` }
+                                  pieceImage
+                                    ? { background: `transparent center / 100% 100% no-repeat url(${pieceImage})` }
                                     : undefined
                                 }
                               />
@@ -5442,14 +5440,11 @@ function colorLabel(id: DisplayColorId): string {
   return found ? found.label : id
 }
 
-function getPieceVisualsForColors(
-  colors: PlayerColorConfig,
-  imageOverrides: Partial<Record<DisplayColorId, string>>,
-): Record<PieceColor, PieceVisual> {
+function getPieceVisualsForColors(colors: PlayerColorConfig): Record<PieceColor, PieceVisual> {
   const activeTheme = getThemeByAssignedColors(colors)
   const centerPieceImage = getCenterPieceImage(activeTheme?.key ?? null)
-  const blueImage = getPieceImageForColorId(colors.blue, imageOverrides)
-  const yellowImage = getPieceImageForColorId(colors.yellow, imageOverrides)
+  const blueImage = getPieceImageForColorId(colors.blue)
+  const yellowImage = getPieceImageForColorId(colors.yellow)
   return {
     blue: {
       imageUrl: blueImage,
@@ -5495,14 +5490,7 @@ function getThemeImageConfigByColorId(id: DisplayColorId): ThemeImageConfig | nu
   )
 }
 
-function getPieceImageForColorId(
-  id: DisplayColorId,
-  imageOverrides: Partial<Record<DisplayColorId, string>> = {},
-): string | null {
-  const overridden = imageOverrides[id]
-  if (typeof overridden === 'string' && overridden.length > 0) {
-    return overridden
-  }
+function getPieceImageForColorId(id: DisplayColorId): string | null {
   const themeImageConfig = getThemeImageConfigByColorId(id)
   if (themeImageConfig === null) {
     return null
@@ -5510,31 +5498,67 @@ function getPieceImageForColorId(
   return themeImageConfig.player1ColorId === id ? themeImageConfig.player1Image : themeImageConfig.player2Image
 }
 
-function createPieceImageOverrides(colors: PlayerColorConfig): Partial<Record<DisplayColorId, string>> {
-  return ensurePieceImageOverridesForColors({}, colors)
-}
-
-function ensurePieceImageOverridesForColors(
-  current: Partial<Record<DisplayColorId, string>>,
-  colors: PlayerColorConfig,
-): Partial<Record<DisplayColorId, string>> {
-  let next = current
-  for (const id of [colors.blue, colors.yellow]) {
-    const variants = THEME_PIECE_VARIANTS_BY_COLOR[id]
-    if (!variants || variants.length === 0 || next[id]) {
-      continue
-    }
-    if (next === current) {
-      next = { ...current }
-    }
-    next[id] = pickRandomVariantImage(variants)
-  }
-  return next
-}
-
 function pickRandomVariantImage(images: readonly string[]): string {
   const index = Math.floor(Math.random() * images.length)
   return images[index]
+}
+
+function reconcilePieceVariantByCell(
+  current: Record<string, string>,
+  board: GameState['board'],
+  colors: PlayerColorConfig,
+): Record<string, string> {
+  const next: Record<string, string> = {}
+  let changed = false
+  let nextCount = 0
+
+  for (let level = 0; level < board.length; level += 1) {
+    for (let row = 0; row < board[level].length; row += 1) {
+      for (let col = 0; col < board[level][row].length; col += 1) {
+        const piece = board[level][row][col]
+        if (!piece) {
+          continue
+        }
+        const variants = getVariantImagesForPlacedPiece(piece.color, colors)
+        if (!variants || variants.length === 0) {
+          continue
+        }
+        const key = toMoveKey(level, row, col)
+        const existing = current[key]
+        next[key] = existing && variants.includes(existing) ? existing : pickRandomVariantImage(variants)
+        if (!existing || next[key] !== existing) {
+          changed = true
+        }
+        nextCount += 1
+      }
+    }
+  }
+
+  if (!changed) {
+    if (Object.keys(current).length !== nextCount) {
+      changed = true
+    } else {
+      for (const key of Object.keys(current)) {
+        if (!(key in next)) {
+          changed = true
+          break
+        }
+      }
+    }
+  }
+
+  return changed ? next : current
+}
+
+function getVariantImagesForPlacedPiece(
+  pieceColor: PieceColor,
+  colors: PlayerColorConfig,
+): readonly string[] | null {
+  if (pieceColor === 'neutral') {
+    return null
+  }
+  const displayColorId = pieceColor === 'blue' ? colors.blue : colors.yellow
+  return THEME_PIECE_VARIANTS_BY_COLOR[displayColorId] ?? null
 }
 
 function getThemeByAssignedColors(colors: PlayerColorConfig): ColorPairTheme | null {

@@ -7,6 +7,7 @@ interface Board3DViewportProps {
   board: Board
   colors: Record<PieceColor, string>
   pieceTextures?: Partial<Record<PieceColor, { imageUrl: string | null; useRealImage: boolean }>>
+  pieceTextureOverrides?: Record<string, string>
   onStartPlayback?: () => void
   onSwitchTo2D?: () => void
   playbackLabel?: string
@@ -19,6 +20,7 @@ export function Board3DViewport({
   board,
   colors,
   pieceTextures,
+  pieceTextureOverrides,
   onStartPlayback,
   onSwitchTo2D,
   playbackLabel = 'Playback',
@@ -139,8 +141,10 @@ export function Board3DViewport({
       const z = row * gridSpacing + level * (gridSpacing / 2) - centerOffset
       const y = level * levelHeight
       const pieceTexture = pieceTextures?.[color]
+      const pieceTextureOverride = pieceTextureOverrides?.[key]
+      const textureUrl = pieceTextureOverride ?? pieceTexture?.imageUrl ?? null
       const material =
-        pieceTexture?.useRealImage && pieceTexture.imageUrl
+        textureUrl
           ? [
               new THREE.MeshStandardMaterial({
                 color: colors[color],
@@ -149,13 +153,13 @@ export function Board3DViewport({
               }),
               new THREE.MeshStandardMaterial({
                 color: '#ffffff',
-                map: getPieceTexture(pieceTexture.imageUrl),
+                map: getPieceTexture(textureUrl),
                 roughness: 0.3,
                 metalness: 0.04,
               }),
               new THREE.MeshStandardMaterial({
                 color: '#ffffff',
-                map: getPieceTexture(pieceTexture.imageUrl),
+                map: getPieceTexture(textureUrl),
                 roughness: 0.3,
                 metalness: 0.04,
               }),
@@ -300,7 +304,7 @@ export function Board3DViewport({
       textureCache.clear()
       renderer.dispose()
     }
-  }, [colors, pieceTextures, board.length])
+  }, [colors, pieceTextureOverrides, pieceTextures, board.length])
 
   return (
     <div className="inline-3d-shell">

@@ -52,11 +52,13 @@ https://mosaic-game-bef28.web.app
 
 ## Tile Pattern Variants
 
-- `Iki` and `Miyabi` now use 5 PNG variants per side (`*_1` to `*_5`).
-- The variant is chosen once at match start and remains fixed during that match.
-- A new draw happens only when starting a new match (including reset/restart/import/new setup flow).
-- In online play, variant selection is currently visual-only per client (not synchronized between players).
-- These variants are visual-only and do not affect game logic, legal moves, result, or record data.
+- `Iki` and `Miyabi` each provide 5 PNG variants per side (`*_1` to `*_5`).
+- For these themes, each newly placed piece picks one variant independently at placement time.
+- Chain / bonus placements also pick variants independently per piece.
+- Once a piece is placed, its selected variant stays fixed while that piece remains on the board.
+- Record save/load and playback do not preserve exact historical variant assignments.
+- In online play, these visuals are client-side effects and may differ between players.
+- Variant images are presentation-only and do not affect legal moves, resolution, win/loss, or game logic.
 
 ## CPU Status
 
